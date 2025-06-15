@@ -1,0 +1,11 @@
+HOMEBREW LOC
+ls /opt/homebrew/include
+
+injest/ ==> ./build.sh
+
+in build/ (after building)
+
+make && ./buildGraph ../../raw_data/Helsinki.osm.pbf
+
+(from injest)
+./all.sh ../../raw_data/Helsinki_region.osm.pbf

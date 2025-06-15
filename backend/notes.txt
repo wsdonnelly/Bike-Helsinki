@@ -1,0 +1,13 @@
+
+in backend/:
+npm init -y
+npm install express body-parser
+npm install node-addon-api          # for N-API C++ wrappers
+npm install node-gyp --save-dev    # for building addons
+
+build addon
+cd backend/bindings
+rm -rf build && npx node-gyp configure && npx node-gyp build
+npx node-gyp rebuild
+
+node index.js

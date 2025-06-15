@@ -3,6 +3,6 @@ node_modules/
 build/
 raw_data/
 .vscode/
-notes.txt
+# notes.txt
 .DS_Store
-*todo.txt
+# *todo.txt
