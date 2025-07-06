@@ -59,12 +59,18 @@ export function MapView({
     <MapContainer
       center={[60.1699, 24.9384]}
       zoom={13}
+      // zoom={7}
       style={{ height: '100%', width: '100%' }}
+      // maxBounds={[
+      //   [59.9, 24.5],
+      //   [60.5, 25.5]
+      // ]}
       maxBounds={[
-        [59.9, 24.5],
-        [60.5, 25.5]
+        [59.0, 19.0],
+        [62.5, 31.5]
       ]}
-      minZoom={12}
+      // minZoom={12}
+      minZoom={11}
       maxZoom={18}
     >
       <TileLayer

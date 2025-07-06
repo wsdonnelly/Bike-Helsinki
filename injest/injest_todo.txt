@@ -1,2 +1,6 @@
 Fix file paths to avoid hardcoding
 possibly update directory layout too?
+
+understand better write graph edges
+
+look for way to encode tags either a single uint64 or a vector of some uintxx

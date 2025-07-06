@@ -8,6 +8,8 @@ npm install node-gyp --save-dev    # for building addons
 build addon
 cd backend/bindings
 rm -rf build && npx node-gyp configure && npx node-gyp build
+USE REBUILD --> same as above
 npx node-gyp rebuild
 
+TO RUN:
 node index.js

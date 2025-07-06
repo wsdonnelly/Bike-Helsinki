@@ -11,7 +11,7 @@ try {
   kdSnap = require('./bindings/build/Release/kd_snap.node')
   router = require('./bindings/build/Release/route.node')
 } catch (err) {
-  console.warn('Native addons not found, falling back to JS:', err)
+  console.warn('Native addons not found:', err)
   kdSnap = null
   router = null
 }
