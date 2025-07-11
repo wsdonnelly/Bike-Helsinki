@@ -1,0 +1,25 @@
+#pragma once
+
+#include <cstdint>
+
+enum SurfaceTypes : uint8_t
+{
+    SURF_PAVED,
+    SURF_ASPHALT,
+    SURF_CONCRETE,
+    SURF_PAVING_STONES,
+    SURF_SETT,
+    SURF_UNHEWN_COBBLESTONES,
+    SURF_COBBLESTONES,
+    SURF_BRICKS,
+
+    SURF_UNPAVED,
+    SURF_COMPACTED,
+    SURF_FINE_GRAVEL,
+    SURF_GRAVEL,
+    SURF_GROUND,
+    SURF_DIRT,
+    SURF_EARTH,
+
+    SURF_UNKNOWN
+};

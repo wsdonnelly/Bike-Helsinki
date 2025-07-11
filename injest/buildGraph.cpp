@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "SurfaceTypes.hpp"
+
 // Format: [uint32 numNodes] [for i in 0..numNodes-1: uint64 nodeId_i][float32 lat_i][float32 lon_i]
 void writeGraphNodesBin(size_t numNodeIds, const std::vector<uint64_t>& allNodeIds,
                         const std::unordered_map<uint64_t, std::pair<float, float>>& nodeCoordMap)
@@ -33,9 +35,10 @@ void writeGraphNodesBin(size_t numNodeIds, const std::vector<uint64_t>& allNodeI
 };
 
 // Format: [uint32 numNodeIds][uint32 edgeCount] [ offsets[0..numNodeIds] (uint32 each) ]
-// neighbors[0..edgeCount-1] (uint32) ] [ weights[0..edgeCount-1] (float32) ]
+// neighbors[0..edgeCount-1] (uint32) ] [ weights[0..edgeCount-1] (float32) ] [ surfaces[0..edgeCount-1] (SurfaceTypes (uint8_t)) ]
 void writeGraphEdgesBin(size_t numNodeIds, size_t edgeCount, const std::vector<uint32_t>& offsets,
-                        const std::vector<uint32_t>& neighbors, const std::vector<float>& weights)
+                        const std::vector<uint32_t>& neighbors, const std::vector<float>& weights,
+                    const std::vector<SurfaceTypes>& surfaces)
 {
     std::ofstream out("../../data/graph_edges.bin", std::ios::binary);
     uint32_t n_nodes = static_cast<uint32_t>(numNodeIds);
@@ -60,48 +63,25 @@ void writeGraphEdgesBin(size_t numNodeIds, size_t edgeCount, const std::vector<u
         float w = weights[i];
         out.write(reinterpret_cast<const char*>(&w), sizeof(w));
     }
+    // write surface
+    //could be for (const auto& s : surfaces) same for others
+    for (uint32_t i{0}; i < surfaces.size(); ++i)
+    {
+        SurfaceTypes s = surfaces[i];
+        out.write(reinterpret_cast<const char*>(&s), sizeof(s));
+    }
     out.close();
     std::cout << "Wrote graph_edges.bin (" << m_edges << " directed edges)\n";
 };
 
-// Handler for collecting bike-friendly ways
-// struct WayCollector : public osmium::handler::Handler
-// {
-//   std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap;
-
-//   WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>&
-//   wayNodesMap) :
-//       wayNodesMap(wayNodesMap) {}
-
-//   void way(const osmium::Way& way)
-//   {
-//     const auto& tags = way.tags();
-//     const char* hv = tags.get_value_by_key("highway");
-//     const char* bv = tags.get_value_by_key("bicycle");
-
-//     if ((hv  != nullptr && std::strcmp(hv, "cycleway") == 0) ||
-//         (bv  != nullptr && std::strcmp(bv, "yes")      == 0))
-//     {
-//         // wayNodesMap[way.id()] = std::vector<uint64_t>();
-//         auto& vec = wayNodesMap[way.id()];
-//         vec.reserve(way.nodes().size());
-//         for (auto& n : way.nodes())
-//         {
-//           // wayNodesMap[way.id()].push_back(n.ref());
-//           vec.push_back(n.ref());
-//         }
-//     }
-//   }
-// };
-
-// EXTENDED
 //  Handler for collecting bike-friendly ways
 struct WayCollector : public osmium::handler::Handler
 {
     std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap;
+    std::unordered_map<uint64_t,SurfaceTypes>& waySurfaceMap;
 
     // Allowed highway types for cycling
-    // can be constexpr???
+    // could be constexpr arr?
     static inline const std::unordered_set<std::string_view> kAllowedHighways{
         "cycleway",    // dedicated cycleway
         "path",        // generic path
@@ -110,14 +90,15 @@ struct WayCollector : public osmium::handler::Handler
         "secondary",   // larger roads that may have bike lanes
         "tertiary",    "unclassified", "track"};
 
-    // Allowed bicycle tag values
-    // can be constexpr???
-    static inline const std::unordered_set<std::string_view> kAllowedBicycle{"yes", "designated", "permissive"};
+        // Allowed bicycle tag values
+        // could be constexpr arr?
+        static inline const std::unordered_set<std::string_view> kAllowedBicycle{"yes", "designated", "permissive"};
 
-    WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap) : wayNodesMap(wayNodesMap)
+    // MOST PERMISSIVE GET ALL BIKABLE ROUTES
+    WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap, std::unordered_map<uint64_t,SurfaceTypes>& waySurfaceMap)
+        : wayNodesMap(wayNodesMap), waySurfaceMap(waySurfaceMap)
     {
     }
-
     void way(const osmium::Way& way)
     {
         const auto& tags = way.tags();
@@ -129,6 +110,28 @@ struct WayCollector : public osmium::handler::Handler
 
         if (highway_ok || bicycle_ok)
         {
+            const char* sv = tags.get_value_by_key("surface");
+            SurfaceTypes surfaceType{SURF_UNKNOWN};
+            if (sv)
+            {
+                if (std::strcmp(sv, "paved") == 0)      surfaceType = SURF_PAVED;
+                else if (std::strcmp(sv, "asphalt") == 0) surfaceType = SURF_ASPHALT;
+                else if (std::strcmp(sv, "concrete") == 0) surfaceType = SURF_CONCRETE;
+                else if (std::strcmp(sv, "paving_stones") == 0) surfaceType = SURF_PAVING_STONES;
+                else if (std::strcmp(sv, "sett") == 0) surfaceType = SURF_SETT;
+                else if (std::strcmp(sv, "unhewn_cobblestones") == 0) surfaceType = SURF_UNHEWN_COBBLESTONES;
+                else if (std::strcmp(sv, "cobblestones") == 0) surfaceType = SURF_COBBLESTONES;
+                else if (std::strcmp(sv, "bricks") == 0) surfaceType = SURF_BRICKS;
+                else if (std::strcmp(sv, "unpaved") == 0) surfaceType = SURF_UNPAVED;
+                else if (std::strcmp(sv, "compacted") == 0) surfaceType = SURF_COMPACTED;
+                else if (std::strcmp(sv, "fine_gravel") == 0) surfaceType = SURF_FINE_GRAVEL;
+                else if (std::strcmp(sv, "gravel") == 0) surfaceType = SURF_GRAVEL;
+                else if (std::strcmp(sv, "ground") == 0) surfaceType = SURF_GROUND;
+                else if (std::strcmp(sv, "dirt") == 0) surfaceType = SURF_DIRT;
+                else if (std::strcmp(sv, "earth") == 0) surfaceType = SURF_EARTH;
+            }
+            waySurfaceMap[way.id()] = surfaceType;
+
             auto& vec = wayNodesMap[way.id()];
             vec.reserve(way.nodes().size());
             for (auto& n : way.nodes())
@@ -137,6 +140,8 @@ struct WayCollector : public osmium::handler::Handler
             }
         }
     }
+
+
 };
 
 // Handler for collecting needed nodes
@@ -196,7 +201,8 @@ int main(int argc, char* argv[])
     // unordered_map<uint64_t unique way id, std::vector<uint64_t ordered list of
     // node id belonging to that way >> wayNodesMap;
     std::unordered_map<uint64_t, std::vector<uint64_t>> wayNodesMap;
-    WayCollector wc(wayNodesMap);
+    std::unordered_map<uint64_t,SurfaceTypes> waySurfaceMap;
+    WayCollector wc(wayNodesMap, waySurfaceMap);
 
     // ─── Pass 1: Collect bike-friendly ways ──────────────────────────────
     osmium::io::Reader readerPassOne(osmFile);
@@ -284,11 +290,12 @@ int main(int argc, char* argv[])
 
     std::vector<uint32_t> neighbors(edgeCount);
     std::vector<float> weights(edgeCount);
+    std::vector<SurfaceTypes> surfaces(edgeCount);
     // To fill neighbors/weights, copy offsets to a temp array we can increment
     std::vector<uint32_t> currentPos = offsets;
 
     // Second pass: actually fill in neighbors/weights
-    for (const auto& [_, nodeList] : wayNodesMap)
+    for (const auto& [wayId, nodeList] : wayNodesMap)
     {
         for (size_t i{0}; i < nodeList.size() - 1; ++i)
         {
@@ -304,15 +311,57 @@ int main(int argc, char* argv[])
             size_t idx_uv = currentPos[u]++;
             neighbors[idx_uv] = v;
             weights[idx_uv] = dist;
+            surfaces[idx_uv] = waySurfaceMap[wayId];
             // v → u
             size_t idx_vu = currentPos[v]++;
             neighbors[idx_vu] = u;
             weights[idx_vu] = dist;
+            surfaces[idx_vu] = waySurfaceMap[wayId];
         }
     }
 
     writeGraphNodesBin(numNodeIds, allNodeIds, nodeCoordMap);
-    writeGraphEdgesBin(numNodeIds, edgeCount, offsets, neighbors, weights);
+    writeGraphEdgesBin(numNodeIds, edgeCount, offsets, neighbors, weights, surfaces);
 
     return 0;
 }
+
+
+// void way(const osmium::Way& way) {
+//     const auto& tags = way.tags();
+//     const char* hv = tags.get_value_by_key("highway");
+//     const char* bv = tags.get_value_by_key("bicycle");
+//     const char* cw = tags.get_value_by_key("cycleway");
+//     const char* av = tags.get_value_by_key("access");
+//     const char* tt = tags.get_value_by_key("tracktype");
+
+//     // 1) explicit denies
+//     if ((av && std::strcmp(av, "no") == 0) ||
+//         (bv && std::strcmp(bv, "no") == 0))
+//     {
+//         return;
+//     }
+
+//     bool highway_ok   = hv && kAllowedHighways.count(hv);
+//     bool bicycle_ok   = bv && kAllowedBicycle.count(bv);
+//     bool cycleway_ok  = cw != nullptr;
+//     bool footway_ok   = (hv && std::strcmp(hv, "footway") == 0) && bicycle_ok;
+
+//     // 2) skip big roads without any bike facility
+//     if (hv
+//         && (std::strcmp(hv, "trunk") == 0 || std::strcmp(hv, "primary") == 0)
+//         && !cycleway_ok
+//         && !bicycle_ok)
+//     {
+//         return;
+//     }
+
+//     if (highway_ok || bicycle_ok || cycleway_ok || footway_ok) {
+//         auto& vec = wayNodesMap[way.id()];
+//         vec.reserve(way.nodes().size());
+//         for (auto& n : way.nodes()) {
+//             vec.push_back(n.ref());
+//         }
+//         // waySurfaceMap[way.id()] = extract_surfaceType(tags);
+//     }
+// }

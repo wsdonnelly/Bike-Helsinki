@@ -1,25 +1,28 @@
+#include <napi.h>
+
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
-#include <napi.h>
 #include <vector>
 
 using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::no_property,
                                     boost::property<boost::edge_weight_t, float>>;
 
-// again is static the best way here, does this only create the graph once on load?
-// static Graph g;
+// again is static the best way here, does this only create the graph once on
+// load? static Graph g;
 static Graph graph;
 static std::vector<std::pair<float, float>> nodeCoords;
 /*
-graph_nodes.bin format: [uint32 numNodes] [for i in 0..numNodes-1: uint64 nodeId_i][float32 lat_i][float32 lon_i]
+graph_nodes.bin format: [uint32 numNodes] [for i in 0..numNodes-1: uint64
+nodeId_i][float32 lat_i][float32 lon_i]
 
-graph_edges.bin format: [uint32 numNodeIds][uint32 edgeCount] [ offsets[0..numNodeIds] (uint32 each) ]
-neighbors[0..edgeCount-1] (uint32) ] [ weights[0..edgeCount-1] (float32) ]
+graph_edges.bin format: [uint32 numNodeIds][uint32 edgeCount] [
+offsets[0..numNodeIds] (uint32 each) ] neighbors[0..edgeCount-1] (uint32) ] [
+weights[0..edgeCount-1] (float32) ]
 */
-void LoadGraph(const std::string& nodesPath, const std::string& edgesPath)
+void LoadGraph(const std::string &nodesPath, const std::string &edgesPath)
 {
     std::ifstream nodesIn(nodesPath, std::ios::binary), edgesIn(edgesPath, std::ios::binary);
     if (!nodesIn && !edgesIn)
@@ -28,33 +31,33 @@ void LoadGraph(const std::string& nodesPath, const std::string& edgesPath)
     }
     // uint32_t N, M;
     uint32_t numNodes, numEdges;
-    nodesIn.read(reinterpret_cast<char*>(&numNodes), sizeof(numNodes));
+    nodesIn.read(reinterpret_cast<char *>(&numNodes), sizeof(numNodes));
     nodeCoords.resize(numNodes);
     for (uint32_t i{0}; i < numNodes; ++i)
     {
         uint64_t id;
         float lat, lon;
-        nodesIn.read(reinterpret_cast<char*>(&id), sizeof(id));
-        nodesIn.read(reinterpret_cast<char*>(&lat), sizeof(lat));
-        nodesIn.read(reinterpret_cast<char*>(&lon), sizeof(lon));
+        nodesIn.read(reinterpret_cast<char *>(&id), sizeof(id));
+        nodesIn.read(reinterpret_cast<char *>(&lat), sizeof(lat));
+        nodesIn.read(reinterpret_cast<char *>(&lon), sizeof(lon));
         nodeCoords[i] = {lat, lon};
     }
-    edgesIn.read(reinterpret_cast<char*>(&numNodes), sizeof(numNodes));
-    edgesIn.read(reinterpret_cast<char*>(&numEdges), sizeof(numEdges));
+    edgesIn.read(reinterpret_cast<char *>(&numNodes), sizeof(numNodes));
+    edgesIn.read(reinterpret_cast<char *>(&numEdges), sizeof(numEdges));
     std::vector<uint32_t> offsets(numNodes + 1);
     for (uint32_t i{0}; i <= numNodes; ++i)
     {
-        edgesIn.read(reinterpret_cast<char*>(&offsets[i]), 4);
+        edgesIn.read(reinterpret_cast<char *>(&offsets[i]), 4);
     }
     std::vector<uint32_t> neighbors(numEdges);
     std::vector<float> weights(numEdges);
     for (uint32_t i{0}; i < numEdges; ++i)
     {
-        edgesIn.read(reinterpret_cast<char*>(&neighbors[i]), 4);
+        edgesIn.read(reinterpret_cast<char *>(&neighbors[i]), 4);
     }
     for (uint32_t i{0}; i < numEdges; ++i)
     {
-        edgesIn.read(reinterpret_cast<char*>(&weights[i]), 4);
+        edgesIn.read(reinterpret_cast<char *>(&weights[i]), 4);
     }
 
     graph = Graph(numNodes);
@@ -67,7 +70,7 @@ void LoadGraph(const std::string& nodesPath, const std::string& edgesPath)
     }
 }
 
-Napi::Value FindPath(const Napi::CallbackInfo& info)
+Napi::Value FindPath(const Napi::CallbackInfo &info)
 {
     Napi::Env env = info.Env();
     const auto numNodes = boost::num_vertices(graph);
@@ -154,7 +157,7 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
         }
         return jsPath;
     }
-    catch (const std::exception& ex)
+    catch (const std::exception &ex)
     {
         std::cerr << "[route] exception: " << ex.what() << "\n";
         Napi::Error::New(env, ex.what()).ThrowAsJavaScriptException();
