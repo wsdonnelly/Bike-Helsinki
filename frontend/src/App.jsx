@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { MapView, GraphOverlay } from './components/MapView'
-import Controls from './components/Controls'
-import { snapToGraph, getRoute, getGraph } from './utils/api'
+import ControlPanel from './components/ControlPanel'
+import { snapToGraph, getRoute, setSurfaceFilter } from './utils/api'
 
 const App = () => {
   // Holds the snapped start/end points { nodeIdx, lat, lon }
@@ -11,20 +11,9 @@ const App = () => {
   // Holds the array of [lat, lon] for the route polyline
   const [routeCoords,  setRouteCoords]  = useState([])
 
-  //for test overlay
-  // const [segments, setSegments] = useState([])
-
-// useEffect(() => {
-//   getGraph()
-//     .then(segments => {
-//       console.log('fetched segments (type):', typeof(segments));
-//       setSegments(segments);
-//     })
-//     .catch(err => {
-//       console.error('Failed to load graph:', err);
-//     });
-// }, []);
-
+  const [surfaceMask, setSurfaceMask] = useState(0xFFFF)
+  const [lastSubmittedMask, setLastSubmittedMask] = useState(0xFFFF)
+  const [panelOpen, setPanelOpen] = useState(false)
 
   // Whenever both endpoints are set, fetch the route
   useEffect(() => {
@@ -52,10 +41,6 @@ const App = () => {
     console.log('snappedEnd updated:', snappedEnd);
   }, [snappedEnd]);
 
-  //   useEffect(() => {
-  //   console.log('segmants updated:', typeof(segments));
-  // }, [segments]);
-
   const handleMapClick = async ({ lat, lng }) => {
     try {
       const snapped = await snapToGraph(lat, lng)
@@ -82,7 +67,20 @@ const App = () => {
     setSnappedEnd(null);
     setRouteCoords([]);
   }
-  return (
+
+  const handlePanelClose = () => {
+    setPanelOpen(false)
+    if (surfaceMask !== lastSubmittedMask) {
+      setSurfaceFilter(surfaceMask)
+      setLastSubmittedMask(surfaceMask)
+    }
+  }
+
+  const handleSurfaceToggle = (bit) => {
+    setSurfaceMask(prev => (prev & bit) ? (prev & ~bit) : (prev | bit))
+  }
+
+    return (
     <>
       <MapView
         snappedStart={snappedStart}
@@ -90,23 +88,16 @@ const App = () => {
         routeCoords={routeCoords}
         onMapClick={handleMapClick}
       />
-      <Controls onClear={handleClear} />
+      <ControlPanel
+        surfaceMask={surfaceMask}
+        onToggleSurface={handleSurfaceToggle}
+        onClear={handleClear}
+        onClose={handlePanelClose}
+        panelOpen={panelOpen}
+        setPanelOpen={setPanelOpen}
+      />
     </>
   )
-  // return (
-  //   <>
-  //     <MapView
-  //       snappedStart={snappedStart}
-  //       snappedEnd={snappedEnd}
-  //       routeCoords={routeCoords}
-  //       onMapClick={handleMapClick}
-  //     >
-  //       <GraphOverlay segments={segments} />
-  //     </MapView>
-
-  //     <Controls onClear={handleClear} />
-  //   </>
-  // )
 }
 
 export default App

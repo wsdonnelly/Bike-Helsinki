@@ -11,6 +11,15 @@
 
 #include "SurfaceTypes.hpp"
 
+#include <unistd.h>
+#include <sys/resource.h>
+
+size_t getMemoryUsageInBytes() {
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    return static_cast<size_t>(usage.ru_maxrss) * 1024; // bytes
+}
+
 struct EdgeProps
 {
     float weight;
@@ -43,6 +52,7 @@ static std::vector<std::pair<float, float>> nodeCoords;
 
 void LoadGraph(const std::string& nodesPath, const std::string& edgesPath)
 {
+    std::cerr << "at top [C++] Memory used: " << getMemoryUsageInBytes() / (1024.0 * 1024.0) << " MB\n";
     std::ifstream nodesIn(nodesPath, std::ios::binary), edgesIn(edgesPath, std::ios::binary);
     if (!nodesIn && !edgesIn)
     {
@@ -88,12 +98,17 @@ void LoadGraph(const std::string& nodesPath, const std::string& edgesPath)
     {
         for (uint32_t edgeIdx = offsets[nodeIdx]; edgeIdx < offsets[nodeIdx + 1]; ++edgeIdx)
         {
-            boost::add_edge(nodeIdx, neighbors[edgeIdx], EdgeProps{weights[edgeIdx], surfaces[edgeIdx]}, graph);
+            // boost::add_edge(nodeIdx, neighbors[edgeIdx], EdgeProps{weights[edgeIdx], surfaces[edgeIdx]}, graph);
+            auto neighbor = neighbors[edgeIdx];
+            if (nodeIdx < neighbor)
+            {
+                boost::add_edge(nodeIdx, neighbor, EdgeProps{weights[edgeIdx], surfaces[edgeIdx]}, graph);
+            }
         }
     }
-
+    std::cerr << "before fGrapoph.emplace[C++] Memory used: " << getMemoryUsageInBytes() / (1024.0 * 1024.0) << " MB\n";
     fGraph.emplace(graph, SurfaceTypeFilter(types::ALL_SURFACES, graph));
-
+    std::cerr << "after fGrapoph.emplace[C++] Memory used: " << getMemoryUsageInBytes() / (1024.0 * 1024.0) << " MB\n";
     std::cerr << "[route] Loaded graph with " << numNodes << " nodes and " << numEdges << " edges\n";
 }
 
@@ -242,7 +257,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     LoadGraph("../data/graph_nodes.bin", "../data/graph_edges.bin");
     exports.Set("findPath", Napi::Function::New(env, FindPath));
-    exports.Set("buildFilteredGraph", Napi::Function::New(env, BuildFilteredGraph)); 
+    exports.Set("buildFilteredGraph", Napi::Function::New(env, BuildFilteredGraph));
     return exports;
 }
 

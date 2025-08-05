@@ -5,15 +5,16 @@ DONE
     {
         SURF_PAVED = 1 << 0,
 
-
+DONE
 -->In bindings/route.cpp
     Add new function 'BuildFilteredGraph' that can be called from the frontend on controls state change
     Add backend endpoint
 
-    FRONTEND NOTES
-    should probably be triggered on controls window close, not every selection
-    main map window should have side bar (or something) that always shows the selection
-
 -->Refactor hardcoded paths
 
 -->Add control features to frontend
+    should probably be triggered on controls window close, not every selection
+    main map window should have side bar (or something) that always shows the selection
+
+-->Investigate optimizing the graph.
+    Make directed graph? prune redundant edges etc?? reduce memory consumption.

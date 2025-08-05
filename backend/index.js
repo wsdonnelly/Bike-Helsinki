@@ -1,15 +1,17 @@
 const express = require('express')
 const bodyParser = require('body-parser')
 const cors = require('cors')
-const fs = require('fs');         // ← readFileSync
-const path = require('path');     // ← path.join
+const fs = require('fs');
+const path = require('path');
 
 // Attempt to load the native addons (build/Release/…)
+console.log('Initial:', process.memoryUsage());
 let kdSnap
 let router
 try {
   kdSnap = require('./bindings/build/Release/kd_snap.node')
   router = require('./bindings/build/Release/route.node')
+  console.log('After reading route.node:', process.memoryUsage());
 } catch (err) {
   console.warn('Native addons not found:', err)
   kdSnap = null
@@ -23,7 +25,7 @@ app.use(cors())
 const nodesBin = fs.readFileSync(path.join('../data/graph_nodes.bin'));
 const TOTAL_NODES = nodesBin.readUInt32LE(0);
 console.log('TOTAL_NODES =', TOTAL_NODES);
-console.log(process.memoryUsage());
+console.log("at end",process.memoryUsage());
 
 //test
 // let start = Date.now();

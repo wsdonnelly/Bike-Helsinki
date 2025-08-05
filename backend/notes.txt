@@ -11,5 +11,7 @@ rm -rf build && npx node-gyp configure && npx node-gyp build
 USE REBUILD --> same as above
 npx node-gyp rebuild
 
+node-gyp rebuild --release
+
 TO RUN:
 node index.js

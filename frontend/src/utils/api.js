@@ -14,8 +14,14 @@ export function getRoute(startIdx, endIdx) {
     .then(res => res.data.path)
 }
 
-export function getGraph() {
-  return API
-    .get('/all',{})
-    .then(res => res.data.segments)
+export async function setSurfaceFilter(mask) {
+  try {
+    const res = await API.post('/filter', { mask }) // ✅ use API instance with baseURL
+    console.log(`✔ Surface filter updated: 0x${mask.toString(16).padStart(4, '0')}`)
+    return res.status === 204
+  } catch (err) {
+    console.error('✖ Failed to set surface filter:', err.response?.data || err.message)
+    throw err
+  }
 }
+
