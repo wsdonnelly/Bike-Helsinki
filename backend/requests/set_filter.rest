@@ -1,0 +1,7 @@
+### Set surface type mask (valid example)
+POST http://localhost:3000/filter
+Content-Type: application/json
+
+{
+  "mask": 48879
+}

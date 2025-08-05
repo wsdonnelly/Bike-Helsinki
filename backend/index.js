@@ -57,60 +57,6 @@ app.get('/snap', (req, res) => {
   }
 });
 
-// GET /route?startIdx=...&endIdx=... → { path: [ { nodeIdx, lat, lon }, … ] }
-// app.get('/route', (req, res) => {
-//   const s = parseInt(req.query.startIdx, 10)
-//   const e = parseInt(req.query.endIdx,   10)
-
-//   console.log("requested route start: ", req.query.startIdx, " - end index: ", req.query.endIdx);
-//   if (isNaN(s) || isNaN(e)) {
-//     console.warn('Invalid parameters for /route:', req.query);
-//     return res.status(400).json({ error: 'Invalid startIdx/endIdx' });
-//   }
-//   try {
-//     const path = router.findPath(s, e);
-//     console.log("found path", path.size)
-//     return res.json({ path });
-//   } catch (ex) {
-//     console.error('Route error:', ex);
-//     return res.status(500).json({ error: ex.message });
-//   }
-// });
-
-// app.get('/route', (req, res) => {
-//   const rawStart = req.query.startIdx;
-//   const rawEnd   = req.query.endIdx;
-
-//   console.log('GET /route → startIdx:', rawStart, 'endIdx:', rawEnd);
-
-//   const s = parseInt(rawStart, 10);
-//   const e = parseInt(rawEnd,   10);
-
-//   if (isNaN(s) || isNaN(e)) {
-//     console.warn('Invalid parameters for /route:', req.query);
-//     return res.status(400).json({
-//       error: 'Invalid startIdx or endIdx; both must be integers'
-//     });
-//   }
-
-//   try {
-//     const path = router.findPath(s, e);
-//     if (!Array.isArray(path)) {
-//       throw new Error('Unexpected return from findPath: ' + path);
-//     }
-//     console.log(`Route length ${path.length} from ${s} to ${e}`);
-//     return res.json({ path });
-//   }
-//   catch (err) {
-//     console.warn(`Routing error from ${s}→${e}:`, err.message);
-//     if (err.message.includes('Broken predecessor chain')) {
-//       return res.json({ path: [] });
-//     }
-//     return res.status(500).json({
-//       error: 'Routing failed: ' + err.message
-//     });
-//   }
-// });
 app.get('/route', (req, res) => {
   // 1) Destructure the query params
   const { startIdx, endIdx } = req.query;
@@ -162,68 +108,33 @@ app.get('/route', (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-// // ─── NEW: dump all graph edges as small line-segments ───────────────────
-// app.get('/all', (req, res) => {
-//    console.log('GET /all invoked');
-//   try {
-//     // 1) Load nodes
-//     const nodesPath = path.join(__dirname, '..', 'data', 'graph_nodes.bin');
-//     const nb       = fs.readFileSync(nodesPath);
-//     let off       = 0;
-//     const N       = nb.readUInt32LE(off); off += 4;
-//     // parse N entries of: uint64, float, float
-//     const coords  = new Array(N);
-//     for (let i = 0; i < N; i++) {
-//       const id  = Number(nb.readBigUInt64LE(off)); off += 8;
-//       const lat = nb.readFloatLE(off);             off += 4;
-//       const lon = nb.readFloatLE(off);             off += 4;
-//       coords[i] = { id, lat, lon };
-//     }
 
-//     // 2) Load edges (CSR)
-//     const edgesPath = path.join(__dirname, '..', 'data', 'graph_edges.bin');
-//     const eb        = fs.readFileSync(edgesPath);
-//     off              = 0;
-//     const N2        = eb.readUInt32LE(off); off += 4;
-//     const M         = eb.readUInt32LE(off); off += 4;
-//     // read CSR offsets (N2+1 of uint32)
-//     const offsets   = new Uint32Array(N2+1);
-//     for (let i = 0; i <= N2; i++) {
-//       offsets[i] = eb.readUInt32LE(off);
-//       off += 4;
-//     }
-//     // read M neighbors (uint32)
-//     const neighbors = new Uint32Array(M);
-//     for (let i = 0; i < M; i++) {
-//       neighbors[i] = eb.readUInt32LE(off);
-//       off += 4;
-//     }
-//     // skip M weights (float32)
-//     off += 4 * M;
+// POST /filter → sets surface type filter mask
+app.post('/filter', (req, res) => {
+  const { mask } = req.body;
 
-//     // 3) Build segment list, only u < v to avoid duplicates
-//     const segments = [];
-//     for (let u = 0; u < N2; u++) {
-//       const ucoord = coords[u];
-//       for (let e = offsets[u]; e < offsets[u+1]; e++) {
-//         const v = neighbors[e];
-//         if (v > u) {
-//           const vcoord = coords[v];
-//           segments.push([
-//             [ucoord.lat, ucoord.lon],
-//             [vcoord.lat, vcoord.lon]
-//           ]);
-//         }
-//       }
-//     }
+  // Validate mask is BitWidth length (SurfaceTypes.hpp) currently uint16_t
+  if (typeof mask !== 'number' || !Number.isInteger(mask)) {
+    console.warn('✖ Invalid or missing "mask" in request body');
+    return res.status(400).json({
+      error: 'Missing or invalid "mask" in request body. Must be an integer.'
+    });
+  }
 
-//     // 4) Return JSON
-//     res.json({ segments });
-//   }
-//   catch (err) {
-//     console.error('Error in /all:', err);
-//     res.status(500).json({ error: err.message });
-//   }
-// });
+  if (mask < 0 || mask > 0xFFFF) {
+    return res.status(400).json({
+      error: 'Surface mask must be a 16-bit unsigned integer (0x0–0xFFFF)'
+    });
+  }
+
+  try {
+    router.buildFilteredGraph(mask);
+    console.log(`✔ Surface filter updated: 0x${mask.toString(16).padStart(4, '0')}`);
+    return res.status(204).send(); // No content, success
+  } catch (err) {
+    console.error('✖ Exception in buildFilteredGraph:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(3000, ()=> console.log('Server on http://localhost:3000'));
