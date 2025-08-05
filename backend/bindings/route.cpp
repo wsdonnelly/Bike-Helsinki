@@ -2,78 +2,146 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/dijkstra_shortest_paths.hpp>
+#include <boost/graph/filtered_graph.hpp>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <vector>
 
-using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::no_property,
-                                    boost::property<boost::edge_weight_t, float>>;
+#include "SurfaceTypes.hpp"
 
-// again is static the best way here, does this only create the graph once on
-// load? static Graph g;
+struct EdgeProps
+{
+    float weight;
+    types::SurfaceTypes surface;
+};
+
+using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, boost::no_property, EdgeProps>;
+
+struct SurfaceTypeFilter
+{
+    types::BitWidth allowedSurfaceMask;
+    const Graph* g{nullptr};
+
+    SurfaceTypeFilter() = default;
+    SurfaceTypeFilter(types::BitWidth allowedMask, const Graph& graph) : allowedSurfaceMask(allowedMask), g(&graph)
+    {
+    }
+
+    bool operator()(const Graph::edge_descriptor& e) const
+    {
+        return (allowedSurfaceMask & static_cast<types::BitWidth>((*g)[e].surface)) != 0;
+    }
+};
+
+using FilteredGraph = boost::filtered_graph<Graph, SurfaceTypeFilter>;
+
 static Graph graph;
+static std::optional<FilteredGraph> fGraph;
 static std::vector<std::pair<float, float>> nodeCoords;
-/*
-graph_nodes.bin format: [uint32 numNodes] [for i in 0..numNodes-1: uint64
-nodeId_i][float32 lat_i][float32 lon_i]
 
-graph_edges.bin format: [uint32 numNodeIds][uint32 edgeCount] [
-offsets[0..numNodeIds] (uint32 each) ] neighbors[0..edgeCount-1] (uint32) ] [
-weights[0..edgeCount-1] (float32) ]
-*/
-void LoadGraph(const std::string &nodesPath, const std::string &edgesPath)
+void LoadGraph(const std::string& nodesPath, const std::string& edgesPath)
 {
     std::ifstream nodesIn(nodesPath, std::ios::binary), edgesIn(edgesPath, std::ios::binary);
     if (!nodesIn && !edgesIn)
     {
         throw std::runtime_error("Could not open nodes or edges file: " + nodesPath + edgesPath);
     }
-    // uint32_t N, M;
     uint32_t numNodes, numEdges;
-    nodesIn.read(reinterpret_cast<char *>(&numNodes), sizeof(numNodes));
+    nodesIn.read(reinterpret_cast<char*>(&numNodes), sizeof(numNodes));
     nodeCoords.resize(numNodes);
     for (uint32_t i{0}; i < numNodes; ++i)
     {
         uint64_t id;
         float lat, lon;
-        nodesIn.read(reinterpret_cast<char *>(&id), sizeof(id));
-        nodesIn.read(reinterpret_cast<char *>(&lat), sizeof(lat));
-        nodesIn.read(reinterpret_cast<char *>(&lon), sizeof(lon));
+        nodesIn.read(reinterpret_cast<char*>(&id), sizeof(id));
+        nodesIn.read(reinterpret_cast<char*>(&lat), sizeof(lat));
+        nodesIn.read(reinterpret_cast<char*>(&lon), sizeof(lon));
         nodeCoords[i] = {lat, lon};
     }
-    edgesIn.read(reinterpret_cast<char *>(&numNodes), sizeof(numNodes));
-    edgesIn.read(reinterpret_cast<char *>(&numEdges), sizeof(numEdges));
+    edgesIn.read(reinterpret_cast<char*>(&numNodes), sizeof(numNodes));
+    edgesIn.read(reinterpret_cast<char*>(&numEdges), sizeof(numEdges));
+
     std::vector<uint32_t> offsets(numNodes + 1);
     for (uint32_t i{0}; i <= numNodes; ++i)
     {
-        edgesIn.read(reinterpret_cast<char *>(&offsets[i]), 4);
+        edgesIn.read(reinterpret_cast<char*>(&offsets[i]), 4);
     }
     std::vector<uint32_t> neighbors(numEdges);
+    for (uint32_t i{0}; i < numEdges; ++i)
+    {
+        edgesIn.read(reinterpret_cast<char*>(&neighbors[i]), 4);
+    }
     std::vector<float> weights(numEdges);
     for (uint32_t i{0}; i < numEdges; ++i)
     {
-        edgesIn.read(reinterpret_cast<char *>(&neighbors[i]), 4);
+        edgesIn.read(reinterpret_cast<char*>(&weights[i]), 4);
     }
+    std::vector<types::SurfaceTypes> surfaces(numEdges);
     for (uint32_t i{0}; i < numEdges; ++i)
     {
-        edgesIn.read(reinterpret_cast<char *>(&weights[i]), 4);
+        edgesIn.read(reinterpret_cast<char*>(&surfaces[i]), sizeof(surfaces[i]));
     }
-
     graph = Graph(numNodes);
     for (uint32_t nodeIdx{0}; nodeIdx < numNodes; ++nodeIdx)
     {
         for (uint32_t edgeIdx = offsets[nodeIdx]; edgeIdx < offsets[nodeIdx + 1]; ++edgeIdx)
         {
-            boost::add_edge(nodeIdx, neighbors[edgeIdx], weights[edgeIdx], graph);
+            boost::add_edge(nodeIdx, neighbors[edgeIdx], EdgeProps{weights[edgeIdx], surfaces[edgeIdx]}, graph);
         }
     }
+
+    fGraph.emplace(graph, SurfaceTypeFilter(types::ALL_SURFACES, graph));
+
+    std::cerr << "[route] Loaded graph with " << numNodes << " nodes and " << numEdges << " edges\n";
 }
 
-Napi::Value FindPath(const Napi::CallbackInfo &info)
+Napi::Value BuildFilteredGraph(const Napi::CallbackInfo& info)
 {
     Napi::Env env = info.Env();
-    const auto numNodes = boost::num_vertices(graph);
+
+    // 1. Validate argument
+    if (info.Length() < 1 || !info[0].IsNumber())
+    {
+        Napi::TypeError::New(env, "Expected a single numeric surface type bitmask").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    // 2. Extract mask
+    types::BitWidth mask = static_cast<types::BitWidth>(info[0].As<Napi::Number>().Uint32Value());
+
+    // 3. Validate that the base graph is initialized
+    if (boost::num_vertices(graph) == 0)
+    {
+        Napi::Error::New(env, "Base graph is not initialized").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    // 4. Rebuild filtered graph
+    SurfaceTypeFilter filter(mask, graph);
+    fGraph.emplace(graph, filter);
+
+    std::cerr << "[route] Filtered graph rebuilt with surface mask: 0x" << std::hex << mask << std::dec << "\n";
+
+    return env.Undefined(); // JS call doesn't return anything
+}
+
+// tester
+//  Napi::Value FindPath(const Napi::CallbackInfo& info)
+//  {
+//      return Napi::Array::New(0);
+//  }
+
+Napi::Value FindPath(const Napi::CallbackInfo& info)
+{
+    Napi::Env env = info.Env();
+    if (!fGraph.has_value())
+    {
+        Napi::Error::New(env, "Routing graph not initialized").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const auto numNodes = boost::num_vertices(*fGraph);
 
     // 1) Validate args
     if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber())
@@ -114,8 +182,13 @@ Napi::Value FindPath(const Napi::CallbackInfo &info)
         for (uint32_t i{0}; i < numNodes; ++i)
             pred[i] = i;
 
-        boost::dijkstra_shortest_paths(graph, start, boost::predecessor_map(&pred[0]).distance_map(&dist[0]));
-
+        // boost::dijkstra_shortest_paths(*fGraph, start, boost::predecessor_map(&pred[0]).distance_map(&dist[0]));
+        boost::dijkstra_shortest_paths(
+            *fGraph, start,
+            boost::weight_map(boost::get(&EdgeProps::weight, *fGraph))
+                .distance_map(boost::make_iterator_property_map(dist.begin(), boost::get(boost::vertex_index, *fGraph)))
+                .predecessor_map(
+                    boost::make_iterator_property_map(pred.begin(), boost::get(boost::vertex_index, *fGraph))));
         // *** NEW: detect unreachable via isinf() ***
         if (std::isinf(dist[end]))
         {
@@ -157,7 +230,7 @@ Napi::Value FindPath(const Napi::CallbackInfo &info)
         }
         return jsPath;
     }
-    catch (const std::exception &ex)
+    catch (const std::exception& ex)
     {
         std::cerr << "[route] exception: " << ex.what() << "\n";
         Napi::Error::New(env, ex.what()).ThrowAsJavaScriptException();
@@ -169,6 +242,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     LoadGraph("../data/graph_nodes.bin", "../data/graph_edges.bin");
     exports.Set("findPath", Napi::Function::New(env, FindPath));
+    exports.Set("buildFilteredGraph", Napi::Function::New(env, BuildFilteredGraph)); 
     return exports;
 }
 

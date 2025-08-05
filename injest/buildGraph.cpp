@@ -15,14 +15,13 @@
 
 #include "SurfaceTypes.hpp"
 
-// Format: [uint32 numNodes] [for i in 0..numNodes-1: uint64 nodeId_i][float32 lat_i][float32 lon_i]
-void writeGraphNodesBin(size_t numNodeIds, const std::vector<uint64_t>& allNodeIds,
+
+void writeGraphNodesBin(uint32_t numNodes, const std::vector<uint64_t>& allNodeIds,
                         const std::unordered_map<uint64_t, std::pair<float, float>>& nodeCoordMap)
 {
     std::ofstream out("../../data/graph_nodes.bin", std::ios::binary);
-    uint32_t n_nodes = static_cast<uint32_t>(numNodeIds);
-    out.write(reinterpret_cast<const char*>(&n_nodes), sizeof(n_nodes));
-    for (uint32_t i{0}; i < numNodeIds; ++i)
+    out.write(reinterpret_cast<const char*>(&numNodes), sizeof(numNodes));
+    for (uint32_t i{0}; i < numNodes; ++i)
     {
         uint64_t nodeId = allNodeIds[i];
         auto [lat, lon] = nodeCoordMap.at(nodeId);
@@ -31,56 +30,46 @@ void writeGraphNodesBin(size_t numNodeIds, const std::vector<uint64_t>& allNodeI
         out.write(reinterpret_cast<const char*>(&lon), sizeof(lon));
     }
     out.close();
-    std::cout << "Wrote graph_nodes.bin (" << numNodeIds << " nodes)\n";
+    std::cout << "Wrote graph_nodes.bin (" << numNodes << " nodes)\n";
 };
 
-// Format: [uint32 numNodeIds][uint32 edgeCount] [ offsets[0..numNodeIds] (uint32 each) ]
-// neighbors[0..edgeCount-1] (uint32) ] [ weights[0..edgeCount-1] (float32) ] [ surfaces[0..edgeCount-1] (SurfaceTypes (uint8_t)) ]
-void writeGraphEdgesBin(size_t numNodeIds, size_t edgeCount, const std::vector<uint32_t>& offsets,
+void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges, const std::vector<uint32_t>& offsets,
                         const std::vector<uint32_t>& neighbors, const std::vector<float>& weights,
-                    const std::vector<SurfaceTypes>& surfaces)
+                    const std::vector<types::SurfaceTypes>& surfaces)
 {
     std::ofstream out("../../data/graph_edges.bin", std::ios::binary);
-    uint32_t n_nodes = static_cast<uint32_t>(numNodeIds);
-    uint32_t m_edges = static_cast<uint32_t>(edgeCount);
-    out.write(reinterpret_cast<const char*>(&n_nodes), sizeof(n_nodes));
-    out.write(reinterpret_cast<const char*>(&m_edges), sizeof(m_edges));
-    // write offsets array
+    out.write(reinterpret_cast<const char*>(&numNodes), sizeof(numNodes));
+    out.write(reinterpret_cast<const char*>(&numEdges), sizeof(numEdges));
     for (uint32_t i{0}; i < offsets.size(); ++i)
     {
         uint32_t val = offsets[i];
         out.write(reinterpret_cast<const char*>(&val), sizeof(val));
     }
-    // write neighbors
     for (uint32_t i{0}; i < neighbors.size(); ++i)
     {
         uint32_t v = neighbors[i];
         out.write(reinterpret_cast<const char*>(&v), sizeof(v));
     }
-    // write weights
     for (uint32_t i{0}; i < weights.size(); ++i)
     {
         float w = weights[i];
         out.write(reinterpret_cast<const char*>(&w), sizeof(w));
     }
-    // write surface
-    //could be for (const auto& s : surfaces) same for others
+    //could be for (const auto& s : surfaces) same for others??
     for (uint32_t i{0}; i < surfaces.size(); ++i)
     {
-        SurfaceTypes s = surfaces[i];
+        types::SurfaceTypes s = surfaces[i];
         out.write(reinterpret_cast<const char*>(&s), sizeof(s));
     }
     out.close();
-    std::cout << "Wrote graph_edges.bin (" << m_edges << " directed edges)\n";
+    std::cout << "Wrote graph_edges.bin (" << numEdges << " directed edges)\n";
 };
 
-//  Handler for collecting bike-friendly ways
 struct WayCollector : public osmium::handler::Handler
 {
     std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap;
-    std::unordered_map<uint64_t,SurfaceTypes>& waySurfaceMap;
+    std::unordered_map<uint64_t,types::SurfaceTypes>& waySurfaceMap;
 
-    // Allowed highway types for cycling
     // could be constexpr arr?
     static inline const std::unordered_set<std::string_view> kAllowedHighways{
         "cycleway",    // dedicated cycleway
@@ -95,7 +84,7 @@ struct WayCollector : public osmium::handler::Handler
         static inline const std::unordered_set<std::string_view> kAllowedBicycle{"yes", "designated", "permissive"};
 
     // MOST PERMISSIVE GET ALL BIKABLE ROUTES
-    WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap, std::unordered_map<uint64_t,SurfaceTypes>& waySurfaceMap)
+    WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap, std::unordered_map<uint64_t,types::SurfaceTypes>& waySurfaceMap)
         : wayNodesMap(wayNodesMap), waySurfaceMap(waySurfaceMap)
     {
     }
@@ -111,24 +100,24 @@ struct WayCollector : public osmium::handler::Handler
         if (highway_ok || bicycle_ok)
         {
             const char* sv = tags.get_value_by_key("surface");
-            SurfaceTypes surfaceType{SURF_UNKNOWN};
+            types::SurfaceTypes surfaceType{types::SURF_UNKNOWN};
             if (sv)
             {
-                if (std::strcmp(sv, "paved") == 0)      surfaceType = SURF_PAVED;
-                else if (std::strcmp(sv, "asphalt") == 0) surfaceType = SURF_ASPHALT;
-                else if (std::strcmp(sv, "concrete") == 0) surfaceType = SURF_CONCRETE;
-                else if (std::strcmp(sv, "paving_stones") == 0) surfaceType = SURF_PAVING_STONES;
-                else if (std::strcmp(sv, "sett") == 0) surfaceType = SURF_SETT;
-                else if (std::strcmp(sv, "unhewn_cobblestones") == 0) surfaceType = SURF_UNHEWN_COBBLESTONES;
-                else if (std::strcmp(sv, "cobblestones") == 0) surfaceType = SURF_COBBLESTONES;
-                else if (std::strcmp(sv, "bricks") == 0) surfaceType = SURF_BRICKS;
-                else if (std::strcmp(sv, "unpaved") == 0) surfaceType = SURF_UNPAVED;
-                else if (std::strcmp(sv, "compacted") == 0) surfaceType = SURF_COMPACTED;
-                else if (std::strcmp(sv, "fine_gravel") == 0) surfaceType = SURF_FINE_GRAVEL;
-                else if (std::strcmp(sv, "gravel") == 0) surfaceType = SURF_GRAVEL;
-                else if (std::strcmp(sv, "ground") == 0) surfaceType = SURF_GROUND;
-                else if (std::strcmp(sv, "dirt") == 0) surfaceType = SURF_DIRT;
-                else if (std::strcmp(sv, "earth") == 0) surfaceType = SURF_EARTH;
+                if (std::strcmp(sv, "paved") == 0)      surfaceType = types::SURF_PAVED;
+                else if (std::strcmp(sv, "asphalt") == 0) surfaceType = types::SURF_ASPHALT;
+                else if (std::strcmp(sv, "concrete") == 0) surfaceType = types::SURF_CONCRETE;
+                else if (std::strcmp(sv, "paving_stones") == 0) surfaceType = types::SURF_PAVING_STONES;
+                else if (std::strcmp(sv, "sett") == 0) surfaceType = types::SURF_SETT;
+                else if (std::strcmp(sv, "unhewn_cobblestones") == 0) surfaceType = types::SURF_UNHEWN_COBBLESTONES;
+                else if (std::strcmp(sv, "cobblestones") == 0) surfaceType = types::SURF_COBBLESTONES;
+                else if (std::strcmp(sv, "bricks") == 0) surfaceType = types::SURF_BRICKS;
+                else if (std::strcmp(sv, "unpaved") == 0) surfaceType = types::SURF_UNPAVED;
+                else if (std::strcmp(sv, "compacted") == 0) surfaceType = types::SURF_COMPACTED;
+                else if (std::strcmp(sv, "fine_gravel") == 0) surfaceType = types::SURF_FINE_GRAVEL;
+                else if (std::strcmp(sv, "gravel") == 0) surfaceType = types::SURF_GRAVEL;
+                else if (std::strcmp(sv, "ground") == 0) surfaceType = types::SURF_GROUND;
+                else if (std::strcmp(sv, "dirt") == 0) surfaceType = types::SURF_DIRT;
+                else if (std::strcmp(sv, "earth") == 0) surfaceType = types::SURF_EARTH;
             }
             waySurfaceMap[way.id()] = surfaceType;
 
@@ -144,7 +133,6 @@ struct WayCollector : public osmium::handler::Handler
 
 };
 
-// Handler for collecting needed nodes
 struct NodeCollector : public osmium::handler::Handler
 {
     std::unordered_set<uint64_t> neededNodeIds;
@@ -198,10 +186,8 @@ int main(int argc, char* argv[])
     }
     const char* osmFile = argv[1];
 
-    // unordered_map<uint64_t unique way id, std::vector<uint64_t ordered list of
-    // node id belonging to that way >> wayNodesMap;
     std::unordered_map<uint64_t, std::vector<uint64_t>> wayNodesMap;
-    std::unordered_map<uint64_t,SurfaceTypes> waySurfaceMap;
+    std::unordered_map<uint64_t,types::SurfaceTypes> waySurfaceMap;
     WayCollector wc(wayNodesMap, waySurfaceMap);
 
     // ─── Pass 1: Collect bike-friendly ways ──────────────────────────────
@@ -243,34 +229,34 @@ int main(int argc, char* argv[])
         allNodeIds.push_back(nodeId);
     }
     std::sort(allNodeIds.begin(), allNodeIds.end());
-    size_t numNodeIds = allNodeIds.size();
+    uint32_t numNodes = static_cast<uint32_t>(allNodeIds.size());
 
-    // Map nodeId → idx (0..numNodeIds-1)
+    // Map nodeId → idx (0..numNodes-1)
     std::unordered_map<uint64_t, uint32_t> nodeIdToIdx;
-    nodeIdToIdx.reserve(numNodeIds);
-    for (uint32_t i{0}; i < numNodeIds; ++i)
+    nodeIdToIdx.reserve(numNodes);
+    for (uint32_t i{0}; i < numNodes; ++i)
     {
         nodeIdToIdx[allNodeIds[i]] = i;
     }
 
     // Prepare adjacency offsets (CSR format)
     // Count total edges first
-    size_t edgeCount{0};
+    uint32_t numEdges{0};
     for (auto& [wayId, nodesList] : wayNodesMap)
     {
         for (size_t i{0}; i + 1 < nodesList.size(); ++i)
         {
             // add both directions
-            edgeCount += 2;
+            numEdges += 2;
         }
     }
 
     // CSR arrays:
-    //   vector<uint32_t> offsets(N+1);  // offsets[i] = start index in "edges"
-    //   vector<uint32_t> neighbors(edgeCount);
-    //   vector<float>    weights(edgeCount);
+    //   vector<uint32_t> offsets(numNodes+1);  // offsets[i] = start index in "edges"
+    //   vector<uint32_t> neighbors(numEdges);
+    //   vector<float>    weights(numEdges);
 
-    std::vector<uint32_t> offsets(numNodeIds + 1, 0);
+    std::vector<uint32_t> offsets(numNodes + 1, 0);
     // First pass: count degree(u) for each u
     for (auto& [wayId, nodeList] : wayNodesMap)
     {
@@ -283,14 +269,14 @@ int main(int argc, char* argv[])
         }
     }
     // Prefix sum to get final offsets
-    for (size_t i = 1; i <= numNodeIds; ++i)
+    for (size_t i = 1; i <= numNodes; ++i)
     {
         offsets[i] += offsets[i - 1];
     }
 
-    std::vector<uint32_t> neighbors(edgeCount);
-    std::vector<float> weights(edgeCount);
-    std::vector<SurfaceTypes> surfaces(edgeCount);
+    std::vector<uint32_t> neighbors(numEdges);
+    std::vector<float> weights(numEdges);
+    std::vector<types::SurfaceTypes> surfaces(numEdges);
     // To fill neighbors/weights, copy offsets to a temp array we can increment
     std::vector<uint32_t> currentPos = offsets;
 
@@ -320,8 +306,8 @@ int main(int argc, char* argv[])
         }
     }
 
-    writeGraphNodesBin(numNodeIds, allNodeIds, nodeCoordMap);
-    writeGraphEdgesBin(numNodeIds, edgeCount, offsets, neighbors, weights, surfaces);
+    writeGraphNodesBin(numNodes, allNodeIds, nodeCoordMap);
+    writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, weights, surfaces);
 
     return 0;
 }

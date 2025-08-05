@@ -1,0 +1,19 @@
+
+DONE
+-->Refactor SurfaceTypes as bits eg. more versitile in the long run, perhaps make some typedef or const like using bitWidth = uint16_t;
+    enum SurfaceTypes : bitWidth
+    {
+        SURF_PAVED = 1 << 0,
+
+
+-->In bindings/route.cpp
+    Add new function 'BuildFilteredGraph' that can be called from the frontend on controls state change
+    Add backend endpoint
+
+    FRONTEND NOTES
+    should probably be triggered on controls window close, not every selection
+    main map window should have side bar (or something) that always shows the selection
+
+-->Refactor hardcoded paths
+
+-->Add control features to frontend

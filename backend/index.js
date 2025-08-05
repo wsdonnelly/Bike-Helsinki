@@ -23,6 +23,7 @@ app.use(cors())
 const nodesBin = fs.readFileSync(path.join('../data/graph_nodes.bin'));
 const TOTAL_NODES = nodesBin.readUInt32LE(0);
 console.log('TOTAL_NODES =', TOTAL_NODES);
+console.log(process.memoryUsage());
 
 //test
 // let start = Date.now();
