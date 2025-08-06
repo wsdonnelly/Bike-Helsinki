@@ -17,11 +17,18 @@ export function getRoute(startIdx, endIdx) {
 export async function setSurfaceFilter(mask) {
   try {
     const res = await API.post('/filter', { mask })
-    console.log(`✔ Surface filter updated: 0x${mask.toString(16).padStart(4, '0')}`)
+    console.log(`✔ setSurfaceFilter called with: 0x${mask.toString(16).padStart(4, '0')}`)
     return res.status === 204
   } catch (err) {
     console.error('✖ Failed to set surface filter:', err.response?.data || err.message)
     throw err
   }
+}
+
+//debugger to display entire graph
+export const fetchFullGraphLines = async () => {
+  const res = await API.get('/full')
+  console.log("calling fetch full graph lines")
+  return res.data.lines
 }
 

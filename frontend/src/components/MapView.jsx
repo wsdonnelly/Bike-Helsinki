@@ -1,75 +1,117 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   MapContainer,
   TileLayer,
   Marker,
   Polyline,
+  useMap,
   useMapEvents
 } from 'react-leaflet'
 import L from 'leaflet'
 
-// Leaflet default icon fix
+// Fix default Leaflet marker icons (required when not using Webpack config for Leaflet)
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconUrl:   'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl:
-    'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl:
-    'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
 })
 
-// Simple polyline overlay
-export const GraphOverlay = ({ segments }) => {
-  console.log("segments in GraphOverlay (type)", typeof(segments))
-  return(
-    <>
-      {segments.map((seg, i) => (
-        <Polyline
-          key={i}
-          positions={seg}
-          color="rgba(0,0,255,0.3)"
-          weight={1}
-        />
-      ))}
-    </>
-  )
-}
-
-// Hook for map clicks
+// Component to handle map clicks
 const ClickHandler = ({ onMapClick }) => {
   useMapEvents({
     click(event) {
       onMapClick(event.latlng)
-      console.log('event.latlng in ClickHandler', event.latlng)
+      console.log('Map clicked at:', event.latlng)
     }
   })
   return null
 }
 
-// Main map view – now renders children
+// ✅ Render graph segments within current map bounds
+const VisibleGraphLines = ({ graphLines }) => {
+  const map = useMap()
+  const [visibleSegments, setVisibleSegments] = useState([])
+
+  useEffect(() => {
+    if (!map || !graphLines?.length) return
+
+    const updateVisibleSegments = () => {
+      const bounds = map.getBounds()
+
+      const isInBounds = ([lat, lon]) => bounds.contains(L.latLng(lat, lon))
+
+      const filtered = graphLines.filter(segment => {
+        let p1, p2
+
+        if (Array.isArray(segment[0])) {
+          // Already nested: [[lat1, lon1], [lat2, lon2]]
+          [p1, p2] = segment
+        } else if (segment.length === 4) {
+          // Flat: [lat1, lon1, lat2, lon2]
+          p1 = [segment[0], segment[1]]
+          p2 = [segment[2], segment[3]]
+        } else {
+          return false
+        }
+
+        return isInBounds(p1) || isInBounds(p2)
+      })
+
+      console.log(`Rendering ${filtered.length} visible segments`)
+      setVisibleSegments(filtered)
+    }
+
+    // Initial check
+    updateVisibleSegments()
+
+    // Re-run on zoom or pan
+    map.on('moveend zoomend', updateVisibleSegments)
+
+    return () => {
+      map.off('moveend zoomend', updateVisibleSegments)
+    }
+  }, [map, graphLines])
+
+  return (
+    <>
+      {visibleSegments.map((segment, idx) => {
+        const coords = Array.isArray(segment[0])
+          ? segment
+          : [[segment[0], segment[1]], [segment[2], segment[3]]]
+
+        return (
+          <Polyline
+            key={`graph-segment-${idx}`}
+            positions={coords}
+            color="orange"
+            weight={4}
+            opacity={0.5}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+// 🔷 Main exported MapView component
 export function MapView({
   onMapClick,
   snappedStart,
   snappedEnd,
   routeCoords,
-  // children
+  graphLines
 }) {
-  // console.log('MapView children:', children)
   return (
     <MapContainer
       center={[60.1699, 24.9384]}
-      zoom={13}
-      // zoom={7}
+      // zoom={13}
+      zoom={15}
       style={{ height: '100%', width: '100%' }}
-      // maxBounds={[
-      //   [59.9, 24.5],
-      //   [60.5, 25.5]
-      // ]}
       maxBounds={[
         [59.0, 19.0],
         [62.5, 31.5]
       ]}
-      // minZoom={12}
       minZoom={11}
       maxZoom={18}
     >
@@ -77,6 +119,7 @@ export function MapView({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="© OSM contributors"
       />
+
       <ClickHandler onMapClick={onMapClick} />
 
       {snappedStart && (
@@ -90,7 +133,9 @@ export function MapView({
         <Polyline positions={routeCoords} color="#007AFF" weight={4} />
       )}
 
-      {/* {children} */}
+      {graphLines?.length > 0 && (
+        <VisibleGraphLines graphLines={graphLines} />
+      )}
     </MapContainer>
   )
 }
