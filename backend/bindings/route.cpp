@@ -123,7 +123,6 @@ Napi::Value BuildFilteredGraph(const Napi::CallbackInfo& info)
         return env.Null();
     }
 
-    // 2. Extract mask
     types::BitWidth mask = static_cast<types::BitWidth>(info[0].As<Napi::Number>().Uint32Value());
 
     // 3. Validate that the base graph is initialized
@@ -196,14 +195,27 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
         std::vector<uint32_t> pred(numNodes);
         for (uint32_t i{0}; i < numNodes; ++i)
             pred[i] = i;
+        //debug version
+        auto idx   = boost::get(boost::vertex_index, *fGraph);
+        auto wmap  = boost::get(&EdgeProps::weight, *fGraph);
+        auto dmap  = boost::make_iterator_property_map(dist.begin(), idx);
+        auto pmap  = boost::make_iterator_property_map(pred.begin(), idx);
 
-        // boost::dijkstra_shortest_paths(*fGraph, start, boost::predecessor_map(&pred[0]).distance_map(&dist[0]));
         boost::dijkstra_shortest_paths(
-            *fGraph, start,
-            boost::weight_map(boost::get(&EdgeProps::weight, *fGraph))
-                .distance_map(boost::make_iterator_property_map(dist.begin(), boost::get(boost::vertex_index, *fGraph)))
-                .predecessor_map(
-                    boost::make_iterator_property_map(pred.begin(), boost::get(boost::vertex_index, *fGraph))));
+            *fGraph,
+            start,
+            boost::weight_map(wmap)
+            .distance_map(dmap)
+            .predecessor_map(pmap)
+        );
+        // boost::dijkstra_shortest_paths(*fGraph, start, boost::predecessor_map(&pred[0]).distance_map(&dist[0]));
+        // boost::dijkstra_shortest_paths(
+        //     *fGraph, start,
+        //     boost::weight_map(boost::get(&EdgeProps::weight, *fGraph))
+        //         .distance_map(boost::make_iterator_property_map(dist.begin(), boost::get(boost::vertex_index, *fGraph)))
+        //         .predecessor_map(
+        //             boost::make_iterator_property_map(pred.begin(), boost::get(boost::vertex_index, *fGraph))));
+        std::cerr << "[route] dist[end]=" << dist[end] << ", pred[end]=" << pred[end] << "\n";
         // *** NEW: detect unreachable via isinf() ***
         if (std::isinf(dist[end]))
         {
@@ -253,11 +265,89 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
     }
 }
 
+//debug code
+Napi::Value GetFullGraphSegments(const Napi::CallbackInfo& info)
+{
+    Napi::Env env = info.Env();
+
+    // if (!fGraph.has_value()) {
+    //     Napi::Error::New(env, "Filtered graph not initialized").ThrowAsJavaScriptException();
+    //     return env.Null();
+    // }
+
+    const auto& fg = *fGraph;
+    // const auto& fg = graph;
+    Napi::Array jsSegments = Napi::Array::New(env);
+
+    uint32_t edgeCount = 0;
+
+    // Iterate over edges in the filtered graph
+    for (auto [ei, ei_end] = boost::edges(fg); ei != ei_end; ++ei)
+    {
+        auto src = boost::source(*ei, fg);
+        auto tgt = boost::target(*ei, fg);
+
+        if (src >= nodeCoords.size() || tgt >= nodeCoords.size()) {
+            std::cerr << "Warning: edge refers to invalid node index\n";
+            continue;
+        }
+
+        const auto& [lat1, lon1] = nodeCoords[src];
+        const auto& [lat2, lon2] = nodeCoords[tgt];
+
+        Napi::Array segment = Napi::Array::New(env, 2);
+
+        Napi::Array p1 = Napi::Array::New(env, 2);
+        p1.Set((uint32_t)0, Napi::Number::New(env, lat1));
+        p1.Set((uint32_t)1, Napi::Number::New(env, lon1));
+
+        Napi::Array p2 = Napi::Array::New(env, 2);
+        p2.Set((uint32_t)0, Napi::Number::New(env, lat2));
+        p2.Set((uint32_t)1, Napi::Number::New(env, lon2));
+
+        segment.Set((uint32_t)0, p1);
+        segment.Set((uint32_t)1, p2);
+
+        jsSegments.Set(edgeCount++, segment);
+    }
+
+    std::cerr << "[route] getFullGraphSegments returned " << edgeCount << " segments\n";
+
+    return jsSegments;
+}
+
+// Returns array of unique node indices present in the filtered graph's edges
+Napi::Value GetFilteredNodeIndices(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!fGraph.has_value()) {
+        Napi::Error::New(env, "Filtered graph not initialized").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const FilteredGraph& fg = *fGraph;
+    std::unordered_set<uint32_t> nodeSet;
+    for (auto ei = boost::edges(fg); ei.first != ei.second; ++ei.first) {
+        auto e = *ei.first;
+        uint32_t u = boost::source(e, fg);
+        uint32_t v = boost::target(e, fg);
+        nodeSet.insert(u);
+        nodeSet.insert(v);
+    }
+    Napi::Array result = Napi::Array::New(env, nodeSet.size());
+    uint32_t idx = 0;
+    for (auto node : nodeSet) {
+        result.Set(idx++, Napi::Number::New(env, node));
+    }
+    return result;
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     LoadGraph("../data/graph_nodes.bin", "../data/graph_edges.bin");
     exports.Set("findPath", Napi::Function::New(env, FindPath));
     exports.Set("buildFilteredGraph", Napi::Function::New(env, BuildFilteredGraph));
+    exports.Set("getFilteredNodeIndices", Napi::Function::New(env, GetFilteredNodeIndices));
+    //debug code
+    exports.Set("getFullGraphSegments", Napi::Function::New(env, GetFullGraphSegments));
     return exports;
 }
 

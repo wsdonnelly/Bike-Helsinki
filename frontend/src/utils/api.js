@@ -16,7 +16,7 @@ export function getRoute(startIdx, endIdx) {
 
 export async function setSurfaceFilter(mask) {
   try {
-    const res = await API.post('/filter', { mask }) // ✅ use API instance with baseURL
+    const res = await API.post('/filter', { mask })
     console.log(`✔ Surface filter updated: 0x${mask.toString(16).padStart(4, '0')}`)
     return res.status === 204
   } catch (err) {

@@ -11,7 +11,7 @@ let router
 try {
   kdSnap = require('./bindings/build/Release/kd_snap.node')
   router = require('./bindings/build/Release/route.node')
-  console.log('After reading route.node:', process.memoryUsage());
+  console.log('After reading route.node and kd_snap:', process.memoryUsage());
 } catch (err) {
   console.warn('Native addons not found:', err)
   kdSnap = null
@@ -115,7 +115,6 @@ app.get('/route', (req, res) => {
 app.post('/filter', (req, res) => {
   const { mask } = req.body;
 
-  // Validate mask is BitWidth length (SurfaceTypes.hpp) currently uint16_t
   if (typeof mask !== 'number' || !Number.isInteger(mask)) {
     console.warn('✖ Invalid or missing "mask" in request body');
     return res.status(400).json({
@@ -130,13 +129,33 @@ app.post('/filter', (req, res) => {
   }
 
   try {
+    // Rebuild your filtered graph
     router.buildFilteredGraph(mask);
-    console.log(`✔ Surface filter updated: 0x${mask.toString(16).padStart(4, '0')}`);
+
+    // Obtain the list of allowed node indices from the filtered graph
+    // Assume router exposes getFilteredNodeIndices(): number[]
+    const allowedIndices = router.getFilteredNodeIndices();
+
+    // Rebuild the KD-tree with the filtered nodes
+    kdSnap.filterKD(allowedIndices);
+
+    console.log(`✔ Surface filter updated: 0x${mask.toString(16).padStart(4, '0')}`, 'Nodes:', allowedIndices.length);
     return res.status(204).send(); // No content, success
   } catch (err) {
-    console.error('✖ Exception in buildFilteredGraph:', err.message);
+    console.error('✖ Exception in buildFilteredGraph or filterKD:', err.message);
     return res.status(500).json({ error: err.message });
   }
 });
+
+//debugger to display full graph
+app.get('/full', (req, res) => {
+  try {
+    const segments = router.getFullGraphSegments()
+    res.json({ lines: segments })
+  } catch (err) {
+    console.error('✖ Failed to get full graph:', err.message)
+    res.status(500).json({ error: 'Failed to get full graph' })
+  }
+})
 
 app.listen(3000, ()=> console.log('Server on http://localhost:3000'));

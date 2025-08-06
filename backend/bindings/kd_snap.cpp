@@ -5,20 +5,21 @@
 #include <napi.h>
 #include <stdexcept>
 #include <vector>
+#include <unordered_set>
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 // Point type in degrees
-// remove magic numbers
 using Point = bg::model::point<double, 2, bg::cs::geographic<bg::degree>>;
 // (Point, treeIndex)
 using Value = std::pair<Point, uint32_t>;
 
 // In-memory storage
-// remove static move to init? or is this best in this situation??
 static bgi::rtree<Value, bgi::quadratic<16>> tree;
 static std::vector<float> kdLat, kdLon;
+// Store full dataset for filtering
+static std::vector<Value> allKDData;
 
 // kd_nodes.bin format: [uint32 numNodes] [ float32 lat_0, float32 lon_0, uint32 idx_0 ] … repeated
 void LoadKD(const std::string& path)
@@ -40,7 +41,7 @@ void LoadKD(const std::string& path)
     std::vector<Value> data;
     data.reserve(numNodes);
 
-    for (uint32_t i{0}; i < numNodes; ++i)
+    for (uint32_t i = 0; i < numNodes; ++i)
     {
         float lat, lon;
         uint32_t idx;
@@ -57,8 +58,29 @@ void LoadKD(const std::string& path)
         data.emplace_back(Point{lat, lon}, idx);
     }
 
-    // Build the R-tree for nearest-neighbor
-    tree = bgi::rtree<Value, bgi::quadratic<16>>(data.begin(), data.end());
+    // Store full dataset for later filtering
+    allKDData = data;
+    // Build the R-tree for nearest-neighbor on full data
+    tree = bgi::rtree<Value, bgi::quadratic<16>>(allKDData.begin(), allKDData.end());
+}
+
+// Rebuild the R-tree based on a filtered list of node indices
+void RebuildKDFromFilter(const std::vector<uint32_t>& allowedIndices)
+{
+    std::unordered_set<uint32_t> allowedSet(allowedIndices.begin(), allowedIndices.end());
+    std::vector<Value> filteredData;
+    filteredData.reserve(allowedSet.size());
+
+    for (const auto& val : allKDData)
+    {
+        // val.second is the original node index
+        if (allowedSet.count(val.second))
+        {
+            filteredData.push_back(val);
+        }
+    }
+
+    tree = bgi::rtree<Value, bgi::quadratic<16>>(filteredData.begin(), filteredData.end());
 }
 
 // findNearest(lat, lon) → treeIndex
@@ -76,6 +98,11 @@ Napi::Value FindNearest(const Napi::CallbackInfo& info)
     Point q(lat, lon);
     std::vector<Value> result;
     tree.query(bgi::nearest(q, 1), std::back_inserter(result));
+    if (result.empty())
+    {
+        Napi::Error::New(env, "R-tree is empty or no points match filter").ThrowAsJavaScriptException();
+        return env.Null();
+    }
     uint32_t treeIdx = result.front().second;
     return Napi::Number::New(env, treeIdx);
 }
@@ -103,6 +130,35 @@ Napi::Value GetNode(const Napi::CallbackInfo& info)
     return obj;
 }
 
+// filterKD([idx0, idx1, ...]) → void
+Napi::Value FilterKD(const Napi::CallbackInfo& info)
+{
+    Napi::Env env = info.Env();
+    if (info.Length() != 1 || !info[0].IsArray())
+    {
+        Napi::TypeError::New(env, "Expected (array of node indices)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Array jsArray = info[0].As<Napi::Array>();
+    std::vector<uint32_t> allowedIndices;
+    allowedIndices.reserve(jsArray.Length());
+
+    for (uint32_t i = 0; i < jsArray.Length(); ++i)
+    {
+        Napi::Value val = jsArray[i];
+        if (!val.IsNumber())
+        {
+            Napi::TypeError::New(env, "Array must contain numbers").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        allowedIndices.push_back(val.As<Napi::Number>().Uint32Value());
+    }
+
+    RebuildKDFromFilter(allowedIndices);
+    return env.Null();
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
     try
@@ -117,6 +173,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 
     exports.Set("findNearest", Napi::Function::New(env, FindNearest));
     exports.Set("getNode", Napi::Function::New(env, GetNode));
+    exports.Set("filterKD", Napi::Function::New(env, FilterKD));
     return exports;
 }
 

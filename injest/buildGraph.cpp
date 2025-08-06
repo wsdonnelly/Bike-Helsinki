@@ -15,7 +15,6 @@
 
 #include "SurfaceTypes.hpp"
 
-
 void writeGraphNodesBin(uint32_t numNodes, const std::vector<uint64_t>& allNodeIds,
                         const std::unordered_map<uint64_t, std::pair<float, float>>& nodeCoordMap)
 {
@@ -35,7 +34,7 @@ void writeGraphNodesBin(uint32_t numNodes, const std::vector<uint64_t>& allNodeI
 
 void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges, const std::vector<uint32_t>& offsets,
                         const std::vector<uint32_t>& neighbors, const std::vector<float>& weights,
-                    const std::vector<types::SurfaceTypes>& surfaces)
+                        const std::vector<types::SurfaceTypes>& surfaces)
 {
     std::ofstream out("../../data/graph_edges.bin", std::ios::binary);
     out.write(reinterpret_cast<const char*>(&numNodes), sizeof(numNodes));
@@ -55,7 +54,7 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges, const std::vector<
         float w = weights[i];
         out.write(reinterpret_cast<const char*>(&w), sizeof(w));
     }
-    //could be for (const auto& s : surfaces) same for others??
+    // could be for (const auto& s : surfaces) same for others??
     for (uint32_t i{0}; i < surfaces.size(); ++i)
     {
         types::SurfaceTypes s = surfaces[i];
@@ -68,7 +67,7 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges, const std::vector<
 struct WayCollector : public osmium::handler::Handler
 {
     std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap;
-    std::unordered_map<uint64_t,types::SurfaceTypes>& waySurfaceMap;
+    std::unordered_map<uint64_t, types::SurfaceTypes>& waySurfaceMap;
 
     // could be constexpr arr?
     static inline const std::unordered_set<std::string_view> kAllowedHighways{
@@ -79,12 +78,13 @@ struct WayCollector : public osmium::handler::Handler
         "secondary",   // larger roads that may have bike lanes
         "tertiary",    "unclassified", "track"};
 
-        // Allowed bicycle tag values
-        // could be constexpr arr?
-        static inline const std::unordered_set<std::string_view> kAllowedBicycle{"yes", "designated", "permissive"};
+    // Allowed bicycle tag values
+    // could be constexpr arr?
+    static inline const std::unordered_set<std::string_view> kAllowedBicycle{"yes", "designated", "permissive"};
 
     // MOST PERMISSIVE GET ALL BIKABLE ROUTES
-    WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap, std::unordered_map<uint64_t,types::SurfaceTypes>& waySurfaceMap)
+    WayCollector(std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap,
+                 std::unordered_map<uint64_t, types::SurfaceTypes>& waySurfaceMap)
         : wayNodesMap(wayNodesMap), waySurfaceMap(waySurfaceMap)
     {
     }
@@ -103,21 +103,36 @@ struct WayCollector : public osmium::handler::Handler
             types::SurfaceTypes surfaceType{types::SURF_UNKNOWN};
             if (sv)
             {
-                if (std::strcmp(sv, "paved") == 0)      surfaceType = types::SURF_PAVED;
-                else if (std::strcmp(sv, "asphalt") == 0) surfaceType = types::SURF_ASPHALT;
-                else if (std::strcmp(sv, "concrete") == 0) surfaceType = types::SURF_CONCRETE;
-                else if (std::strcmp(sv, "paving_stones") == 0) surfaceType = types::SURF_PAVING_STONES;
-                else if (std::strcmp(sv, "sett") == 0) surfaceType = types::SURF_SETT;
-                else if (std::strcmp(sv, "unhewn_cobblestones") == 0) surfaceType = types::SURF_UNHEWN_COBBLESTONES;
-                else if (std::strcmp(sv, "cobblestones") == 0) surfaceType = types::SURF_COBBLESTONES;
-                else if (std::strcmp(sv, "bricks") == 0) surfaceType = types::SURF_BRICKS;
-                else if (std::strcmp(sv, "unpaved") == 0) surfaceType = types::SURF_UNPAVED;
-                else if (std::strcmp(sv, "compacted") == 0) surfaceType = types::SURF_COMPACTED;
-                else if (std::strcmp(sv, "fine_gravel") == 0) surfaceType = types::SURF_FINE_GRAVEL;
-                else if (std::strcmp(sv, "gravel") == 0) surfaceType = types::SURF_GRAVEL;
-                else if (std::strcmp(sv, "ground") == 0) surfaceType = types::SURF_GROUND;
-                else if (std::strcmp(sv, "dirt") == 0) surfaceType = types::SURF_DIRT;
-                else if (std::strcmp(sv, "earth") == 0) surfaceType = types::SURF_EARTH;
+                if (std::strcmp(sv, "paved") == 0)
+                    surfaceType = types::SURF_PAVED;
+                else if (std::strcmp(sv, "asphalt") == 0)
+                    surfaceType = types::SURF_ASPHALT;
+                else if (std::strcmp(sv, "concrete") == 0)
+                    surfaceType = types::SURF_CONCRETE;
+                else if (std::strcmp(sv, "paving_stones") == 0)
+                    surfaceType = types::SURF_PAVING_STONES;
+                else if (std::strcmp(sv, "sett") == 0)
+                    surfaceType = types::SURF_SETT;
+                else if (std::strcmp(sv, "unhewn_cobblestones") == 0)
+                    surfaceType = types::SURF_UNHEWN_COBBLESTONES;
+                else if (std::strcmp(sv, "cobblestones") == 0)
+                    surfaceType = types::SURF_COBBLESTONES;
+                else if (std::strcmp(sv, "bricks") == 0)
+                    surfaceType = types::SURF_BRICKS;
+                else if (std::strcmp(sv, "unpaved") == 0)
+                    surfaceType = types::SURF_UNPAVED;
+                else if (std::strcmp(sv, "compacted") == 0)
+                    surfaceType = types::SURF_COMPACTED;
+                else if (std::strcmp(sv, "fine_gravel") == 0)
+                    surfaceType = types::SURF_FINE_GRAVEL;
+                else if (std::strcmp(sv, "gravel") == 0)
+                    surfaceType = types::SURF_GRAVEL;
+                else if (std::strcmp(sv, "ground") == 0)
+                    surfaceType = types::SURF_GROUND;
+                else if (std::strcmp(sv, "dirt") == 0)
+                    surfaceType = types::SURF_DIRT;
+                else if (std::strcmp(sv, "earth") == 0)
+                    surfaceType = types::SURF_EARTH;
             }
             waySurfaceMap[way.id()] = surfaceType;
 
@@ -129,8 +144,6 @@ struct WayCollector : public osmium::handler::Handler
             }
         }
     }
-
-
 };
 
 struct NodeCollector : public osmium::handler::Handler
@@ -187,7 +200,7 @@ int main(int argc, char* argv[])
     const char* osmFile = argv[1];
 
     std::unordered_map<uint64_t, std::vector<uint64_t>> wayNodesMap;
-    std::unordered_map<uint64_t,types::SurfaceTypes> waySurfaceMap;
+    std::unordered_map<uint64_t, types::SurfaceTypes> waySurfaceMap;
     WayCollector wc(wayNodesMap, waySurfaceMap);
 
     // ─── Pass 1: Collect bike-friendly ways ──────────────────────────────
@@ -311,7 +324,6 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-
 
 // void way(const osmium::Way& way) {
 //     const auto& tags = way.tags();
