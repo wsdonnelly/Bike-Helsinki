@@ -43,6 +43,8 @@ DONE
     Make directed graph? prune redundant edges etc?? reduce memory consumption.
 
 -->Investigate simplyfying surface types in UI. maybe could just be: dedicated bike path (paved), trail etc
+    Constrain the UI to a small set of presets (e.g., “paved only”, “no stairs”, “gravel OK”)
+    and prebuild a handful of hierarchies. If you have ≤ 6–8 combos, this is viable.
 
 -->Improve tag reading in injest
     eg. add Tag:highway=path to bikable graph
