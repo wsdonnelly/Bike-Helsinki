@@ -1,47 +1,57 @@
-// backend/index.js
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-
-console.log('Initial:', process.memoryUsage());
+// Optional: const compression = require('compression'); const helmet = require('helmet');
 
 let kdSnap = null;
 let router = null;
 try {
   kdSnap = require('./bindings/build/Release/kd_snap.node');
   router = require('./bindings/build/Release/route.node');
-  console.log('After reading route.node and kd_snap:', process.memoryUsage());
+  console.log('Native addons loaded:', process.memoryUsage());
 } catch (err) {
   console.warn('Native addons not found:', err);
 }
+
+const app = express();
+app.use(express.json({ limit: '256kb' }));
+app.use(cors());
+// Optional: app.use(compression()); app.use(helmet());
 
 // ---------- read num_nodes from graph_nodes.bin (new header + legacy fallback)
 const nodesPath = path.join('../data/graph_nodes.bin');
 const nodesBin = fs.readFileSync(nodesPath);
 
 function readTotalNodes(buf) {
-  if (buf.length >= 20) {
-    const magic = buf.subarray(0, 8).toString('ascii');
-    if (magic === 'MMAPNODE') {
-      const version = buf.readUInt32LE(8);
-      if (version !== 1) throw new Error(`Unsupported nodes version: ${version}`);
-      const numNodes = buf.readUInt32LE(12);
-      // coord_type at offset 16, reserved at 17..19 (ignored)
-      return numNodes;
-    }
+  if (buf.length >= 20 && buf.subarray(0, 8).toString('ascii') === 'MMAPNODE') {
+    const version = buf.readUInt32LE(8);
+    if (version !== 1) throw new Error(`Unsupported nodes version: ${version}`);
+    return buf.readUInt32LE(12); // num_nodes
   }
-  // Legacy fallback: first 4 bytes were numNodes
-  if (buf.length >= 4) return buf.readUInt32LE(0);
+  if (buf.length >= 4) return buf.readUInt32LE(0); // legacy
   throw new Error('graph_nodes.bin too small');
 }
-
 const TOTAL_NODES = readTotalNodes(nodesBin);
 console.log('TOTAL_NODES =', TOTAL_NODES);
-console.log('at end', process.memoryUsage());
 
-// ---------- server defaults (used if client omits options on /route)
+// ---------- helpers
+const toIndex = (v) => {
+  // accept numbers and numeric strings
+  if (Number.isInteger(v)) return v;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : NaN;
+};
+const clampU16 = (v, fallback) =>
+  Number.isInteger(v) ? (v & 0xFFFF) : fallback;
+const finiteOr = (v, fallback) =>
+  Number.isFinite(v) ? v : fallback;
+const sanitizeFactors = (arr) =>
+  Array.isArray(arr) ? arr.map((x) => {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : 1;
+  }) : undefined;
+
 const defaults = {
   bikeSurfaceMask: 0xFFFF,
   walkSurfaceMask: 0xFFFF,
@@ -49,44 +59,42 @@ const defaults = {
   walkSpeedMps: 1.5,      // ~5.4 km/h
   rideToWalkPenaltyS: 5.0,
   walkToRidePenaltyS: 3.0,
-  bikeSurfaceFactor: [],  // optional arrays aligned to your primary enum indices
+  bikeSurfaceFactor: [],
   walkSurfaceFactor: []
 };
 
-const app = express();
-app.use(bodyParser.json());
-app.use(cors());
+// ---------- health/meta
+app.get('/health', (_req, res) => res.json({ ok: true }));
+
+app.get('/meta', (_req, res) => {
+  res.json({
+    totalNodes: TOTAL_NODES,
+    defaults
+    // Optionally: numEdges: router?.getMeta()?.numEdges ?? undefined
+  });
+});
 
 // ---------- /snap (nearest node)
 app.get('/snap', (req, res) => {
   if (!kdSnap) return res.status(503).json({ error: 'kdSnap addon not loaded' });
 
-  const lat = parseFloat(req.query.lat);
-  const lon = parseFloat(req.query.lon);
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return res.status(400).json({ error: 'Invalid lat/lon' });
   }
 
   try {
     const idx = kdSnap.findNearest(lat, lon);
-    const coord = kdSnap.getNode(idx); // { lat, lon, idx } (assuming your addon returns this)
-    console.log('snap →', { lat, lon, idx });
+    const coord = kdSnap.getNode(idx); // { idx, lat, lon }
     return res.json(coord);
   } catch (e) {
     console.error('Snap error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: String(e.message || e) });
   }
 });
 
-// ---------- /route (POST) — two-mode A* with per-request options
-// Body:
-// {
-//   startIdx: <u32>, endIdx: <u32>,
-//   bikeSurfaceMask?: <u16>, walkSurfaceMask?: <u16>,
-//   bikeSpeedMps?: <number>, walkSpeedMps?: <number>,
-//   rideToWalkPenaltyS?: <number>, walkToRidePenaltyS?: <number>,
-//   bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
-// }
+// ---------- /route (POST)
 app.post('/route', (req, res) => {
   if (!router) return res.status(503).json({ error: 'route addon not loaded' });
 
@@ -98,76 +106,57 @@ app.post('/route', (req, res) => {
     bikeSurfaceFactor, walkSurfaceFactor
   } = req.body || {};
 
-  if (!Number.isInteger(startIdx) || !Number.isInteger(endIdx)) {
+  const s = toIndex(startIdx);
+  const e = toIndex(endIdx);
+
+  if (!Number.isInteger(s) || !Number.isInteger(e)) {
     return res.status(400).json({ error: 'startIdx and endIdx must be integers' });
   }
-  if (startIdx < 0 || endIdx < 0 || startIdx >= TOTAL_NODES || endIdx >= TOTAL_NODES) {
+  if (s < 0 || e < 0 || s >= TOTAL_NODES || e >= TOTAL_NODES) {
     return res.status(400).json({ error: `startIdx/endIdx out of range (0..${TOTAL_NODES - 1})` });
   }
 
   const opts = {
-    sourceIdx: startIdx,
-    targetIdx: endIdx,
-    bikeSurfaceMask: Number.isInteger(bikeSurfaceMask) ? (bikeSurfaceMask & 0xFFFF) : defaults.bikeSurfaceMask,
-    walkSurfaceMask: Number.isInteger(walkSurfaceMask) ? (walkSurfaceMask & 0xFFFF) : defaults.walkSurfaceMask,
-    bikeSpeedMps: Number.isFinite(bikeSpeedMps) ? bikeSpeedMps : defaults.bikeSpeedMps,
-    walkSpeedMps: Number.isFinite(walkSpeedMps) ? walkSpeedMps : defaults.walkSpeedMps,
-    rideToWalkPenaltyS: Number.isFinite(rideToWalkPenaltyS) ? rideToWalkPenaltyS : defaults.rideToWalkPenaltyS,
-    walkToRidePenaltyS: Number.isFinite(walkToRidePenaltyS) ? walkToRidePenaltyS : defaults.walkToRidePenaltyS
+    sourceIdx: s,
+    targetIdx: e,
+    bikeSurfaceMask: clampU16(bikeSurfaceMask, defaults.bikeSurfaceMask),
+    walkSurfaceMask: clampU16(walkSurfaceMask, defaults.walkSurfaceMask),
+    bikeSpeedMps: finiteOr(bikeSpeedMps, defaults.bikeSpeedMps),
+    walkSpeedMps: finiteOr(walkSpeedMps, defaults.walkSpeedMps),
+    rideToWalkPenaltyS: finiteOr(rideToWalkPenaltyS, defaults.rideToWalkPenaltyS),
+    walkToRidePenaltyS: finiteOr(walkToRidePenaltyS, defaults.walkToRidePenaltyS)
   };
 
-  if (Array.isArray(bikeSurfaceFactor)) opts.bikeSurfaceFactor = bikeSurfaceFactor.map(Number);
-  if (Array.isArray(walkSurfaceFactor)) opts.walkSurfaceFactor = walkSurfaceFactor.map(Number);
+  const bs = sanitizeFactors(bikeSurfaceFactor);
+  const ws = sanitizeFactors(walkSurfaceFactor);
+  if (bs) opts.bikeSurfaceFactor = bs;
+  if (ws) opts.walkSurfaceFactor = ws;
 
-  // Call async addon
   router.findPath(opts, (err, result) => {
     if (err) {
       console.error('findPath error:', err);
-      // Normalize common "no route" to 200 with empty response (UX-friendly)
-      if (String(err).includes('no route')) return res.json({ path: [], modes: [], distance_m: 0, duration_s: 0 });
+      if (String(err).includes('no route')) {
+        // Keep casing consistent with addon; normalize to camelCase for the client:
+        return res.json({ path: [], modes: [], distanceM: 0, durationS: 0 });
+      }
       return res.status(500).json({ error: String(err) });
     }
-    // result: { path:[...nodeIdx], modes:[1|2 per segment], distance_m, duration_s }
-    return res.json(result);
+
+    // Normalize field casing regardless of addon version.
+    // Old addon: distance_m/duration_s; new addon: distanceM/durationS.
+    const distanceM = result.distanceM ?? result.distance_m ?? 0;
+    const durationS = result.durationS ?? result.duration_s ?? 0;
+
+    return res.json({
+      path: result.path || [],
+      modes: result.modes || [],
+      distanceM,
+      durationS
+    });
   });
 });
 
-// ---------- Backward-compat: GET /route?startIdx=..&endIdx=.. (&optional simple options)
-app.get('/route', (req, res) => {
-  // Allow quick manual testing without crafting JSON; uses server defaults
-  const startIdx = parseInt(req.query.startIdx, 10);
-  const endIdx = parseInt(req.query.endIdx, 10);
-  if (!Number.isInteger(startIdx) || !Number.isInteger(endIdx)) {
-    return res.status(400).json({ error: 'startIdx and endIdx must be integers' });
-  }
-  if (startIdx < 0 || endIdx < 0 || startIdx >= TOTAL_NODES || endIdx >= TOTAL_NODES) {
-    return res.status(400).json({ error: `startIdx/endIdx out of range (0..${TOTAL_NODES - 1})` });
-  }
-
-  // Optional query params: bikeMask, walkMask, bikeSpeed, walkSpeed, dismount, remount
-  const q = req.query;
-  const opts = {
-    sourceIdx: startIdx,
-    targetIdx: endIdx,
-    bikeSurfaceMask: Number.isInteger(+q.bikeMask) ? (+q.bikeMask & 0xFFFF) : defaults.bikeSurfaceMask,
-    walkSurfaceMask: Number.isInteger(+q.walkMask) ? (+q.walkMask & 0xFFFF) : defaults.walkSurfaceMask,
-    bikeSpeedMps: Number.isFinite(+q.bikeSpeed) ? +q.bikeSpeed : defaults.bikeSpeedMps,
-    walkSpeedMps: Number.isFinite(+q.walkSpeed) ? +q.walkSpeed : defaults.walkSpeedMps,
-    rideToWalkPenaltyS: Number.isFinite(+q.dismount) ? +q.dismount : defaults.rideToWalkPenaltyS,
-    walkToRidePenaltyS: Number.isFinite(+q.remount) ? +q.remount : defaults.walkToRidePenaltyS
-  };
-
-  router.findPath(opts, (err, result) => {
-    if (err) {
-      if (String(err).includes('no route')) return res.json({ path: [], modes: [], distance_m: 0, duration_s: 0 });
-      return res.status(500).json({ error: String(err) });
-    }
-    return res.json(result);
-  });
-});
-
-// ---------- /filter — update server defaults (no longer rebuilds graphs)
-// Body: { bikeSurfaceMask?: u16, walkSurfaceMask?: u16, ...same keys as defaults... }
+// ---------- /filter — update server defaults (no KD rebuild)
 app.post('/filter', (req, res) => {
   const b = req.body || {};
 
@@ -180,23 +169,12 @@ app.post('/filter', (req, res) => {
   if (Number.isFinite(b.rideToWalkPenaltyS)) defaults.rideToWalkPenaltyS = b.rideToWalkPenaltyS;
   if (Number.isFinite(b.walkToRidePenaltyS)) defaults.walkToRidePenaltyS = b.walkToRidePenaltyS;
 
-  if (Array.isArray(b.bikeSurfaceFactor)) defaults.bikeSurfaceFactor = b.bikeSurfaceFactor.map(Number);
-  if (Array.isArray(b.walkSurfaceFactor)) defaults.walkSurfaceFactor = b.walkSurfaceFactor.map(Number);
-
-  // NOTE: we no longer rebuild a filtered KD-tree. Snapping stays geometric;
-  // masks are enforced during routing. If you still want to filter KD nodes,
-  // you'll need an API that returns "allowedIndices" from your ingest or addon.
+  if (Array.isArray(b.bikeSurfaceFactor)) defaults.bikeSurfaceFactor = sanitizeFactors(b.bikeSurfaceFactor);
+  if (Array.isArray(b.walkSurfaceFactor)) defaults.walkSurfaceFactor = sanitizeFactors(b.walkSurfaceFactor);
 
   console.log('✔ Defaults updated:', defaults);
   return res.status(204).send();
 });
 
-// Optional: expose current defaults for the frontend
-app.get('/filter', (req, res) => res.json(defaults));
-
-// ---------- remove or stub the old /full debug endpoint
-app.get('/full', (req, res) => {
-  return res.status(410).json({ error: 'Deprecated in A*/mmap build' });
-});
-
-app.listen(3000, () => console.log('Server on http://localhost:3000'));
+const PORT = Number(process.env.PORT || 3000);
+app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));

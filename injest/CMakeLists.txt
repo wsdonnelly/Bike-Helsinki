@@ -1,48 +1,53 @@
-cmake_minimum_required(VERSION 3.10)
-project(HelBikeIngest)
+cmake_minimum_required(VERSION 3.16)
+project(HelBikeIngest LANGUAGES CXX)
 
+# --- C++ config --------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ─── Paths for header‐only dependencies ───────────────────────────────────
-set(OSMIUM_INCLUDE_DIR   "/Users/willdonnelly/src/libosmium/include")
-set(PROTOZERO_INCLUDE_DIR "/Users/willdonnelly/src/protozero/include")
+# Nice warnings in Debug/RelWithDebInfo
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-# ─── Find Boost (installed via Homebrew under /opt/homebrew) ─────────────
-set(BOOST_ROOT "/opt/homebrew/Cellar/boost")
-find_package(Boost REQUIRED COMPONENTS program_options filesystem)
+# Optional LTO in Release if supported
+option(ENABLE_LTO "Enable link-time optimization in Release builds" ON)
+if(ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_msg)
+  if(_ipo_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+endif()
 
-# ─── buildGraph executable ───────────────────────────────────────────────
+# --- Header-only deps (set these from your machine) --------------------------
+# Tip: make them CACHE PATH so you can override from the cmake command line
+set(OSMIUM_INCLUDE_DIR    "/Users/willdonnelly/src/libosmium/include" CACHE PATH "Path to libosmium/include")
+set(PROTOZERO_INCLUDE_DIR "/Users/willdonnelly/src/protozero/include" CACHE PATH "Path to protozero/include")
+
+# --- Executable --------------------------------------------------------------
 add_executable(buildGraph buildGraph.cpp)
 
 target_include_directories(buildGraph PRIVATE
   ${OSMIUM_INCLUDE_DIR}
   ${PROTOZERO_INCLUDE_DIR}
-  ${Boost_INCLUDE_DIRS}
 )
 
-# Link Boost + compression/XML libs required by Osmium
+# libosmium uses large files; this define is recommended on some platforms
+target_compile_definitions(buildGraph PRIVATE _FILE_OFFSET_BITS=64)
+
+# --- Linking -----------------------------------------------------------------
+# Minimal set for reading .osm.pbf via libosmium/protozero; zlib/bzip2/expat are
+# used depending on input compression / XML. Link directly for simplicity.
+# If you *only* read .pbf, Expat isn’t strictly required, but harmless to keep.
 target_link_libraries(buildGraph PRIVATE
-  Boost::filesystem
-  Boost::program_options
-  bz2          # bzip2
-  expat        # Expat XML parser
-  z            # zlib
+  z       # zlib
+  bz2     # bzip2
+  expat   # Expat XML parser (optional if not reading .osm XML)
 )
 
-# # ─── buildKdTree executable ───────────────────────────────────────────────
-add_executable(buildKdTree buildKdTree.cpp)
-
-target_include_directories(buildKdTree PRIVATE
-  ${OSMIUM_INCLUDE_DIR}
-  ${PROTOZERO_INCLUDE_DIR}
-  ${Boost_INCLUDE_DIRS}
-)
-
-target_link_libraries(buildKdTree PRIVATE
-  Boost::filesystem
-  Boost::program_options
-  bz2
-  expat
-  z
-)
+# ---------------------- (Removed KD build) -----------------------------------
+# add_executable(buildKdTree buildKdTree.cpp)
+# target_include_directories(buildKdTree PRIVATE ${OSMIUM_INCLUDE_DIR} ${PROTOZERO_INCLUDE_DIR})
+# target_link_libraries(buildKdTree PRIVATE z bz2 expat)

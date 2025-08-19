@@ -45,4 +45,62 @@ flowchart TB
 
 
 # Backend
+## route.cpp
+1. Node loads addon → addon mmaps graph_nodes.bin + graph_edges.bin.
+
+2. Client hits /route (your Express layer) → calls findPath({sourceIdx,targetIdx,…}, cb).
+
+3. Async worker runs A* on the CSR with filters/speeds/penalties.
+
+4. On success: returns { path, modes, distance_m, duration_s } to JS.
+
+5. JS turns node indices into lat/lon (or uses a prebuilt coordinate array) and draws the polyline; color by modes or surface if desired.
+## Routing model: two-layer A*
+  - ### Modes & layers
+    - Edge mode_mask bits: 0x01=BIKE, 0x02=FOOT.
+    - Search state is (node, layer) ⇒ 2N states.
+    - You can move along edges within a layer or switch layers at the same node with a time penalty.
+
+  - ### Parameters (AStarParams)
+    - bike_surface_mask, walk_surface_mask (u16 filters against surface_flags).
+    - Speeds: bike_speed_mps, walk_speed_mps.
+    - Switch penalties: ride_to_walk_penalty_s, walk_to_ride_penalty_s.
+    - Optional per-surface primary time multipliers (arrays indexed by surface_primary u8).
+
+  - ### Heuristic (admissible)
+    - Straight-line haversine to target divided by max(bike_speed, walk_speed) so it’s optimistic across layers.
+
+  - ### Relaxation
+    - Edge relax (same layer): if edge allows the layer’s mode and passes surface filter, cost = length / speed * factor.
+    - Switch relax (same node): add penalty to change layer.
+
+  - ### Goal
+    - First time the queue pops target in any layer, that’s optimal.
+
+  - ### Reconstruction & metrics
+    - Walk parent pointers to build a (node, layer) chain.
+    - Convert to path_nodes (indices) and path_modes (per step: 1=BIKE, 2=FOOT), skipping duplicate nodes created by switches.
+    - Compute distance_m (sum of edge lengths) and duration_s (movement + switch penalties).
+
+  - ### Edge cases:
+    - If no path is found, returns { success:false } internally; JS callback gets "no route" error string.
+
+## N-API surface
+  - ### Init
+    - On module load (Init): maps both blobs (../data/graph_nodes.bin, ../data/graph_edges.bin), prints N and E, optionally madvi(MADV_RANDOM) for edge arrays.
+    - Exports findPath.
+
+  - ### findPath(options, callback)
+    - Validates sourceIdx and targetIdx (u32).
+    - Parses optional params: masks, speeds, penalties, bikeSurfaceFactor[], walkSurfaceFactor[].
+    - Runs routing in a Napi::AsyncWorker (off the Node event loop).
+    - *Callback signature: (err, result) where:*
+      - err is null on success or a string (e.g., "no route").
+      - result = { path: number[], modes: number[], distance_m: number, duration_s: number }.
+
+### Concurrency/safety:
+
+- The global G_nodes/G_edges are immutable; each request builds its own local vectors for A* state ⇒ thread-safe across concurrent calls.
+- Throughput depends on libuv pool size (UV_THREADPOOL_SIZE).
+
 # Frontend

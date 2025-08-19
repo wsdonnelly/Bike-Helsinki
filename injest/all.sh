@@ -17,8 +17,9 @@ echo "Running buildGraph …"
 cd build
 ./buildGraph "${OSM_PBF}"
 
-echo "Running buildKdTree …"
-./buildKdTree
+# Deprecated
+# echo "Running buildKdTree …"
+# ./buildKdTree
 
 echo "All steps complete."
 du -ha ../../data | grep -v '/\.DS_Store$'

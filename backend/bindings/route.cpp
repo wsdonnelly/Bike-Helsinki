@@ -18,6 +18,7 @@
 #include <queue>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -29,22 +30,22 @@ struct NodesHeader
 {
   char magic[8];        // "MMAPNODE"
   uint32_t version;     // = 1
-  uint32_t num_nodes;   // N
-  uint8_t coord_type;   // 0=float32 degrees, 1=int32 microdegrees
+  uint32_t numNodes;    // N
+  uint8_t coordType;    // 0=float32 degrees, 1=int32 microdegrees
   uint8_t reserved[3];  // zero
 };
 static_assert(sizeof(NodesHeader) == 20, "NodesHeader must be 20 bytes");
 
 struct EdgesHeader
 {
-  char magic[8];                // "MMAPGRPH"
-  uint32_t version;             // = 1
-  uint32_t num_nodes;           // N
-  uint32_t num_edges;           // E (directed)
-  uint8_t has_surface_primary;  // =1
-  uint8_t has_surface_flags;    // =1
-  uint8_t has_mode_mask;        // =1
-  uint8_t length_type;          // 0=float32 meters
+  char magic[8];              // "MMAPGRPH"
+  uint32_t version;           // = 1
+  uint32_t numNodes;          // N
+  uint32_t numEdges;          // E (directed)
+  uint8_t hasSurfacePrimary;  // =1
+  uint8_t hasSurfaceFlags;    // =1
+  uint8_t hasModeMask;        // =1
+  uint8_t lengthType;         // 0=float32 meters
 };
 static_assert(sizeof(EdgesHeader) == 24, "EdgesHeader must be 24 bytes");
 
@@ -62,25 +63,27 @@ struct MappedFile
 {
   void* base = nullptr;
   size_t size = 0;
-  int fd = -1;
+  int fileHandle = -1;
 
   MappedFile() = default;
   MappedFile(const MappedFile&) = delete;
   MappedFile& operator=(const MappedFile&) = delete;
 
-  MappedFile(MappedFile&& o) noexcept { *this = std::move(o); }
-  MappedFile& operator=(MappedFile&& o) noexcept
+  MappedFile(MappedFile&& other) noexcept
+      : base(std::exchange(other.base, nullptr)),
+        size(std::exchange(other.size, 0)),
+        fileHandle(std::exchange(other.fileHandle, -1))
+  {}
+
+  MappedFile& operator=(MappedFile&& other) noexcept
   {
-    if (this != &o)
+    if (this != &other)
     {
       if (base) ::munmap(base, size);
-      if (fd >= 0) ::close(fd);
-      base = o.base;
-      size = o.size;
-      fd = o.fd;
-      o.base = nullptr;
-      o.size = 0;
-      o.fd = -1;
+      if (fileHandle >= 0) ::close(fileHandle);
+      base = std::exchange(other.base, nullptr);
+      size = std::exchange(other.size, 0);
+      fileHandle = std::exchange(other.fileHandle, -1);
     }
     return *this;
   }
@@ -88,216 +91,293 @@ struct MappedFile
   ~MappedFile()
   {
     if (base) ::munmap(base, size);
-    if (fd >= 0) ::close(fd);
+    if (fileHandle >= 0) ::close(fileHandle);
   }
 };
 
 // 2) Return a shared_ptr directly (no by-value temporary)
-static std::shared_ptr<MappedFile> map_readonly_sp(const std::string& path)
+static std::shared_ptr<MappedFile> mapReadonlySp(const std::string& filePath)
 {
-  auto m = std::make_shared<MappedFile>();
-  m->fd = ::open(path.c_str(), O_RDONLY);
-  if (m->fd < 0) throw std::runtime_error("open failed: " + path);
-  struct stat st{};
-  if (::fstat(m->fd, &st) != 0)
-    throw std::runtime_error("fstat failed: " + path);
-  m->size = static_cast<size_t>(st.st_size);
-  m->base = ::mmap(nullptr, m->size, PROT_READ, MAP_PRIVATE, m->fd, 0);
-  if (m->base == MAP_FAILED)
+  auto mapping = std::make_shared<MappedFile>();
+
+  const int fileHandle = ::open(filePath.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fileHandle < 0)
   {
-    ::close(m->fd);
-    m->fd = -1;
-    throw std::runtime_error("mmap failed: " + path);
+    throw std::system_error(errno, std::generic_category(),
+                            "open failed: " + filePath);
   }
-  return m;
+  mapping->fileHandle = fileHandle;
+
+  struct stat fileStat{};
+  if (::fstat(fileHandle, &fileStat) != 0)
+  {
+    ::close(fileHandle);
+    mapping->fileHandle = -1;
+    throw std::system_error(errno, std::generic_category(),
+                            "fstat failed: " + filePath);
+  }
+
+  mapping->size = static_cast<size_t>(fileStat.st_size);
+  if (mapping->size == 0)
+  {
+    // You can choose to allow empty files; here we treat it as an error.
+    ::close(fileHandle);
+    mapping->fileHandle = -1;
+    throw std::runtime_error("mmap failed: file is empty: " + filePath);
+  }
+
+  void* mappedAddress =
+      ::mmap(nullptr, mapping->size, PROT_READ, MAP_PRIVATE, fileHandle, 0);
+  if (mappedAddress == MAP_FAILED)
+  {
+    ::close(fileHandle);
+    mapping->fileHandle = -1;
+    throw std::system_error(errno, std::generic_category(),
+                            "mmap failed: " + filePath);
+  }
+
+  mapping->base = mappedAddress;
+  return mapping;
 }
 
 // ---------------- Typed views over the blobs ----------------
 struct NodesView
 {
   std::shared_ptr<MappedFile> hold;  // keep mapping alive
-  uint32_t N = 0;
-  const uint64_t* ids = nullptr;
-  const float* lat_f32 = nullptr;  // if coord_type==0
-  const float* lon_f32 = nullptr;
-  const int32_t* lat_i32 = nullptr;  // if coord_type==1 (microdegrees)
-  const int32_t* lon_i32 = nullptr;
-  blob::CoordType coord = blob::DegreesF32;
+  uint32_t numNodes{0};
+  const uint64_t* ids{nullptr};
+  const float* lat_f32{nullptr};  // if coordType==0
+  const float* lon_f32{nullptr};
+  const int32_t* lat_i32{nullptr};  // if coordType==1 (microdegrees)
+  const int32_t* lon_i32{nullptr};
+  blob::CoordType coord{blob::DegreesF32};
 };
 
 struct EdgesView
 {
   std::shared_ptr<MappedFile> hold;  // keep mapping alive
-  uint32_t N = 0, E = 0;
-  const uint32_t* offsets = nullptr;         // N+1
-  const uint32_t* neighbors = nullptr;       // E
-  const float* length_m = nullptr;           // E
-  const uint16_t* surface_flags = nullptr;   // E
-  const uint8_t* surface_primary = nullptr;  // E
-  const uint8_t* mode_mask = nullptr;        // E (bit0=BIKE, bit1=FOOT)
+  uint32_t numNodes{0};
+  uint32_t numEdges{0};
+  const uint32_t* offsets{nullptr};        // N+1
+  const uint32_t* neighbors{nullptr};      // E
+  const float* lengthsMeters{nullptr};     // E
+  const uint16_t* surfaceFlags{nullptr};   // E
+  const uint8_t* surfacePrimary{nullptr};  // E
+  const uint8_t* modeMask{nullptr};        // E (bit0=BIKE, bit1=FOOT)
 };
 
-static NodesView load_nodes(const std::string& path)
+static NodesView loadNodes(const std::string& filePath)
 {
-  auto hold = map_readonly_sp(path);
-  const char* p = static_cast<const char*>(hold->base);
-  const char* end = p + hold->size;
+  auto mapping = mapReadonlySp(filePath);
+  const char* cursor = static_cast<const char*>(mapping->base);
+  const char* endPtr = cursor + mapping->size;
 
-  auto need = [&](size_t n) {
-    if (p + n > end) throw std::runtime_error("nodes blob truncated");
+  auto requireBytes = [&](size_t bytes) {
+    if (cursor + bytes > endPtr)
+    {
+      throw std::runtime_error("nodes blob truncated");
+    }
   };
 
-  need(sizeof(blob::NodesHeader));
-  const auto* hdr = reinterpret_cast<const blob::NodesHeader*>(p);
-  if (std::memcmp(hdr->magic, "MMAPNODE", 8) != 0 || hdr->version != 1)
-    throw std::runtime_error("bad nodes header");
-  p += sizeof(*hdr);
-
-  NodesView v;
-  v.hold = hold;
-  v.N = hdr->num_nodes;
-  v.coord = static_cast<blob::CoordType>(hdr->coord_type);
-
-  need(sizeof(uint64_t) * v.N);
-  v.ids = reinterpret_cast<const uint64_t*>(p);
-  p += sizeof(uint64_t) * v.N;
-
-  if (v.coord == blob::DegreesF32)
+  // Header
+  requireBytes(sizeof(blob::NodesHeader));
+  const auto* header = reinterpret_cast<const blob::NodesHeader*>(cursor);
+  if (std::memcmp(header->magic, "MMAPNODE", 8) != 0 || header->version != 1)
   {
-    need(sizeof(float) * v.N * 2);
-    v.lat_f32 = reinterpret_cast<const float*>(p);
-    p += sizeof(float) * v.N;
-    v.lon_f32 = reinterpret_cast<const float*>(p);
-    p += sizeof(float) * v.N;
+    throw std::runtime_error("bad nodes header");
+  }
+  cursor += sizeof(*header);
+
+  NodesView nodesView;
+  nodesView.hold = mapping;
+  nodesView.numNodes = header->numNodes;
+  nodesView.coord = static_cast<blob::CoordType>(header->coordType);
+
+  // IDs
+  requireBytes(sizeof(uint64_t) * nodesView.numNodes);
+  nodesView.ids = reinterpret_cast<const uint64_t*>(cursor);
+  cursor += sizeof(uint64_t) * nodesView.numNodes;
+
+  // Coordinates (layout depends on coordType)
+  if (nodesView.coord == blob::DegreesF32)
+  {
+    requireBytes(sizeof(float) * nodesView.numNodes * 2);
+    nodesView.lat_f32 = reinterpret_cast<const float*>(cursor);
+    cursor += sizeof(float) * nodesView.numNodes;
+    nodesView.lon_f32 = reinterpret_cast<const float*>(cursor);
+    cursor += sizeof(float) * nodesView.numNodes;
   } else
   {
-    need(sizeof(int32_t) * v.N * 2);
-    v.lat_i32 = reinterpret_cast<const int32_t*>(p);
-    p += sizeof(int32_t) * v.N;
-    v.lon_i32 = reinterpret_cast<const int32_t*>(p);
-    p += sizeof(int32_t) * v.N;
+    requireBytes(sizeof(int32_t) * nodesView.numNodes * 2);
+    nodesView.lat_i32 = reinterpret_cast<const int32_t*>(cursor);
+    cursor += sizeof(int32_t) * nodesView.numNodes;
+    nodesView.lon_i32 = reinterpret_cast<const int32_t*>(cursor);
+    cursor += sizeof(int32_t) * nodesView.numNodes;
   }
-  return v;
+
+  return nodesView;
 }
 
-static EdgesView load_edges(const std::string& path)
+static EdgesView loadEdges(const std::string& filePath)
 {
-  auto hold = map_readonly_sp(path);
-  const char* p = static_cast<const char*>(hold->base);
-  const char* end = p + hold->size;
+  auto mapping = mapReadonlySp(filePath);
+  const char* cursor = static_cast<const char*>(mapping->base);
+  const char* endPtr = cursor + mapping->size;
 
-  auto need = [&](size_t n) {
-    if (p + n > end) throw std::runtime_error("edges blob truncated");
+  auto requireBytes = [&](size_t bytes) {
+    if (cursor + bytes > endPtr)
+    {
+      throw std::runtime_error("edges blob truncated: " + filePath);
+    }
   };
 
-  const auto* hdr = reinterpret_cast<const blob::EdgesHeader*>(p);
-  bool okMagic = (std::memcmp(hdr->magic, "MMAPGRPH", 8) == 0) ||
-                 (std::memcmp(hdr->magic, "MMAPEDGE", 8) ==
-                  0);  // accept your current magic
-  if (!okMagic || hdr->version != 1)
-    throw std::runtime_error("bad edges header");
-  p += sizeof(*hdr);
+  // --- Header ---
+  requireBytes(sizeof(blob::EdgesHeader));
+  const auto* header = reinterpret_cast<const blob::EdgesHeader*>(cursor);
 
-  uint32_t off_len, nei_len, len_len, flg_len, prim_len, mode_len;
-  need(6 * sizeof(uint32_t));
-  std::memcpy(&off_len, p, 4);
-  p += 4;
-  std::memcpy(&nei_len, p, 4);
-  p += 4;
-  std::memcpy(&len_len, p, 4);
-  p += 4;
-  std::memcpy(&flg_len, p, 4);
-  p += 4;
-  std::memcpy(&prim_len, p, 4);
-  p += 4;
-  std::memcpy(&mode_len, p, 4);
-  p += 4;
-
-  if (off_len != hdr->num_nodes + 1 || nei_len != hdr->num_edges ||
-      len_len != hdr->num_edges)
-    throw std::runtime_error("lengths block mismatch");
-
-  EdgesView v;
-  v.hold = hold;
-  v.N = hdr->num_nodes;
-  v.E = hdr->num_edges;
-
-  need(sizeof(uint32_t) * off_len);
-  v.offsets = reinterpret_cast<const uint32_t*>(p);
-  p += sizeof(uint32_t) * off_len;
-
-  need(sizeof(uint32_t) * nei_len);
-  v.neighbors = reinterpret_cast<const uint32_t*>(p);
-  p += sizeof(uint32_t) * nei_len;
-
-  need(sizeof(float) * len_len);
-  v.length_m = reinterpret_cast<const float*>(p);
-  p += sizeof(float) * len_len;
-
-  if (hdr->has_surface_flags)
+  // accept both
+  const bool okMagic = (std::memcmp(header->magic, "MMAPGRPH", 8) == 0) ||
+                       (std::memcmp(header->magic, "MMAPEDGE", 8) == 0);
+  if (!okMagic || header->version != 1)
   {
-    need(sizeof(uint16_t) * flg_len);
-    v.surface_flags = reinterpret_cast<const uint16_t*>(p);
-    p += sizeof(uint16_t) * flg_len;
+    throw std::runtime_error("bad edges header: " + filePath);
   }
-  if (hdr->has_surface_primary)
+  if (header->lengthType != 0)
   {
-    need(sizeof(uint8_t) * prim_len);
-    v.surface_primary = reinterpret_cast<const uint8_t*>(p);
-    p += sizeof(uint8_t) * prim_len;
+    throw std::runtime_error(
+        "unsupported lengthType (expected float32 meters): " + filePath);
   }
-  if (hdr->has_mode_mask)
-  {
-    need(sizeof(uint8_t) * mode_len);
-    v.mode_mask = reinterpret_cast<const uint8_t*>(p);
-    p += sizeof(uint8_t) * mode_len;
-  }
-  if (!v.mode_mask) throw std::runtime_error("edges blob missing mode_mask");
-  if (v.offsets[0] != 0 || v.offsets[v.N] != v.E)
-    throw std::runtime_error("bad CSR offsets");
+  cursor += sizeof(*header);
 
-  return v;
+  // --- Lengths block (6×u32) ---
+  requireBytes(6 * sizeof(uint32_t));
+  uint32_t offsetsCount, neighborsCount, lengthCount, flagsCount, primaryCount,
+      modeMaskCount;
+
+  std::memcpy(&offsetsCount, cursor, 4);
+  cursor += 4;
+  std::memcpy(&neighborsCount, cursor, 4);
+  cursor += 4;
+  std::memcpy(&lengthCount, cursor, 4);
+  cursor += 4;
+  std::memcpy(&flagsCount, cursor, 4);
+  cursor += 4;
+  std::memcpy(&primaryCount, cursor, 4);
+  cursor += 4;
+  std::memcpy(&modeMaskCount, cursor, 4);
+  cursor += 4;
+
+  // Basic consistency
+  if (offsetsCount != header->numNodes + 1 ||
+      neighborsCount != header->numEdges || lengthCount != header->numEdges)
+  {
+    throw std::runtime_error("lengths block mismatch: " + filePath);
+  }
+  if (header->hasSurfaceFlags && flagsCount != header->numEdges)
+  {
+    throw std::runtime_error("flags length mismatch: " + filePath);
+  }
+  if (header->hasSurfacePrimary && primaryCount != header->numEdges)
+  {
+    throw std::runtime_error("primary length mismatch: " + filePath);
+  }
+  if (header->hasModeMask && modeMaskCount != header->numEdges)
+  {
+    throw std::runtime_error("modeMask length mismatch: " + filePath);
+  }
+
+  // --- Views ---
+  EdgesView edgesView;
+  edgesView.hold = mapping;
+  edgesView.numNodes = header->numNodes;
+  edgesView.numEdges = header->numEdges;
+
+  requireBytes(sizeof(uint32_t) * offsetsCount);
+  edgesView.offsets = reinterpret_cast<const uint32_t*>(cursor);
+  cursor += sizeof(uint32_t) * offsetsCount;
+
+  requireBytes(sizeof(uint32_t) * neighborsCount);
+  edgesView.neighbors = reinterpret_cast<const uint32_t*>(cursor);
+  cursor += sizeof(uint32_t) * neighborsCount;
+
+  requireBytes(sizeof(float) * lengthCount);
+  edgesView.lengthsMeters = reinterpret_cast<const float*>(cursor);
+  cursor += sizeof(float) * lengthCount;
+
+  if (header->hasSurfaceFlags)
+  {
+    requireBytes(sizeof(uint16_t) * flagsCount);
+    edgesView.surfaceFlags = reinterpret_cast<const uint16_t*>(cursor);
+    cursor += sizeof(uint16_t) * flagsCount;
+  }
+
+  if (header->hasSurfacePrimary)
+  {
+    requireBytes(sizeof(uint8_t) * primaryCount);
+    edgesView.surfacePrimary = reinterpret_cast<const uint8_t*>(cursor);
+    cursor += sizeof(uint8_t) * primaryCount;
+  }
+
+  if (header->hasModeMask)
+  {
+    requireBytes(sizeof(uint8_t) * modeMaskCount);
+    edgesView.modeMask = reinterpret_cast<const uint8_t*>(cursor);
+    cursor += sizeof(uint8_t) * modeMaskCount;
+  }
+
+  // Required fields sanity
+  if (!edgesView.modeMask)
+  {
+    throw std::runtime_error("edges blob missing modeMask: " + filePath);
+  }
+
+  if (edgesView.offsets[0] != 0 ||
+      edgesView.offsets[edgesView.numNodes] != edgesView.numEdges)
+  {
+    throw std::runtime_error("bad CSR offsets: " + filePath);
+  }
+
+  return edgesView;
 }
 
 // ---------------- Utilities ----------------
-static inline void node_deg(const NodesView& nv, uint32_t idx, double& lat_deg,
-                            double& lon_deg)
+// possibly move to .hpp
+static inline void nodeDeg(const NodesView& nodeView, uint32_t idx,
+                           double& latDeg, double& lonDeg)
 {
-  if (nv.coord == blob::DegreesF32)
+  if (nodeView.coord == blob::DegreesF32)
   {
-    lat_deg = static_cast<double>(nv.lat_f32[idx]);
-    lon_deg = static_cast<double>(nv.lon_f32[idx]);
+    latDeg = static_cast<double>(nodeView.lat_f32[idx]);
+    lonDeg = static_cast<double>(nodeView.lon_f32[idx]);
   } else
   {
-    lat_deg = static_cast<double>(nv.lat_i32[idx]) * 1e-6;
-    lon_deg = static_cast<double>(nv.lon_i32[idx]) * 1e-6;
+    latDeg = static_cast<double>(nodeView.lat_i32[idx]) * 1e-6;
+    lonDeg = static_cast<double>(nodeView.lon_i32[idx]) * 1e-6;
   }
 }
 
-static inline double haversine_m(double lat1_deg, double lon1_deg,
-                                 double lat2_deg, double lon2_deg)
+// move to utils or other hpp same version as buildGraph.cpp
+static inline double haversineMeters(double lat1Deg, double lon1Deg,
+                                     double lat2Deg, double lon2Deg)
 {
   constexpr double kPi = 3.14159265358979323846;
+  constexpr double kDegToRad = kPi / 180.0;
   constexpr double kEarthRadiusMeters = 6371000.0;
-  auto toRad = [&](double degrees) { return degrees * kPi / 180.0; };
 
-  const double deltaLatRad = toRad(lat2_deg - lat1_deg);
-  const double deltaLonRad = toRad(lon2_deg - lon1_deg);
-  const double lat1Rad = toRad(lat1_deg);
-  const double lat2Rad = toRad(lat2_deg);
+  const double dLat = (lat2Deg - lat1Deg) * kDegToRad;
+  const double dLon = (lon2Deg - lon1Deg) * kDegToRad;
+  const double lat1 = lat1Deg * kDegToRad;
+  const double lat2 = lat2Deg * kDegToRad;
 
-  const double sinHalfDeltaLat = std::sin(deltaLatRad / 2.0);
-  const double sinHalfDeltaLon = std::sin(deltaLonRad / 2.0);
+  const double sinHalfDLat = std::sin(dLat * 0.5);
+  const double sinHalfDLon = std::sin(dLon * 0.5);
 
-  const double haversineTerm =
-      sinHalfDeltaLat * sinHalfDeltaLat +
-      std::cos(lat1Rad) * std::cos(lat2Rad) * sinHalfDeltaLon * sinHalfDeltaLon;
+  const double a = sinHalfDLat * sinHalfDLat +
+                   std::cos(lat1) * std::cos(lat2) * sinHalfDLon * sinHalfDLon;
 
-  const double centralAngleRad =
-      2.0 *
-      std::atan2(std::sqrt(haversineTerm), std::sqrt(1.0 - haversineTerm));
-
-  return kEarthRadiusMeters * centralAngleRad;
+  const double centralAngle =
+      2.0 * std::atan2(std::sqrt(a), std::sqrt(1.0 - a));
+  return kEarthRadiusMeters * centralAngle;
 }
 
 // ---------------- Two-mode A* over CSR ----------------
@@ -306,6 +386,7 @@ enum : uint8_t
   MODE_BIKE = 0x1,
   MODE_FOOT = 0x2
 };
+
 enum class Layer : uint8_t
 {
   Ride = 0,
@@ -315,193 +396,227 @@ enum class Layer : uint8_t
 struct AStarParams
 {
   // Filtering
-  uint16_t bike_surface_mask = 0xFFFF;
-  uint16_t walk_surface_mask = 0xFFFF;
+  uint16_t bikeSurfaceMask = 0xFFFF;
+  uint16_t walkSurfaceMask = 0xFFFF;
 
   // Speeds (m/s)
-  double bike_speed_mps = 6.0;  // ~21.6 km/h
-  double walk_speed_mps = 1.5;  // ~5.4 km/h
+  double bikeSpeedMps = 6.0;  // ~21.6 km/h
+  double walkSpeedMps = 1.5;  // ~5.4 km/h
 
   // Penalties (seconds) to switch modes at a node
   double ride_to_walk_penalty_s = 5.0;  // dismount
-  double walk_to_ride_penalty_s = 3.0;  // remount
+  double walkToRidePenaltyS = 3.0;      // remount
 
-  // Per-surface primary multipliers (index by uint8 surface_primary)
+  // Per-surface primary multipliers (index by uint8 surfacePrimary)
   // If empty, all factors default to 1.0
-  std::vector<double> bike_surface_factor;
-  std::vector<double> walk_surface_factor;
+  std::vector<double> bikeSurfaceFactor;
+  std::vector<double> walkSurfaceFactor;
 };
 
 struct AStarResult
 {
-  bool success = false;
-  std::vector<uint32_t> path_nodes;  // node indices s..t
-  std::vector<uint8_t> path_modes;   // MODE_* for each step between nodes;
-                                     // length = path_nodes.size()-1
-  double distance_m = 0.0;
-  double duration_s = 0.0;
+  bool success{false};
+  std::vector<uint32_t> pathNodes;  // node indices s..t
+  std::vector<uint8_t> pathModes;   // MODE_* for each step between nodes;
+                                    // length = pathNodes.size()-1
+  double distanceM{0.0};
+  double durationS{0.0};
 };
 
-// Get factor by primary index; default 1.0 if out-of-range or table missing
-static inline double surface_factor(const std::vector<double>& tbl,
-                                    uint8_t primary)
+// Get factor by surface primary index; fall back to 1.0 if missing/invalid.
+static inline double surfaceFactor(const std::vector<double>& factors,
+                                   uint8_t surfacePrimaryIdx)
 {
-  if (tbl.empty()) return 1.0;
-  if (primary < tbl.size()) return tbl[primary];
-  return 1.0;
+  constexpr double kDefaultFactor{1.0};
+
+  if (factors.empty()) return kDefaultFactor;
+
+  const size_t idx = static_cast<size_t>(surfacePrimaryIdx);
+  if (idx >= factors.size()) return kDefaultFactor;
+
+  const double factor = factors[idx];
+  // Guard against NaN/Inf/<=0 coming from user input.
+  if (!std::isfinite(factor) || factor <= 0.0) return kDefaultFactor;
+  return factor;
 }
 
 struct PQItem
 {
-  double f;                                                  // f = g + h
-  uint32_t node;                                             // graph node
-  Layer layer;                                               // Ride/Walk
-  bool operator<(const PQItem& o) const { return f > o.f; }  // min-heap
+  // g(n) exact
+  // h(n) heuristic
+  // f(n) = g(n) + h(n): the estimated total trip time if you go through n
+  // PQ pops smallest priorityF
+  double priorityF;  // f = g + h
+  uint32_t nodeIdx;  // graph node
+  Layer layer;       // Ride/Walk
+  bool operator<(const PQItem& rhs) const { return priorityF > rhs.priorityF; }
 };
 
+// keep inside struct to expand later if needed
 struct StateKey
-{  // encode (node, layer) to index [0..2N)
-  static inline uint32_t idx(uint32_t node, Layer layer, uint32_t N)
+{
+  static constexpr uint32_t kLayers{2};
+  static inline uint32_t idx(uint32_t nodeIdx, Layer layer) noexcept
   {
-    return node * 2u + static_cast<uint32_t>(layer);
+    return nodeIdx * kLayers + static_cast<uint32_t>(layer);
   }
 };
 
 // Core A* (goal: reach node t in either layer with min time)
-static AStarResult astar_two_layer(const EdgesView& g, const NodesView& nv,
-                                   uint32_t s, uint32_t t, const AStarParams& P)
+static AStarResult aStarTwoLayer(const EdgesView& edgesView,
+                                 const NodesView& nodesView, uint32_t sourceIdx,
+                                 uint32_t targetIdx, const AStarParams& params)
 {
-  const uint32_t N = g.N;
-  if (s >= N || t >= N) throw std::runtime_error("source/target out of range");
+  const uint32_t numNodes = edgesView.numNodes;
+  if (sourceIdx >= numNodes || targetIdx >= numNodes)
+  {
+    throw std::runtime_error("source/target out of range");
+  }
 
   // Heuristic uses the *fastest* mode speed to remain admissible across layers.
-  double latT, lonT;
-  node_deg(nv, t, latT, lonT);
-  const double vmax = std::max(P.bike_speed_mps, P.walk_speed_mps);
-  auto h = [&](uint32_t u) -> double {
-    double latU, lonU;
-    node_deg(nv, u, latU, lonU);
-    return haversine_m(latU, lonU, latT, lonT) / vmax;  // optimistic
+  double targetLat, targetLon;
+  nodeDeg(nodesView, targetIdx, targetLat, targetLon);
+  const double vmax = std::max(params.bikeSpeedMps, params.walkSpeedMps);
+
+  auto heuristic = [&](uint32_t currentIdx) -> double {
+    double currentLat, currentLon;
+    nodeDeg(nodesView, currentIdx, currentLat, currentLon);
+    // optimistic
+    return haversineMeters(currentLat, currentLon, targetLat, targetLon) / vmax;
   };
 
   const double INF = std::numeric_limits<double>::infinity();
-  const uint32_t S_ride = StateKey::idx(s, Layer::Ride, N);
-  const uint32_t S_walk = StateKey::idx(s, Layer::Walk, N);
+  const uint32_t S_ride = StateKey::idx(sourceIdx, Layer::Ride);
+  const uint32_t S_walk = StateKey::idx(sourceIdx, Layer::Walk);
 
   // We allow starting in either layer with zero cost.
-  std::vector<double> gscore(2 * N, INF);
-  std::vector<uint32_t> parent(2 * N, UINT32_MAX);  // parent state index
-  std::vector<uint8_t> parent_step_mode(
-      2 * N, 0);  // MODE_* used to move from parent to this (0 if mode-switch
-                  // at same node)
+  std::vector<double> gScore(2 * numNodes, INF);
+  // parent state index
+  std::vector<uint32_t> parent(2 * numNodes, UINT32_MAX);
+  // MODE_* used to move from parent to this (0 if mode-switch at same node)
+  std::vector<uint8_t> parentStepMode(2 * numNodes, 0);
 
-  gscore[S_ride] = 0.0;
-  gscore[S_walk] = 0.0;
+  gScore[S_ride] = 0.0;
+  gScore[S_walk] = 0.0;
 
-  std::priority_queue<PQItem> open;
-  open.push(PQItem{gscore[S_ride] + h(s), s, Layer::Ride});
-  open.push(PQItem{gscore[S_walk] + h(s), s, Layer::Walk});
+  std::priority_queue<PQItem> openPQ;
+  openPQ.push(
+      PQItem{gScore[S_ride] + heuristic(sourceIdx), sourceIdx, Layer::Ride});
+  openPQ.push(
+      PQItem{gScore[S_walk] + heuristic(sourceIdx), sourceIdx, Layer::Walk});
 
-  std::vector<char> closed(2 * N, 0);
+  std::vector<char> closed(2 * numNodes, 0);
 
-  auto relax_edge = [&](uint32_t u, Layer layerU, uint32_t v, double edgeTime_s,
-                        uint8_t edgeModeBit) {
-    const uint32_t curIdx = StateKey::idx(u, layerU, N);
-    const uint32_t nextIdx =
-        StateKey::idx(v, layerU, N);  // same layer (movement)
-    const double tentative = gscore[curIdx] + edgeTime_s;
-    if (tentative < gscore[nextIdx])
+  auto relaxEdge = [&](uint32_t u, Layer layerU, uint32_t v, double edgeTimeSec,
+                       uint8_t edgeModeBit) {
+    const uint32_t curIdx = StateKey::idx(u, layerU);
+    // same layer (movement)
+    const uint32_t nextIdx = StateKey::idx(v, layerU);
+    const double tentative = gScore[curIdx] + edgeTimeSec;
+    if (tentative < gScore[nextIdx])
     {
-      gscore[nextIdx] = tentative;
+      gScore[nextIdx] = tentative;
       parent[nextIdx] = curIdx;
-      parent_step_mode[nextIdx] = edgeModeBit;
-      open.push(PQItem{tentative + h(v), v, layerU});
+      parentStepMode[nextIdx] = edgeModeBit;
+      openPQ.push(PQItem{tentative + heuristic(v), v, layerU});
     }
   };
 
-  auto relax_switch = [&](uint32_t u, Layer from, Layer to, double penalty_s) {
-    const uint32_t fromIdx = StateKey::idx(u, from, N);
-    const uint32_t toIdx = StateKey::idx(u, to, N);
-    const double tentative = gscore[fromIdx] + penalty_s;
-    if (tentative < gscore[toIdx])
+  auto relaxSwitch = [&](uint32_t u, Layer from, Layer to, double penaltySec) {
+    const uint32_t fromIdx = StateKey::idx(u, from);
+    const uint32_t toIdx = StateKey::idx(u, to);
+    const double tentative = gScore[fromIdx] + penaltySec;
+    if (tentative < gScore[toIdx])
     {
-      gscore[toIdx] = tentative;
+      gScore[toIdx] = tentative;
       parent[toIdx] = fromIdx;
-      parent_step_mode[toIdx] = 0;  // mode switch at same node
-      open.push(PQItem{tentative + h(u), u, to});
+      // mode switch at same node
+      parentStepMode[toIdx] = 0;
+      openPQ.push(PQItem{tentative + heuristic(u), u, to});
     }
   };
 
-  uint32_t goal_state = UINT32_MAX;
+  uint32_t goalState = UINT32_MAX;
 
-  while (!open.empty())
+  while (!openPQ.empty())
   {
-    PQItem it = open.top();
-    open.pop();
-    const uint32_t u = it.node;
+    PQItem it = openPQ.top();
+    openPQ.pop();
+    const uint32_t u = it.nodeIdx;
     const Layer layer = it.layer;
-    const uint32_t uIdx = StateKey::idx(u, layer, N);
+    const uint32_t uIdx = StateKey::idx(u, layer);
     if (closed[uIdx]) continue;
     closed[uIdx] = 1;
 
     // Goal test: first time we pop t in any layer, we have the optimal arrival.
-    if (u == t)
+    if (u == targetIdx)
     {
-      goal_state = uIdx;
+      goalState = uIdx;
       break;
     }
 
-    const uint32_t begin = g.offsets[u];
-    const uint32_t end = g.offsets[u + 1];
+    const uint32_t begin = edgesView.offsets[u];
+    const uint32_t end = edgesView.offsets[u + 1];
 
     if (layer == Layer::Ride)
     {
       // Movement on ride-allowed edges and allowed bike surfaces
-      for (uint32_t ei = begin; ei < end; ++ei)
+      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
       {
-        if ((g.mode_mask[ei] & MODE_BIKE) == 0) continue;
-        if (g.surface_flags && (P.bike_surface_mask & g.surface_flags[ei]) == 0)
+        if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
+        if (edgesView.surfaceFlags &&
+            (params.bikeSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
           continue;
-        const uint32_t v = g.neighbors[ei];
-        const double len = static_cast<double>(g.length_m[ei]);
+        const uint32_t v = edgesView.neighbors[edgeIdx];
+        const double len =
+            static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
         const double factor =
-            g.surface_primary
-                ? surface_factor(P.bike_surface_factor, g.surface_primary[ei])
+            edgesView.surfacePrimary
+                ? surfaceFactor(params.bikeSurfaceFactor,
+                                edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
-        const double w = (len / P.bike_speed_mps) * factor;  // seconds
-        relax_edge(u, layer, v, w, MODE_BIKE);
+        // seconds
+        const double w = (len / params.bikeSpeedMps) * factor;
+        relaxEdge(u, layer, v, w, MODE_BIKE);
       }
       // Mode switch: Ride -> Walk
-      if (P.ride_to_walk_penalty_s >= 0.0)
-        relax_switch(u, Layer::Ride, Layer::Walk, P.ride_to_walk_penalty_s);
+      if (params.ride_to_walk_penalty_s >= 0.0)
+      {
+        relaxSwitch(u, Layer::Ride, Layer::Walk, params.ride_to_walk_penalty_s);
+      }
     } else
     {
       // Movement on foot-allowed edges and allowed walk surfaces
-      for (uint32_t ei = begin; ei < end; ++ei)
+      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
       {
-        if ((g.mode_mask[ei] & MODE_FOOT) == 0) continue;
-        if (g.surface_flags && (P.walk_surface_mask & g.surface_flags[ei]) == 0)
+        if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
+        if (edgesView.surfaceFlags &&
+            (params.walkSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
           continue;
-        const uint32_t v = g.neighbors[ei];
-        const double len = static_cast<double>(g.length_m[ei]);
+        const uint32_t v = edgesView.neighbors[edgeIdx];
+        const double len =
+            static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
         const double factor =
-            g.surface_primary
-                ? surface_factor(P.walk_surface_factor, g.surface_primary[ei])
+            edgesView.surfacePrimary
+                ? surfaceFactor(params.walkSurfaceFactor,
+                                edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
-        const double w = (len / P.walk_speed_mps) * factor;  // seconds
-        relax_edge(u, layer, v, w, MODE_FOOT);
+        const double w = (len / params.walkSpeedMps) * factor;  // seconds
+        relaxEdge(u, layer, v, w, MODE_FOOT);
       }
       // Mode switch: Walk -> Ride
-      if (P.walk_to_ride_penalty_s >= 0.0)
-        relax_switch(u, Layer::Walk, Layer::Ride, P.walk_to_ride_penalty_s);
+      if (params.walkToRidePenaltyS >= 0.0)
+      {
+        relaxSwitch(u, Layer::Walk, Layer::Ride, params.walkToRidePenaltyS);
+      }
     }
   }
 
-  AStarResult R;
-  if (goal_state == UINT32_MAX)
+  AStarResult result;
+  if (goalState == UINT32_MAX)
   {
-    R.success = false;
-    return R;
+    result.success = false;
+    return result;
   }
 
   // Build the state chain from start -> goal as (node, layer)
@@ -509,7 +624,7 @@ static AStarResult astar_two_layer(const EdgesView& g, const NodesView& nv,
   chain.reserve(64);
   {
     std::vector<std::pair<uint32_t, Layer>> rev;
-    for (uint32_t cur = goal_state; cur != UINT32_MAX;)
+    for (uint32_t cur = goalState; cur != UINT32_MAX;)
     {
       rev.emplace_back(cur / 2u, static_cast<Layer>(cur % 2u));
       uint32_t p = parent[cur];
@@ -520,56 +635,63 @@ static AStarResult astar_two_layer(const EdgesView& g, const NodesView& nv,
   }
 
   // Initialize outputs
-  R.path_nodes.clear();
-  R.path_modes.clear();
-  R.path_nodes.reserve(chain.size());           // upper bound
-  R.path_nodes.push_back(chain.front().first);  // starting node
+  result.pathNodes.clear();
+  result.pathModes.clear();
+  result.pathNodes.reserve(chain.size());           // upper bound
+  result.pathNodes.push_back(chain.front().first);  // starting node
 
-  double total_m = 0.0;
-  double total_s = 0.0;
+  double totalMeters = 0.0;
+  double totalSeconds = 0.0;
 
-  auto add_move = [&](uint32_t u, uint32_t v, Layer layerU) {
+  auto addMove = [&](uint32_t u, uint32_t v, Layer layerU) {
     // Find directed edge u->v and add its cost/length
-    for (uint32_t ei = g.offsets[u]; ei < g.offsets[u + 1]; ++ei)
+    for (uint32_t edgeIdx = edgesView.offsets[u];
+         edgeIdx < edgesView.offsets[u + 1]; ++edgeIdx)
     {
-      if (g.neighbors[ei] != v) continue;
+      if (edgesView.neighbors[edgeIdx] != v) continue;
 
       if (layerU == Layer::Ride)
       {
-        if ((g.mode_mask[ei] & MODE_BIKE) == 0) continue;
-        if (g.surface_flags && (P.bike_surface_mask & g.surface_flags[ei]) == 0)
+        if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
+        if (edgesView.surfaceFlags &&
+            (params.bikeSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
           continue;
-        const double len = static_cast<double>(g.length_m[ei]);
+        const double len =
+            static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
         const double factor =
-            g.surface_primary
-                ? surface_factor(P.bike_surface_factor, g.surface_primary[ei])
+            edgesView.surfacePrimary
+                ? surfaceFactor(params.bikeSurfaceFactor,
+                                edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
-        total_m += len;
-        total_s += (len / P.bike_speed_mps) * factor;
-        R.path_nodes.push_back(v);
-        R.path_modes.push_back(MODE_BIKE);
+        totalMeters += len;
+        totalSeconds += (len / params.bikeSpeedMps) * factor;
+        result.pathNodes.push_back(v);
+        result.pathModes.push_back(MODE_BIKE);
         return true;
       } else
       {
-        if ((g.mode_mask[ei] & MODE_FOOT) == 0) continue;
-        if (g.surface_flags && (P.walk_surface_mask & g.surface_flags[ei]) == 0)
+        if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
+        if (edgesView.surfaceFlags &&
+            (params.walkSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
           continue;
-        const double len = static_cast<double>(g.length_m[ei]);
+        const double len =
+            static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
         const double factor =
-            g.surface_primary
-                ? surface_factor(P.walk_surface_factor, g.surface_primary[ei])
+            edgesView.surfacePrimary
+                ? surfaceFactor(params.walkSurfaceFactor,
+                                edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
-        total_m += len;
-        total_s += (len / P.walk_speed_mps) * factor;
-        R.path_nodes.push_back(v);
-        R.path_modes.push_back(MODE_FOOT);
+        totalMeters += len;
+        totalSeconds += (len / params.walkSpeedMps) * factor;
+        result.pathNodes.push_back(v);
+        result.pathModes.push_back(MODE_FOOT);
         return true;
       }
     }
     return false;  // shouldn't happen
   };
 
-  for (size_t i = 1; i < chain.size(); ++i)
+  for (size_t i{1}; i < chain.size(); ++i)
   {
     const auto [u, layerU] = chain[i - 1];
     const auto [v, layerV] = chain[i];
@@ -580,31 +702,34 @@ static AStarResult astar_two_layer(const EdgesView& g, const NodesView& nv,
       if (layerU != layerV)
       {
         if (layerU == Layer::Ride && layerV == Layer::Walk)
-          total_s += P.ride_to_walk_penalty_s;
-        else if (layerU == Layer::Walk && layerV == Layer::Ride)
-          total_s += P.walk_to_ride_penalty_s;
+        {
+          totalSeconds += params.ride_to_walk_penalty_s;
+        } else if (layerU == Layer::Walk && layerV == Layer::Ride)
+        {
+          totalSeconds += params.walkToRidePenaltyS;
+        }
       }
       continue;
     }
     // Movement u -> v in layerU
-    (void)add_move(u, v, layerU);
+    (void)addMove(u, v, layerU);
   }
 
-  R.distance_m = total_m;
-  R.duration_s = total_s;
-  R.success = true;
-  return R;
+  result.distanceM = totalMeters;
+  result.durationS = totalSeconds;
+  result.success = true;
+  return result;
 }
 
 // ---------------- Global mapped graph ----------------
-static NodesView G_nodes;
-static EdgesView G_edges;
+static NodesView glNodes;
+static EdgesView glEdges;
 
 // ---------------- N-API glue ----------------
 
 static AStarParams parseParams(Napi::Env env, const Napi::Object& obj)
 {
-  AStarParams P;
+  AStarParams params;
 
   auto getNum = [&](const char* k, std::optional<double> def =
                                        std::nullopt) -> std::optional<double> {
@@ -625,19 +750,19 @@ static AStarParams parseParams(Napi::Env env, const Napi::Object& obj)
 
   // Masks (uint16)
   if (auto m = getU32("bikeSurfaceMask"))
-    P.bike_surface_mask = static_cast<uint16_t>(*m);
+    params.bikeSurfaceMask = static_cast<uint16_t>(*m);
   if (auto m = getU32("walkSurfaceMask"))
-    P.walk_surface_mask = static_cast<uint16_t>(*m);
+    params.walkSurfaceMask = static_cast<uint16_t>(*m);
 
   // Speeds
-  if (auto s = getNum("bikeSpeedMps")) P.bike_speed_mps = *s;
-  if (auto s = getNum("walkSpeedMps")) P.walk_speed_mps = *s;
+  if (auto s = getNum("bikeSpeedMps")) params.bikeSpeedMps = *s;
+  if (auto s = getNum("walkSpeedMps")) params.walkSpeedMps = *s;
 
   // Penalties
-  if (auto s = getNum("rideToWalkPenaltyS")) P.ride_to_walk_penalty_s = *s;
-  if (auto s = getNum("walkToRidePenaltyS")) P.walk_to_ride_penalty_s = *s;
+  if (auto s = getNum("rideToWalkPenaltyS")) params.ride_to_walk_penalty_s = *s;
+  if (auto s = getNum("walkToRidePenaltyS")) params.walkToRidePenaltyS = *s;
 
-  // Factors: arrays of numbers (index by surface_primary)
+  // Factors: arrays of numbers (index by surfacePrimary)
   auto loadFactors = [&](const char* k, std::vector<double>& out) {
     if (!obj.Has(k)) return;
     Napi::Value v = obj.Get(k);
@@ -654,66 +779,74 @@ static AStarParams parseParams(Napi::Env env, const Napi::Object& obj)
         out[i] = 1.0;
     }
   };
-  loadFactors("bikeSurfaceFactor", P.bike_surface_factor);
-  loadFactors("walkSurfaceFactor", P.walk_surface_factor);
+  loadFactors("bikeSurfaceFactor", params.bikeSurfaceFactor);
+  loadFactors("walkSurfaceFactor", params.walkSurfaceFactor);
 
   // Basic sanity
-  if (P.bike_speed_mps <= 0.01 || P.walk_speed_mps <= 0.01)
+  if (params.bikeSpeedMps <= 0.01 || params.walkSpeedMps <= 0.01)
     throw std::runtime_error("speeds must be positive");
 
-  return P;
+  return params;
 }
 
 class FindPathWorker : public Napi::AsyncWorker
 {
  public:
-  FindPathWorker(const Napi::Function& cb, uint32_t s, uint32_t t,
-                 AStarParams P)
-      : Napi::AsyncWorker(cb), s_(s), t_(t), P_(std::move(P))
+  FindPathWorker(const Napi::Function& cb, uint32_t sourceIdxIn,
+                 uint32_t targetIdxIn, AStarParams params)
+      : Napi::AsyncWorker(cb),
+        sourceIdx(sourceIdxIn),
+        targetIdx(targetIdxIn),
+        params(std::move(params))
   {}
 
   void Execute() override
   {
     try
     {
-      res_ = astar_two_layer(G_edges, G_nodes, s_, t_, P_);
-      if (!res_.success) err_ = "no route";
+      res = aStarTwoLayer(glEdges, glNodes, sourceIdx, targetIdx, params);
+      if (!res.success) err = "no route";
     } catch (const std::exception& e)
     {
-      err_ = e.what();
+      err = e.what();
     }
   }
 
   void OnOK() override
   {
     Napi::Env env = Env();
-    if (!err_.empty())
+    if (!err.empty())
     {
-      Callback().Call({Napi::String::New(env, err_), env.Null()});
+      Callback().Call({Napi::String::New(env, err), env.Null()});
       return;
     }
     Napi::Object out = Napi::Object::New(env);
-    Napi::Array path = Napi::Array::New(env, res_.path_nodes.size());
-    for (uint32_t i = 0; i < res_.path_nodes.size(); ++i)
-      path.Set(i, Napi::Number::New(env, res_.path_nodes[i]));
+    Napi::Array path = Napi::Array::New(env, res.pathNodes.size());
+    for (uint32_t i{0}; i < res.pathNodes.size(); ++i)
+    {
+      path.Set(i, Napi::Number::New(env, res.pathNodes[i]));
+    }
     out.Set("path", path);
 
-    Napi::Array modes = Napi::Array::New(env, res_.path_modes.size());
-    for (uint32_t i = 0; i < res_.path_modes.size(); ++i)
-      modes.Set(i,
-                Napi::Number::New(env, res_.path_modes[i]));  // 1=BIKE, 2=FOOT
+    Napi::Array modes = Napi::Array::New(env, res.pathModes.size());
+    for (uint32_t i{0}; i < res.pathModes.size(); ++i)
+    {
+      // 1=BIKE, 2=FOOT
+      modes.Set(i, Napi::Number::New(env, res.pathModes[i]));
+    }
     out.Set("modes", modes);
 
-    out.Set("distance_m", Napi::Number::New(env, res_.distance_m));
-    out.Set("duration_s", Napi::Number::New(env, res_.duration_s));
+    out.Set("distanceM", Napi::Number::New(env, res.distanceM));
+    out.Set("durationS", Napi::Number::New(env, res.durationS));
     Callback().Call({env.Null(), out});
   }
 
  private:
-  uint32_t s_, t_;
-  AStarParams P_;
-  AStarResult res_;
-  std::string err_;
+  uint32_t sourceIdx;
+  uint32_t targetIdx;
+  AStarParams params;
+  AStarResult res;
+  std::string err;
 };
 
 // JS: findPath(options, callback)
@@ -744,13 +877,13 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
     return env.Undefined();
   }
 
-  uint32_t s = opt.Get("sourceIdx").As<Napi::Number>().Uint32Value();
-  uint32_t t = opt.Get("targetIdx").As<Napi::Number>().Uint32Value();
+  uint32_t sourceIdx = opt.Get("sourceIdx").As<Napi::Number>().Uint32Value();
+  uint32_t targetIdx = opt.Get("targetIdx").As<Napi::Number>().Uint32Value();
 
-  AStarParams P;
+  AStarParams params;
   try
   {
-    P = parseParams(env, opt);
+    params = parseParams(env, opt);
   } catch (const std::exception& e)
   {
     Napi::TypeError::New(env, e.what()).ThrowAsJavaScriptException();
@@ -758,7 +891,8 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
   }
 
   auto cb = info[1].As<Napi::Function>();
-  auto* worker = new FindPathWorker(cb, s, t, std::move(P));
+  auto* worker =
+      new FindPathWorker(cb, sourceIdx, targetIdx, std::move(params));
   worker->Queue();
   return env.Undefined();
 }
@@ -767,28 +901,28 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try
   {
-    G_nodes = load_nodes("../data/graph_nodes.bin");
-    G_edges = load_edges("../data/graph_edges.bin");
-    std::cerr << "[route] loaded N=" << G_nodes.N << " E=" << G_edges.E
-              << std::endl;
+    glNodes = loadNodes("../data/graph_nodes.bin");
+    glEdges = loadEdges("../data/graph_edges.bin");
+    std::cerr << "[route] loaded numNodes =" << glNodes.numNodes
+              << " numEdges =" << glEdges.numEdges << std::endl;
 
     // mmap tuning hints (optional)
-    // ::madvise(const_cast<uint32_t*>(G_edges.offsets),
-    //           sizeof(uint32_t) * (G_edges.N + 1), MADV_RANDOM);
-    // ::madvise(const_cast<uint32_t*>(G_edges.neighbors),
-    //           sizeof(uint32_t) * G_edges.E, MADV_RANDOM);
-    // ::madvise(const_cast<float*>(G_edges.length_m), sizeof(float) *
-    // G_edges.E,
+    // ::madvise(const_cast<uint32_t*>(glEdges.offsets),
+    //           sizeof(uint32_t) * (glEdges.N + 1), MADV_RANDOM);
+    // ::madvise(const_cast<uint32_t*>(glEdges.neighbors),
+    //           sizeof(uint32_t) * glEdges.E, MADV_RANDOM);
+    // ::madvise(const_cast<float*>(glEdges.lengthsMeters), sizeof(float) *
+    // glEdges.E,
     //           MADV_RANDOM);
-    if (G_edges.surface_flags)
-      ::madvise(const_cast<uint16_t*>(G_edges.surface_flags),
-                sizeof(uint16_t) * G_edges.E, MADV_RANDOM);
-    if (G_edges.surface_primary)
-      ::madvise(const_cast<uint8_t*>(G_edges.surface_primary),
-                sizeof(uint8_t) * G_edges.E, MADV_RANDOM);
-    if (G_edges.mode_mask)
-      ::madvise(const_cast<uint8_t*>(G_edges.mode_mask),
-                sizeof(uint8_t) * G_edges.E, MADV_RANDOM);
+    if (glEdges.surfaceFlags)
+      ::madvise(const_cast<uint16_t*>(glEdges.surfaceFlags),
+                sizeof(uint16_t) * glEdges.numEdges, MADV_RANDOM);
+    if (glEdges.surfacePrimary)
+      ::madvise(const_cast<uint8_t*>(glEdges.surfacePrimary),
+                sizeof(uint8_t) * glEdges.numEdges, MADV_RANDOM);
+    if (glEdges.modeMask)
+      ::madvise(const_cast<uint8_t*>(glEdges.modeMask),
+                sizeof(uint8_t) * glEdges.numEdges, MADV_RANDOM);
 
   } catch (const std::exception& e)
   {

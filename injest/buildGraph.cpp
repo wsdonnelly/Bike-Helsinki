@@ -25,8 +25,8 @@ struct NodesHeader
 {
   char magic[8] = {'M', 'M', 'A', 'P', 'N', 'O', 'D', 'E'};  // "MMAPNODE"
   uint32_t version = 1;
-  uint32_t num_nodes = 0;
-  uint8_t coord_type = 0;  // 0=float32 degrees
+  uint32_t numNodes = 0;
+  uint8_t coordType = 0;  // 0=float32 degrees
   uint8_t reserved[3]{0, 0, 0};
 };
 static_assert(sizeof(NodesHeader) == 20, "NodesHeader must be 20 bytes");
@@ -35,31 +35,38 @@ struct EdgesHeader
 {
   char magic[8] = {'M', 'M', 'A', 'P', 'E', 'D', 'G', 'E'};  // "MMAPEDGE"
   uint32_t version = 1;
-  uint32_t num_nodes = 0;
-  uint32_t num_edges = 0;           // directed edges
-  uint8_t has_surface_primary = 1;  // now set to 1
-  uint8_t has_surface_flags = 1;    // now set to 1
-  uint8_t has_mode_mask = 1;        // now set to 1
-  uint8_t length_type = 0;          // 0=float32 meters
+  uint32_t numNodes = 0;
+  uint32_t numEdges = 0;          // directed edges
+  uint8_t hasSurfacePrimary = 1;  // now set to 1
+  uint8_t hasSurfaceFlags = 1;    // now set to 1
+  uint8_t hasModeMask = 1;        // now set to 1
+  uint8_t lengthType = 0;         // 0=float32 meters
 };
+
 static_assert(sizeof(EdgesHeader) == 24, "EdgesHeader must be 24 bytes");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Haversine
-// ─────────────────────────────────────────────────────────────────────────────
-static inline double haversine(double lat1, double lon1, double lat2,
-                               double lon2)
+// move to utils or other hpp same version as route.cpp
+static inline double haversineMeters(double lat1Deg, double lon1Deg,
+                                     double lat2Deg, double lon2Deg)
 {
   constexpr double kPi = 3.14159265358979323846;
-  constexpr double kR = 6371000.0;
-  auto toRad = [&](double deg) { return deg * kPi / 180.0; };
-  const double dLat = toRad(lat2 - lat1);
-  const double dLon = toRad(lon2 - lon1);
-  const double a = std::sin(dLat / 2) * std::sin(dLat / 2) +
-                   std::cos(toRad(lat1)) * std::cos(toRad(lat2)) *
-                       std::sin(dLon / 2) * std::sin(dLon / 2);
-  const double c = 2.0 * std::atan2(std::sqrt(a), std::sqrt(1.0 - a));
-  return kR * c;
+  constexpr double kDegToRad = kPi / 180.0;
+  constexpr double kEarthRadiusMeters = 6371000.0;
+
+  const double dLat = (lat2Deg - lat1Deg) * kDegToRad;
+  const double dLon = (lon2Deg - lon1Deg) * kDegToRad;
+  const double lat1 = lat1Deg * kDegToRad;
+  const double lat2 = lat2Deg * kDegToRad;
+
+  const double sinHalfDLat = std::sin(dLat * 0.5);
+  const double sinHalfDLon = std::sin(dLon * 0.5);
+
+  const double a = sinHalfDLat * sinHalfDLat +
+                   std::cos(lat1) * std::cos(lat2) * sinHalfDLon * sinHalfDLon;
+
+  const double centralAngle =
+      2.0 * std::atan2(std::sqrt(a), std::sqrt(1.0 - a));
+  return kEarthRadiusMeters * centralAngle;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,7 +88,6 @@ struct SurfaceMaps
     types::SurfaceMask flags;
   };
 
-  // Single TU ⇒ no need for `inline`; keep it constexpr for compile-time init.
   static constexpr std::array<Entry, 15> kEntries{{
       {"asphalt", types::SurfacePrimary::ASPHALT,
        types::bit(types::SurfaceBit::ASPHALT) | PAVED},
@@ -113,14 +119,13 @@ struct SurfaceMaps
       {"unpaved", types::SurfacePrimary::UNKNOWN, UNPAVED},
   }};
 
-  static void from_tag(const char* surfaceVal,
-                       types::SurfacePrimary& primary_out,
-                       types::SurfaceMask& flags_out)
+  static void fromTag(const char* surfaceVal, types::SurfacePrimary& primaryOut,
+                      types::SurfaceMask& flagsOut)
   {
     if (!surfaceVal || !*surfaceVal)
     {
-      primary_out = types::SurfacePrimary::UNKNOWN;
-      flags_out = UNKNOWN;
+      primaryOut = types::SurfacePrimary::UNKNOWN;
+      flagsOut = UNKNOWN;
       return;
     }
     const std::string_view key{surfaceVal};
@@ -129,12 +134,12 @@ struct SurfaceMaps
                            [&](const Entry& e) { return e.key == key; });
     if (it != kEntries.end())
     {
-      primary_out = it->primary;
-      flags_out = it->flags;
+      primaryOut = it->primary;
+      flagsOut = it->flags;
     } else
     {
-      primary_out = types::SurfacePrimary::UNKNOWN;
-      flags_out = UNKNOWN;
+      primaryOut = types::SurfacePrimary::UNKNOWN;
+      flagsOut = UNKNOWN;
     }
   }
 };
@@ -144,28 +149,28 @@ struct SurfaceMaps
 // ─────────────────────────────────────────────────────────────────────────────
 struct WayMeta
 {
-  bool bike_fwd{false}, bike_back{false};
-  bool foot_fwd{false}, foot_back{false};
+  bool bikeFwd{false}, bikeBack{false};
+  bool footFwd{false}, footBack{false};
   types::SurfacePrimary primary = types::SurfacePrimary::UNKNOWN;
   types::SurfaceMask flags = types::bit(types::SurfaceBit::UNKNOWN);
 };
 
-static inline bool is_yes(const char* v)
+static inline bool isYes(const char* v)
 {
   return v &&
          (std::strcmp(v, "yes") == 0 || std::strcmp(v, "designated") == 0 ||
           std::strcmp(v, "permissive") == 0);
 }
 
-static inline bool is_no(const char* v)
+static inline bool isNo(const char* v)
 {
   return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
 }
 
 struct WayCollector : public osmium::handler::Handler
 {
-  std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMap;
-  std::unordered_map<uint64_t, WayMeta>& wayMetaMap;
+  std::unordered_map<uint64_t, std::vector<uint64_t>>& wayIdNodeIdsMap;
+  std::unordered_map<uint64_t, WayMeta>& wayIdWayMetaMap;
 
   static inline const std::unordered_set<std::string_view> kBikeHighways{
       "cycleway",  "path",     "residential",  "service",
@@ -175,9 +180,9 @@ struct WayCollector : public osmium::handler::Handler
       "residential", "service", "living_street"};
 
   WayCollector(
-      std::unordered_map<uint64_t, std::vector<uint64_t>>& wayNodesMapIn,
-      std::unordered_map<uint64_t, WayMeta>& wayMetamapIn)
-      : wayNodesMap(wayNodesMapIn), wayMetaMap(wayMetamapIn)
+      std::unordered_map<uint64_t, std::vector<uint64_t>>& wayIdNodeIdsMapIn,
+      std::unordered_map<uint64_t, WayMeta>& wayMetaMapIn)
+      : wayIdNodeIdsMap(wayIdNodeIdsMapIn), wayIdWayMetaMap(wayMetaMapIn)
   {}
 
   void way(const osmium::Way& way)
@@ -189,21 +194,21 @@ struct WayCollector : public osmium::handler::Handler
     const char* footVal = tags.get_value_by_key("foot");
 
     bool candidate_bike =
-        (highwayVal && kBikeHighways.count(highwayVal)) || is_yes(bicycleVal);
+        (highwayVal && kBikeHighways.count(highwayVal)) || isYes(bicycleVal);
     bool candidate_foot =
-        (highwayVal && kFootHighways.count(highwayVal)) || is_yes(footVal);
+        (highwayVal && kFootHighways.count(highwayVal)) || isYes(footVal);
 
-    if (is_no(accVal) && !is_yes(bicycleVal) && !is_yes(footVal)) return;
+    if (isNo(accVal) && !isYes(bicycleVal) && !isYes(footVal)) return;
     if (!candidate_bike && !candidate_foot) return;
 
     WayMeta wayMeta;
-    SurfaceMaps::from_tag(tags.get_value_by_key("surface"), wayMeta.primary,
-                          wayMeta.flags);
+    SurfaceMaps::fromTag(tags.get_value_by_key("surface"), wayMeta.primary,
+                         wayMeta.flags);
 
-    bool bike_allowed = !is_no(bicycleVal) && candidate_bike;
+    bool bike_allowed = !isNo(bicycleVal) && candidate_bike;
     bool foot_allowed =
-        !is_no(footVal) && (candidate_foot || !highwayVal ||
-                            std::strcmp(highwayVal, "motorway") != 0);
+        !isNo(footVal) && (candidate_foot || !highwayVal ||
+                           std::strcmp(highwayVal, "motorway") != 0);
 
     if (bicycleVal && std::strcmp(bicycleVal, "dismount") == 0)
       bike_allowed = false;
@@ -238,35 +243,35 @@ struct WayCollector : public osmium::handler::Handler
       back = true;
     }
 
-    wayMeta.bike_fwd = bike_allowed && fwd;
-    wayMeta.bike_back = bike_allowed && back;
-    wayMeta.foot_fwd = foot_allowed;  // foot generally two-way
-    wayMeta.foot_back = foot_allowed;
+    wayMeta.bikeFwd = bike_allowed && fwd;
+    wayMeta.bikeBack = bike_allowed && back;
+    wayMeta.footFwd = foot_allowed;  // foot generally two-way
+    wayMeta.footBack = foot_allowed;
 
-    auto& vec = wayNodesMap[way.id()];
+    auto& vec = wayIdNodeIdsMap[way.id()];
     vec.reserve(way.nodes().size());
     for (const auto& node : way.nodes())
     {
       vec.push_back(node.ref());
     }
 
-    wayMetaMap[way.id()] = wayMeta;
+    wayIdWayMetaMap[way.id()] = wayMeta;
   }
 };
 
 struct NodeCollector : public osmium::handler::Handler
 {
-  std::unordered_set<uint64_t> needed;
-  std::unordered_map<uint64_t, std::pair<float, float>>& coords;
+  std::unordered_set<uint64_t> neededNodeIds;
+  std::unordered_map<uint64_t, std::pair<float, float>>& nodeIdCoordMap;
   NodeCollector(std::unordered_set<uint64_t> n,
                 std::unordered_map<uint64_t, std::pair<float, float>>& c)
-      : needed(std::move(n)), coords(c)
+      : neededNodeIds(std::move(n)), nodeIdCoordMap(c)
   {}
   void node(const osmium::Node& node)
   {
     uint64_t id = node.id();
-    if (needed.count(id))
-      coords[id] = {(float)node.location().lat(), (float)node.location().lon()};
+    if (neededNodeIds.count(id))
+      nodeIdCoordMap[id] = {(float)node.location().lat(), (float)node.location().lon()};
   }
 };
 
@@ -275,11 +280,11 @@ struct NodeCollector : public osmium::handler::Handler
 // ─────────────────────────────────────────────────────────────────────────────
 static void writeGraphNodesBin(
     const std::vector<uint64_t>& allNodeIds,
-    const std::unordered_map<uint64_t, std::pair<float, float>>& nodeCoordMap)
+    const std::unordered_map<uint64_t, std::pair<float, float>>& nodeIdCoordMap)
 {
   NodesHeader hdr;
-  hdr.num_nodes = (uint32_t)allNodeIds.size();
-  hdr.coord_type = 0;  // float32 deg
+  hdr.numNodes = (uint32_t)allNodeIds.size();
+  hdr.coordType = 0;  // float32 deg
 
   std::ofstream out("../../data/graph_nodes.bin", std::ios::binary);
   if (!out) throw std::runtime_error("Cannot open graph_nodes.bin for write");
@@ -294,8 +299,8 @@ static void writeGraphNodesBin(
   std::vector<float> lat(allNodeIds.size()), lon(allNodeIds.size());
   for (size_t i = 0; i < allNodeIds.size(); ++i)
   {
-    auto it = nodeCoordMap.find(allNodeIds[i]);
-    if (it == nodeCoordMap.end())
+    auto it = nodeIdCoordMap.find(allNodeIds[i]);
+    if (it == nodeIdCoordMap.end())
       throw std::runtime_error("missing coord for node id");
     lat[i] = it->second.first;
     lon[i] = it->second.second;
@@ -312,18 +317,18 @@ static void writeGraphNodesBin(
 static void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
                                const std::vector<uint32_t>& offsets,
                                const std::vector<uint32_t>& neighbors,
-                               const std::vector<float>& lengths_m,
-                               const std::vector<uint16_t>& surface_flags,
-                               const std::vector<uint8_t>& surface_primary,
-                               const std::vector<uint8_t>& mode_mask)
+                               const std::vector<float>& lengthsMeters,
+                               const std::vector<uint16_t>& surfaceFlags,
+                               const std::vector<uint8_t>& surfacePrimary,
+                               const std::vector<uint8_t>& modeMasks)
 {
   EdgesHeader hdr;
-  hdr.num_nodes = numNodes;
-  hdr.num_edges = numEdges;
-  hdr.has_surface_flags = 1;
-  hdr.has_surface_primary = 1;
-  hdr.has_mode_mask = 1;
-  hdr.length_type = 0;
+  hdr.numNodes = numNodes;
+  hdr.numEdges = numEdges;
+  hdr.hasSurfaceFlags = 1;
+  hdr.hasSurfacePrimary = 1;
+  hdr.hasModeMask = 1;
+  hdr.lengthType = 0;
 
   std::ofstream out("../../data/graph_edges.bin", std::ios::binary);
   if (!out) throw std::runtime_error("Cannot open graph_edges.bin for write");
@@ -331,32 +336,32 @@ static void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
   out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
 
   // lengths block (for defensive parsing)
-  uint32_t L_off = (uint32_t)offsets.size();
-  uint32_t L_nei = (uint32_t)neighbors.size();
-  uint32_t L_len = (uint32_t)lengths_m.size();
-  uint32_t L_fl = (uint32_t)surface_flags.size();
-  uint32_t L_pri = (uint32_t)surface_primary.size();
-  uint32_t L_mm = (uint32_t)mode_mask.size();
-  out.write(reinterpret_cast<const char*>(&L_off), 4);
-  out.write(reinterpret_cast<const char*>(&L_nei), 4);
-  out.write(reinterpret_cast<const char*>(&L_len), 4);
-  out.write(reinterpret_cast<const char*>(&L_fl), 4);
-  out.write(reinterpret_cast<const char*>(&L_pri), 4);
-  out.write(reinterpret_cast<const char*>(&L_mm), 4);
+  uint32_t offsetsSize = (uint32_t)offsets.size();
+  uint32_t neighborsSize = (uint32_t)neighbors.size();
+  uint32_t lengthsSize = (uint32_t)lengthsMeters.size();
+  uint32_t surfaceFlagsSize = (uint32_t)surfaceFlags.size();
+  uint32_t surfacePrimarySize = (uint32_t)surfacePrimary.size();
+  uint32_t modeMasksSize = (uint32_t)modeMasks.size();
+  out.write(reinterpret_cast<const char*>(&offsetsSize), 4);
+  out.write(reinterpret_cast<const char*>(&neighborsSize), 4);
+  out.write(reinterpret_cast<const char*>(&lengthsSize), 4);
+  out.write(reinterpret_cast<const char*>(&surfaceFlagsSize), 4);
+  out.write(reinterpret_cast<const char*>(&surfacePrimarySize), 4);
+  out.write(reinterpret_cast<const char*>(&modeMasksSize), 4);
 
   // arrays
   out.write(reinterpret_cast<const char*>(offsets.data()),
-            L_off * sizeof(uint32_t));
+            offsetsSize * sizeof(uint32_t));
   out.write(reinterpret_cast<const char*>(neighbors.data()),
-            L_nei * sizeof(uint32_t));
-  out.write(reinterpret_cast<const char*>(lengths_m.data()),
-            L_len * sizeof(float));
-  out.write(reinterpret_cast<const char*>(surface_flags.data()),
-            L_fl * sizeof(uint16_t));
-  out.write(reinterpret_cast<const char*>(surface_primary.data()),
-            L_pri * sizeof(uint8_t));
-  out.write(reinterpret_cast<const char*>(mode_mask.data()),
-            L_mm * sizeof(uint8_t));
+            neighborsSize * sizeof(uint32_t));
+  out.write(reinterpret_cast<const char*>(lengthsMeters.data()),
+            lengthsSize * sizeof(float));
+  out.write(reinterpret_cast<const char*>(surfaceFlags.data()),
+            surfaceFlagsSize * sizeof(uint16_t));
+  out.write(reinterpret_cast<const char*>(surfacePrimary.data()),
+            surfacePrimarySize * sizeof(uint8_t));
+  out.write(reinterpret_cast<const char*>(modeMasks.data()),
+            modeMasksSize * sizeof(uint8_t));
 
   out.close();
   std::cout << "Wrote graph_edges.bin (" << numEdges << " directed edges)\n";
@@ -374,11 +379,11 @@ int main(int argc, char* argv[])
   }
   const char* osmFile = argv[1];
 
-  // wayNodesMap: wayId -> nodes
-  std::unordered_map<uint64_t, std::vector<uint64_t>> wayNodesMap;
-  std::unordered_map<uint64_t, WayMeta> wayMetaMap;
-  // WayCollector fills wayNodesMap and wayMetaMap
-  WayCollector wayCollector(wayNodesMap, wayMetaMap);
+  // wayIdNodeIdsMap: wayId -> node ID's
+  std::unordered_map<uint64_t, std::vector<uint64_t>> wayIdNodeIdsMap;
+  std::unordered_map<uint64_t, WayMeta> wayIdWayMetaMap;
+  // WayCollector fills wayIdNodeIdsMap and wayIdWayMetaMap
+  WayCollector wayCollector(wayIdNodeIdsMap, wayIdWayMetaMap);
 
   // Pass 1: collect candidate ways + metadata
   {
@@ -386,12 +391,12 @@ int main(int argc, char* argv[])
     osmium::apply(reader, wayCollector);
     reader.close();
   }
-  std::cout << "wayNodesMap size: " << wayNodesMap.size() << "\n";
+  std::cout << "wayIdNodeIdsMap size: " << wayIdNodeIdsMap.size() << "\n";
 
   // Build set of needed nodes
   std::unordered_set<uint64_t> neededNodeIds;
-  neededNodeIds.reserve(wayNodesMap.size() * 4);
-  for (const auto& [wayId, nodes] : wayNodesMap)
+  neededNodeIds.reserve(wayIdNodeIdsMap.size() * 4);
+  for (const auto& [wayId, nodes] : wayIdNodeIdsMap)
   {
     (void)wayId;
     for (uint64_t id : nodes)
@@ -403,22 +408,22 @@ int main(int argc, char* argv[])
             << " nodes.\n";
 
   // Pass 2: coordinates
-  // nodeCoordMap: nodeId -> [lat, lon]
-  std::unordered_map<uint64_t, std::pair<float, float>> nodeCoordMap;
-  nodeCoordMap.reserve(neededNodeIds.size() * 2);
+  // nodeIdCoordMap: nodeId -> [lat, lon]
+  std::unordered_map<uint64_t, std::pair<float, float>> nodeIdCoordMap;
+  nodeIdCoordMap.reserve(neededNodeIds.size() * 2);
   {
-    NodeCollector nodeCollector(std::move(neededNodeIds), nodeCoordMap);
+    NodeCollector nodeCollector(std::move(neededNodeIds), nodeIdCoordMap);
     osmium::io::Reader reader(osmFile);
     osmium::apply(reader, nodeCollector);
     reader.close();
   }
-  std::cout << "Collected " << nodeCoordMap.size() << " node coordinates.\n";
+  std::cout << "Collected " << nodeIdCoordMap.size() << " node coordinates.\n";
 
   // Assign compact indices 0..N-1
   std::vector<uint64_t> allNodeIds;
-  allNodeIds.reserve(nodeCoordMap.size());
-  // for (auto& kv : nodeCoordMap)
-  for (const auto& [id, coord] : nodeCoordMap)
+  allNodeIds.reserve(nodeIdCoordMap.size());
+  // for (auto& kv : nodeIdCoordMap)
+  for (const auto& [id, coord] : nodeIdCoordMap)
   {
     (void)coord;
     allNodeIds.push_back(id);
@@ -438,26 +443,26 @@ int main(int argc, char* argv[])
   std::vector<uint32_t> offsets(numNodes + 1, 0);
   auto inc = [&](uint32_t u) { offsets[u + 1]++; };
 
-  for (const auto& [wayId, nodes] : wayNodesMap)
+  for (const auto& [wayId, nodes] : wayIdNodeIdsMap)
   {
-    const WayMeta& wayMeta = wayMetaMap[wayId];
+    const WayMeta& wayMeta = wayIdWayMetaMap[wayId];
     if (nodes.size() < 2) continue;
     for (size_t i{0}; i + 1 < nodes.size(); ++i)
     {
-      uint64_t id_u = nodes[i];
-      uint64_t id_v = nodes[i + 1];
+      uint64_t idU = nodes[i];
+      uint64_t idV = nodes[i + 1];
 
-      if (id_u == id_v) continue;
-      auto itU = nodeIdToIdx.find(id_u);
+      if (idU == idV) continue;
+      auto itU = nodeIdToIdx.find(idU);
       if (itU == nodeIdToIdx.end()) continue;
-      auto itV = nodeIdToIdx.find(id_v);
+      auto itV = nodeIdToIdx.find(idV);
       if (itV == nodeIdToIdx.end()) continue;
       uint32_t u = itU->second, v = itV->second;
-      if (wayMeta.bike_fwd || wayMeta.foot_fwd)
+      if (wayMeta.bikeFwd || wayMeta.footFwd)
       {
         inc(u);  // u->v
       }
-      if (wayMeta.bike_back || wayMeta.foot_back)
+      if (wayMeta.bikeBack || wayMeta.footBack)
       {
         inc(v);  // v->u
       }
@@ -472,75 +477,75 @@ int main(int argc, char* argv[])
 
   // Prepare arrays
   std::vector<uint32_t> neighbors(numEdges);
-  std::vector<float> lengths_m(numEdges);
-  std::vector<uint16_t> surface_flags(numEdges);
-  std::vector<uint8_t> surface_primary(numEdges);
-  std::vector<uint8_t> mode_mask(numEdges);
+  std::vector<float> lengthsMeters(numEdges);
+  std::vector<uint16_t> surfaceFlags(numEdges);
+  std::vector<uint8_t> surfacePrimary(numEdges);
+  std::vector<uint8_t> modeMasks(numEdges);
   std::vector<uint32_t> cur = offsets;
 
   // Fill arrays
-  for (const auto& [wayId, nodes] : wayNodesMap)
+  for (const auto& [wayId, nodes] : wayIdNodeIdsMap)
   {
     if (nodes.size() < 2) continue;
 
     for (size_t i{0}; i + 1 < nodes.size(); ++i)
     {
-      uint64_t id_u = nodes[i];
-      uint64_t id_v = nodes[i + 1];
+      uint64_t idU = nodes[i];
+      uint64_t idV = nodes[i + 1];
 
-      if (id_u == id_v) continue;
+      if (idU == idV) continue;
 
-      auto itU = nodeIdToIdx.find(id_u);
+      auto itU = nodeIdToIdx.find(idU);
       if (itU == nodeIdToIdx.end()) continue;
-      auto itV = nodeIdToIdx.find(id_v);
+      auto itV = nodeIdToIdx.find(idV);
       if (itV == nodeIdToIdx.end()) continue;
 
-      uint32_t idx_u = itU->second;
-      uint32_t idx_v = itV->second;
+      uint32_t idxU = itU->second;
+      uint32_t idxV = itV->second;
 
-      const auto coord_u = nodeCoordMap.at(id_u);
-      const auto coord_v = nodeCoordMap.at(id_v);
-      const float dist = (float)haversine(coord_u.first, coord_u.second,
-                                          coord_v.first, coord_v.second);
+      const auto coordU = nodeIdCoordMap.at(idU);
+      const auto coord = nodeIdCoordMap.at(idV);
+      const float dist = (float)haversineMeters(coordU.first, coordU.second,
+                                                coord.first, coord.second);
 
-      const WayMeta& wayMeta = wayMetaMap[wayId];
-      if (wayMeta.bike_fwd || wayMeta.foot_fwd)
+      const WayMeta& wayMeta = wayIdWayMetaMap[wayId];
+      if (wayMeta.bikeFwd || wayMeta.footFwd)
       {
-        uint32_t idx = cur[idx_u]++;
-        neighbors[idx] = idx_v;
-        lengths_m[idx] = dist;
-        surface_flags[idx] = (uint16_t)wayMeta.flags;
-        surface_primary[idx] = (uint8_t)wayMeta.primary;
+        uint32_t idx = cur[idxU]++;
+        neighbors[idx] = idxV;
+        lengthsMeters[idx] = dist;
+        surfaceFlags[idx] = (uint16_t)wayMeta.flags;
+        surfacePrimary[idx] = (uint8_t)wayMeta.primary;
         uint8_t modeMask{0};
-        if (wayMeta.bike_fwd)
+        if (wayMeta.bikeFwd)
         {
           modeMask |= (uint8_t)types::MODE_BIKE;  // must be 0x1
         }
-        if (wayMeta.foot_fwd)
+        if (wayMeta.footFwd)
         {
           modeMask |= (uint8_t)types::MODE_FOOT;  // must be 0x2
         }
-        mode_mask[idx] = modeMask;
+        modeMasks[idx] = modeMask;
       }
-      if (wayMeta.bike_back || wayMeta.foot_back)
+      if (wayMeta.bikeBack || wayMeta.footBack)
       {
-        uint32_t idx = cur[idx_v]++;
-        neighbors[idx] = idx_u;
-        lengths_m[idx] = dist;
-        surface_flags[idx] = (uint16_t)wayMeta.flags;
-        surface_primary[idx] = (uint8_t)wayMeta.primary;
+        uint32_t idx = cur[idxV]++;
+        neighbors[idx] = idxU;
+        lengthsMeters[idx] = dist;
+        surfaceFlags[idx] = (uint16_t)wayMeta.flags;
+        surfacePrimary[idx] = (uint8_t)wayMeta.primary;
         uint8_t modeMask{0};
-        if (wayMeta.bike_back) modeMask |= (uint8_t)types::MODE_BIKE;
-        if (wayMeta.foot_back) modeMask |= (uint8_t)types::MODE_FOOT;
-        mode_mask[idx] = modeMask;
+        if (wayMeta.bikeBack) modeMask |= (uint8_t)types::MODE_BIKE;
+        if (wayMeta.footBack) modeMask |= (uint8_t)types::MODE_FOOT;
+        modeMasks[idx] = modeMask;
       }
     }
   }
 
   // Write blobs
-  writeGraphNodesBin(allNodeIds, nodeCoordMap);
-  writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, lengths_m,
-                     surface_flags, surface_primary, mode_mask);
+  writeGraphNodesBin(allNodeIds, nodeIdCoordMap);
+  writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, lengthsMeters,
+                     surfaceFlags, surfacePrimary, modeMasks);
 
   return 0;
 }

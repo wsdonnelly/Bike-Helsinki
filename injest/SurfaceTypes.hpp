@@ -41,6 +41,7 @@ constexpr SurfaceMask bit(SurfaceBit b) noexcept
 {
   return static_cast<SurfaceMask>(b);
 }
+
 constexpr bool overlaps(SurfaceMask a, SurfaceMask b) noexcept
 {
   return (a & b) != 0;
