@@ -14,6 +14,14 @@ try {
   console.warn('Native addons not found:', err);
 }
 
+let LAT = null, LON = null;
+if (kdSnap) {
+  // Float32Arrays (no copy)
+  LAT = kdSnap.getLatArray();
+  LON = kdSnap.getLonArray();
+}
+console.log('LAT/LON typed arrays:', LAT?.constructor?.name, LAT?.length, LON?.length);
+
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 app.use(cors());
@@ -42,6 +50,7 @@ const toIndex = (v) => {
   const n = Number(v);
   return Number.isInteger(n) ? n : NaN;
 };
+
 const clampU16 = (v, fallback) =>
   Number.isInteger(v) ? (v & 0xFFFF) : fallback;
 const finiteOr = (v, fallback) =>
@@ -121,8 +130,8 @@ app.post('/route', (req, res) => {
     targetIdx: e,
     bikeSurfaceMask: clampU16(bikeSurfaceMask, defaults.bikeSurfaceMask),
     walkSurfaceMask: clampU16(walkSurfaceMask, defaults.walkSurfaceMask),
-    bikeSpeedMps: finiteOr(bikeSpeedMps, defaults.bikeSpeedMps),
-    walkSpeedMps: finiteOr(walkSpeedMps, defaults.walkSpeedMps),
+    bikeSpeedMps:  finiteOr(bikeSpeedMps,  defaults.bikeSpeedMps),
+    walkSpeedMps:  finiteOr(walkSpeedMps,  defaults.walkSpeedMps),
     rideToWalkPenaltyS: finiteOr(rideToWalkPenaltyS, defaults.rideToWalkPenaltyS),
     walkToRidePenaltyS: finiteOr(walkToRidePenaltyS, defaults.walkToRidePenaltyS)
   };
@@ -136,22 +145,56 @@ app.post('/route', (req, res) => {
     if (err) {
       console.error('findPath error:', err);
       if (String(err).includes('no route')) {
-        // Keep casing consistent with addon; normalize to camelCase for the client:
-        return res.json({ path: [], modes: [], distanceM: 0, durationS: 0 });
+        return res.json({ path: [], coords: [], modes: [], distanceM: 0, durationS: 0 });
       }
       return res.status(500).json({ error: String(err) });
     }
 
-    // Normalize field casing regardless of addon version.
-    // Old addon: distance_m/duration_s; new addon: distanceM/durationS.
+    // Normalize naming from addon (support old/new keys)
+    const pathIdx   = Array.isArray(result.path) ? result.path : [];
+    const modes     = Array.isArray(result.modes) ? result.modes : [];
     const distanceM = result.distanceM ?? result.distance_m ?? 0;
     const durationS = result.durationS ?? result.duration_s ?? 0;
 
+    // Build coords from typed arrays; fall back to kdSnap.getNode if needed
+    let coords = [];
+    if (LAT && LON && pathIdx.length) {
+      coords = new Array(pathIdx.length);
+      for (let i = 0; i < pathIdx.length; ++i) {
+        // coerce to uint
+        const idx = pathIdx[i] >>> 0;
+        if (idx >= TOTAL_NODES) {
+          coords = []; // invalidate and fall back below
+          break;
+        }
+        coords[i] = [LAT[idx], LON[idx]];
+      }
+    }
+    if (!coords.length && kdSnap && pathIdx.length) {
+      try {
+        coords = pathIdx.map((idx) => {
+          const n = kdSnap.getNode(idx); // { idx, lat, lon }
+          return [n.lat, n.lon];
+        });
+      } catch (e2) {
+        console.warn('coord fallback failed:', e2);
+        coords = [];
+      }
+    }
+
+    // Optional convenience: include start/end coords
+    const startCoord = (LAT && LON) ? [LAT[s], LON[s]] : undefined;
+    const endCoord   = (LAT && LON) ? [LAT[e], LON[e]] : undefined;
+
+    //remove path: pathIdx? not currently used, but potential future use
     return res.json({
-      path: result.path || [],
-      modes: result.modes || [],
+      path: pathIdx,
+      coords,         // [[lat, lon], ...] aligned with path indices
+      modes,          // [1|2 per segment]
       distanceM,
-      durationS
+      durationS,
+      startCoord,
+      endCoord
     });
   });
 });

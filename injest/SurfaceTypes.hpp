@@ -15,26 +15,24 @@ using SurfaceMask = uint16_t;
 
 enum class SurfaceBit : SurfaceMask
 {
-  // specific surface bits
-  ASPHALT = 1u << 0,
-  CONCRETE = 1u << 1,
-  PAVING_STONES = 1u << 2,
-  SETT = 1u << 3,
-  UNHEWN_COBBLESTONES = 1u << 4,
-  COBBLESTONES = 1u << 5,
-  BRICKS = 1u << 6,
+  PAVED = 1u << 0,  // parent category
+  ASPHALT = 1u << 1,
+  CONCRETE = 1u << 2,
+  PAVING_STONES = 1u << 3,
+  SETT = 1u << 4,
+  UNHEWN_COBBLESTONES = 1u << 5,
+  COBBLESTONES = 1u << 6,
+  BRICKS = 1u << 7,
 
-  COMPACTED = 1u << 7,
-  FINE_GRAVEL = 1u << 8,
-  GRAVEL = 1u << 9,
-  GROUND = 1u << 10,
-  DIRT = 1u << 11,
-  EARTH = 1u << 12,
+  UNPAVED = 1u << 8,  // parent category
+  COMPACTED = 1u << 9,
+  FINE_GRAVEL = 1u << 10,
+  GRAVEL = 1u << 11,
+  GROUND = 1u << 12,
+  DIRT = 1u << 13,
+  EARTH = 1u << 14,
 
-  // parent bits
-  PAVED = 1u << 13,    // parent category
-  UNPAVED = 1u << 14,  // parent category
-  UNKNOWN = 1u << 15   // catch-all
+  UNKNOWN = 1u << 15  // catch-all
 };
 
 constexpr SurfaceMask bit(SurfaceBit b) noexcept
@@ -85,4 +83,4 @@ using ModeMask = uint8_t;
 static_assert(sizeof(SurfaceMask) == 2, "SurfaceMask must be 2 bytes");
 static_assert(sizeof(SurfacePrimary) == 1, "SurfacePrimary must be 1 byte");
 static_assert(sizeof(ModeMask) == 1, "ModeMask must be 1 byte");
-}
+}  // namespace types

@@ -136,7 +136,8 @@ struct SurfaceMaps
     {
       primaryOut = it->primary;
       flagsOut = it->flags;
-    } else
+    }
+    else
     {
       primaryOut = types::SurfacePrimary::UNKNOWN;
       flagsOut = UNKNOWN;
@@ -162,10 +163,15 @@ static inline bool isYes(const char* v)
           std::strcmp(v, "permissive") == 0);
 }
 
+// static inline bool isNo(const char* v)
+// {
+  // return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
+// }
 static inline bool isNo(const char* v)
 {
-  return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
+  return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0 || std::strcmp(v, "destination") == 0);
 }
+
 
 struct WayCollector : public osmium::handler::Handler
 {
@@ -222,7 +228,8 @@ struct WayCollector : public osmium::handler::Handler
     {
       fwd = true;
       back = false;
-    } else if (isOneWay && std::strcmp(isOneWay, "-1") == 0)
+    }
+    else if (isOneWay && std::strcmp(isOneWay, "-1") == 0)
     {
       fwd = false;
       back = true;
@@ -245,7 +252,8 @@ struct WayCollector : public osmium::handler::Handler
 
     wayMeta.bikeFwd = bike_allowed && fwd;
     wayMeta.bikeBack = bike_allowed && back;
-    wayMeta.footFwd = foot_allowed;  // foot generally two-way
+    // foot generally two-way
+    wayMeta.footFwd = foot_allowed;
     wayMeta.footBack = foot_allowed;
 
     auto& vec = wayIdNodeIdsMap[way.id()];
@@ -271,7 +279,8 @@ struct NodeCollector : public osmium::handler::Handler
   {
     uint64_t id = node.id();
     if (neededNodeIds.count(id))
-      nodeIdCoordMap[id] = {(float)node.location().lat(), (float)node.location().lon()};
+      nodeIdCoordMap[id] = {(float)node.location().lat(),
+                            (float)node.location().lon()};
   }
 };
 

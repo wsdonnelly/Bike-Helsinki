@@ -30,6 +30,7 @@ struct NodesHeader
   uint8_t coordType;    // 0=float32 degrees, 1=int32 microdegrees
   uint8_t reserved[3];  // zero
 };
+
 static_assert(sizeof(NodesHeader) == 20, "NodesHeader must be 20 bytes");
 
 enum CoordType : uint8_t
@@ -71,7 +72,8 @@ static void buildTreeFromLatLon()
   for (uint32_t i = 0; i < gLat.size(); ++i)
   {
     values.emplace_back(
-        geo::Point{static_cast<double>(gLat[i]), static_cast<double>(gLon[i])}, i);
+        geo::Point{static_cast<double>(gLat[i]), static_cast<double>(gLon[i])},
+        i);
   }
   gTree = bgi::rtree<Value, bgi::quadratic<16>>(values.begin(), values.end());
   // 'values' goes out of scope; the rtree keeps its own storage.
@@ -111,7 +113,8 @@ static bool loadFromGraphNodes(const std::string& path)
     if (!in) throw std::runtime_error("graph_nodes.bin: truncated lat[]");
     in.read(reinterpret_cast<char*>(gLon.data()), sizeof(float) * N);
     if (!in) throw std::runtime_error("graph_nodes.bin: truncated lon[]");
-  } else if (hdr.coordType == nodes_blob::MicrodegI32)
+  }
+  else if (hdr.coordType == nodes_blob::MicrodegI32)
   {
     // int32 microdegrees -> convert to float degrees
     std::vector<int32_t> latU(N), lonU(N);
@@ -128,7 +131,8 @@ static bool loadFromGraphNodes(const std::string& path)
       gLat[i] = static_cast<float>(static_cast<double>(latU[i]) * kScale);
       gLon[i] = static_cast<float>(static_cast<double>(lonU[i]) * kScale);
     }
-  } else
+  }
+  else
   {
     throw std::runtime_error("graph_nodes.bin: unknown coordType");
   }
@@ -194,6 +198,45 @@ Napi::Value getNode(const Napi::CallbackInfo& info)
   return obj;
 }
 
+// kd_snap.cpp (add near your other exports)
+Napi::Value GetLatArray(const Napi::CallbackInfo& info)
+{
+  Napi::Env env = info.Env();
+  if (gLat.empty()) {
+    // Return an empty typed array rather than an ArrayBuffer to nullptr
+    return Napi::Float32Array::New(env, 0);
+  }
+
+  // Create an external ArrayBuffer that wraps the vector's storage.
+  // We pass a no-op finalizer so Node won't free memory we own.
+  Napi::ArrayBuffer buf = Napi::ArrayBuffer::New(
+      env,
+      static_cast<void*>(gLat.data()),
+      gLat.size() * sizeof(float),
+      [](Napi::Env /*env*/, void* /*data*/) {}
+  );
+
+  // Create the typed array view on that buffer (no copy)
+  return Napi::Float32Array::New(env, gLat.size(), buf, /*byteOffset=*/0);
+}
+
+Napi::Value GetLonArray(const Napi::CallbackInfo& info)
+{
+  Napi::Env env = info.Env();
+  if (gLon.empty()) {
+    return Napi::Float32Array::New(env, 0);
+  }
+
+  Napi::ArrayBuffer buf = Napi::ArrayBuffer::New(
+      env,
+      static_cast<void*>(gLon.data()),
+      gLon.size() * sizeof(float),
+      [](Napi::Env /*env*/, void* /*data*/) {}
+  );
+
+  return Napi::Float32Array::New(env, gLon.size(), buf, 0);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try
@@ -212,6 +255,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 
   exports.Set("findNearest", Napi::Function::New(env, findNearest));
   exports.Set("getNode", Napi::Function::New(env, getNode));
+  exports.Set("getLatArray", Napi::Function::New(env, GetLatArray));
+  exports.Set("getLonArray", Napi::Function::New(env, GetLonArray));
   return exports;
 }
 

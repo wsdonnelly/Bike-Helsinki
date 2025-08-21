@@ -206,7 +206,8 @@ static NodesView loadNodes(const std::string& filePath)
     cursor += sizeof(float) * nodesView.numNodes;
     nodesView.lon_f32 = reinterpret_cast<const float*>(cursor);
     cursor += sizeof(float) * nodesView.numNodes;
-  } else
+  }
+  else
   {
     requireBytes(sizeof(int32_t) * nodesView.numNodes * 2);
     nodesView.lat_i32 = reinterpret_cast<const int32_t*>(cursor);
@@ -349,7 +350,8 @@ static inline void nodeDeg(const NodesView& nodeView, uint32_t idx,
   {
     latDeg = static_cast<double>(nodeView.lat_f32[idx]);
     lonDeg = static_cast<double>(nodeView.lon_f32[idx]);
-  } else
+  }
+  else
   {
     latDeg = static_cast<double>(nodeView.lat_i32[idx]) * 1e-6;
     lonDeg = static_cast<double>(nodeView.lon_i32[idx]) * 1e-6;
@@ -399,7 +401,7 @@ struct AStarParams
   uint16_t bikeSurfaceMask = 0xFFFF;
   uint16_t walkSurfaceMask = 0xFFFF;
 
-  // Speeds (m/s)
+  // Speeds (meters/sec)
   double bikeSpeedMps = 6.0;  // ~21.6 km/h
   double walkSpeedMps = 1.5;  // ~5.4 km/h
 
@@ -416,6 +418,7 @@ struct AStarParams
 struct AStarResult
 {
   bool success{false};
+  //node by IDX rename perhaps?
   std::vector<uint32_t> pathNodes;  // node indices s..t
   std::vector<uint8_t> pathModes;   // MODE_* for each step between nodes;
                                     // length = pathNodes.size()-1
@@ -561,7 +564,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
     if (layer == Layer::Ride)
     {
       // Movement on ride-allowed edges and allowed bike surfaces
-      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
+      for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
         if (edgesView.surfaceFlags &&
@@ -576,18 +579,19 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
                                 edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
         // seconds
-        const double w = (len / params.bikeSpeedMps) * factor;
-        relaxEdge(u, layer, v, w, MODE_BIKE);
+        const double edgeTimeSec = (len / params.bikeSpeedMps) * factor;
+        relaxEdge(u, layer, v, edgeTimeSec, MODE_BIKE);
       }
       // Mode switch: Ride -> Walk
       if (params.ride_to_walk_penalty_s >= 0.0)
       {
         relaxSwitch(u, Layer::Ride, Layer::Walk, params.ride_to_walk_penalty_s);
       }
-    } else
+    }
+    else
     {
       // Movement on foot-allowed edges and allowed walk surfaces
-      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
+      for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
         if (edgesView.surfaceFlags &&
@@ -601,8 +605,9 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
                 ? surfaceFactor(params.walkSurfaceFactor,
                                 edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
-        const double w = (len / params.walkSpeedMps) * factor;  // seconds
-        relaxEdge(u, layer, v, w, MODE_FOOT);
+        const double edgeTimeSec =
+            (len / params.walkSpeedMps) * factor;  // seconds
+        relaxEdge(u, layer, v, edgeTimeSec, MODE_FOOT);
       }
       // Mode switch: Walk -> Ride
       if (params.walkToRidePenaltyS >= 0.0)
@@ -668,7 +673,8 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
         result.pathNodes.push_back(v);
         result.pathModes.push_back(MODE_BIKE);
         return true;
-      } else
+      }
+      else
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
         if (edgesView.surfaceFlags &&
@@ -704,7 +710,8 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
         if (layerU == Layer::Ride && layerV == Layer::Walk)
         {
           totalSeconds += params.ride_to_walk_penalty_s;
-        } else if (layerU == Layer::Walk && layerV == Layer::Ride)
+        }
+        else if (layerU == Layer::Walk && layerV == Layer::Ride)
         {
           totalSeconds += params.walkToRidePenaltyS;
         }
@@ -889,7 +896,7 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
     Napi::TypeError::New(env, e.what()).ThrowAsJavaScriptException();
     return env.Undefined();
   }
-
+  //rename
   auto cb = info[1].As<Napi::Function>();
   auto* worker =
       new FindPathWorker(cb, sourceIdx, targetIdx, std::move(params));
