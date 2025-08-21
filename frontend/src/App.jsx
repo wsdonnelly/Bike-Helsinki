@@ -1,88 +1,78 @@
-import React, { useState, useEffect } from 'react'
-import { MapView } from './components/MapView'
-import ControlPanel from './components/ControlPanel'
-import { snapToGraph, getRoute, setSurfaceFilter, fetchFullGraphLines } from './utils/api'
+import React, { useState, useEffect, useCallback } from 'react';
+import { MapView } from './components/MapView';
+import ControlPanel from './components/ControlPanel';
+// import { snapToGraph, getRoute, setSurfaceMaskBoth } from './utils/api';
+import { snapToGraph, getRoute, setBikeSurfaceMask } from './utils/api';
 
 const App = () => {
-  const [snappedStart, setSnappedStart] = useState(null)
-  const [snappedEnd, setSnappedEnd] = useState(null)
-  const [routeCoords, setRouteCoords] = useState([])
+  const [snappedStart, setSnappedStart] = useState(null); // { idx, lat, lon }
+  const [snappedEnd,   setSnappedEnd]   = useState(null); // { idx, lat, lon }
+  const [routeCoords,  setRouteCoords]  = useState([]);   // [[lat,lon], ...]
+  const [routeModes,   setRouteModes]   = useState([]);   // [1|2 per segment]
+  const [panelOpen,    setPanelOpen]    = useState(false);
 
-  const [surfaceMask, setSurfaceMask] = useState(0xFFFF)
-  const [lastSubmittedMask, setLastSubmittedMask] = useState(0xFFFF)
-  const [panelOpen, setPanelOpen] = useState(false)
+  const [surfaceMask, setSurfaceMask] = useState(0xFFFF);
+  const [lastSubmittedMask, setLastSubmittedMask] = useState(0xFFFF);
 
-  const [graphLines, setGraphLines] = useState([])
-
-  // Function to load filtered graph
-  const loadGraph = async (mask = surfaceMask) => {
+  const fetchRoute = useCallback(async () => {
+    if (!snappedStart || !snappedEnd) return;
     try {
-      const lines = await fetchFullGraphLines()
-      if (Array.isArray(lines)) {
-        setGraphLines(lines)
-        console.log(`✔ Loaded ${lines.length} graph segments`)
-      }
+      const result = await getRoute({
+        startIdx: snappedStart.idx,
+        endIdx:   snappedEnd.idx,
+        // options: { bikeSurfaceMask: surfaceMask, walkSurfaceMask: surfaceMask }
+      });
+      console.log('ROUTE RESULT', result);
+      console.log('ROUTE TIME', result.durationS / 60, 'mins')
+      console.log('ROUTE LENGTH', result.distanceM / 1000, 'KM')
+      setRouteCoords(result.coords ?? []);
+      setRouteModes(result.modes  ?? []);
     } catch (err) {
-      console.error('✖ Failed to load full graph:', err)
+      console.error('Error fetching route:', err);
+      setRouteCoords([]);
+      setRouteModes([]);
     }
-  }
+  }, [snappedStart, snappedEnd /*, surfaceMask*/]);
 
-  useEffect(() => {
-    loadGraph()
-  }, [])
-
-  useEffect(() => {
-    if (snappedStart && snappedEnd) {
-      getRoute(snappedStart.nodeIdx, snappedEnd.nodeIdx)
-        .then(path => {
-          const coords = path.map(p => [p.lat, p.lon])
-          setRouteCoords(coords)
-        })
-        .catch(err => {
-          console.error('Error fetching route:', err)
-          alert('Failed to load route')
-        })
-    }
-  }, [snappedStart, snappedEnd])
+  useEffect(() => { fetchRoute(); }, [fetchRoute]);
 
   const handleMapClick = async ({ lat, lng }) => {
     try {
-      const snapped = await snapToGraph(lat, lng)
-      if (!snappedStart)
-        setSnappedStart(snapped)
-      else if (!snappedEnd)
-        setSnappedEnd(snapped)
-      else {
-        setSnappedStart(snapped)
-        setSnappedEnd(null)
-        setRouteCoords([])
+      const snapped = await snapToGraph(lat, lng); // { idx, lat, lon }
+      if (!snappedStart) {
+        setSnappedStart(snapped);
+      } else if (!snappedEnd) {
+        setSnappedEnd(snapped);
+      } else {
+        setSnappedStart(snapped);
+        setSnappedEnd(null);
+        setRouteCoords([]);
+        setRouteModes([]);
       }
     } catch (err) {
-      console.error('Snap error:', err)
-      alert('Failed to snap to graph')
+      console.error('Snap error:', err);
     }
-  }
+  };
 
   const handleSurfaceToggle = (bit) => {
-    setSurfaceMask(prev => (prev & bit) ? (prev & ~bit) : (prev | bit))
-  }
+    setSurfaceMask(prev => (prev & bit) ? (prev & ~bit) : (prev | bit));
+  };
 
-  // Called when user closes the control panel via ☰ button
   const handlePanelToggle = async () => {
-    const willClose = panelOpen
-    setPanelOpen(!panelOpen)
-
+    const willClose = panelOpen;
+    setPanelOpen(!panelOpen);
     if (willClose && surfaceMask !== lastSubmittedMask) {
       try {
-        await setSurfaceFilter(surfaceMask)
-        setLastSubmittedMask(surfaceMask)
-        await loadGraph()
-        console.log('✔ Applied new surface mask and reloaded graph')
+        // await setSurfaceMaskBoth(surfaceMask);
+        await setBikeSurfaceMask(surfaceMask);
+        setLastSubmittedMask(surfaceMask);
+        await fetchRoute();
+        console.log('✔ Applied new surface mask', surfaceMask);
       } catch (err) {
-        console.error('✖ Failed to apply filter or reload graph:', err)
+        console.error('✖ Failed to apply surface mask:', err);
       }
     }
-  }
+  };
 
   return (
     <>
@@ -90,8 +80,8 @@ const App = () => {
         snappedStart={snappedStart}
         snappedEnd={snappedEnd}
         routeCoords={routeCoords}
+        routeModes={routeModes}
         onMapClick={handleMapClick}
-        graphLines={graphLines}
       />
       <ControlPanel
         surfaceMask={surfaceMask}
@@ -100,7 +90,7 @@ const App = () => {
         onTogglePanel={handlePanelToggle}
       />
     </>
-  )
-}
+  );
+};
 
-export default App
+export default App;
