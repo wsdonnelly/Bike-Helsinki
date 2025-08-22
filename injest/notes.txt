@@ -9,3 +9,5 @@ make && ./buildGraph ../../raw_data/Helsinki.osm.pbf
 
 (from injest)
 ./all.sh ../../raw_data/Helsinki_region.osm.pbf
+./all.sh ../../raw_data/helsinkiTEST.osm.pbf
+
