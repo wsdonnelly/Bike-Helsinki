@@ -44,22 +44,37 @@ const GROUPS = [
       ['DIRT',         SurfaceBits.SURF_DIRT,         'Dirt'],
       ['EARTH',        SurfaceBits.SURF_EARTH,        'Earth'],
     ]
-  },
-  {
-    title: 'Generic & unknown',
-    items: [
-      ['PAVED',   SurfaceBits.SURF_PAVED,   'Any paved'],
-      ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Any unpaved'],
-      ['UNKNOWN', SurfaceBits.SURF_UNKNOWN, 'Unknown'],
-    ]
   }
 ];
+  // {
+  //   title: 'Generic & unknown',
+  //   items: [
+  //     ['PAVED',   SurfaceBits.SURF_PAVED,   'Any paved'],
+  //     ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Any unpaved'],
+  //     ['UNKNOWN', SurfaceBits.SURF_UNKNOWN, 'Unknown'],
+  //   ]
+  // }
 
 // Utility to compute masks from GROUPS
+
+// Helper to OR all bits in a named group
+const groupMask = (title) =>
+  (GROUPS.find(g => g.title === title)?.items ?? [])
+    .reduce((m, [, bit]) => m | bit, 0);
+
+// Masks
+const PAVED_BITS_MASK =
+  groupMask('Paved surfaces') | (SurfaceBits.SURF_PAVED || 0);
+
+const UNPAVED_BITS_MASK =
+  groupMask('Unpaved surfaces') | (SurfaceBits.SURF_UNPAVED || 0);
+
+// (You already have)
 const ALL_BITS_MASK = GROUPS.reduce(
   (acc, g) => acc | g.items.reduce((m, [, bit]) => m | bit, 0),
   0
 );
+
 
 const ControlPanel = ({
   surfaceMask,
@@ -70,10 +85,13 @@ const ControlPanel = ({
 }) => {
   // Bulk actions
   const applyBulk = (newMask) => {
+    //add this here? unknow is added to all masks for the time being
+    newMask |= SurfaceBits.SURF_UNKNOWN
     if (typeof onSetSurfaceMask === 'function') {
       onSetSurfaceMask(newMask);
       return;
     }
+    // console.log("IN HERE YO")
     // fallback: reach target by toggling bits
     for (const [, bit] of Object.entries(SurfaceBits)) {
       const want = (newMask & bit) !== 0;
@@ -84,7 +102,8 @@ const ControlPanel = ({
 
   const selectAll  = () => applyBulk(ALL_BITS_MASK);
   const selectNone = () => applyBulk(0);
-  const invertMask = () => applyBulk((~surfaceMask) & ALL_BITS_MASK);
+  const selectPaved = () => applyBulk(PAVED_BITS_MASK)
+  const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK)
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, height: '100%', zIndex: 9999, pointerEvents: 'none' }}>
@@ -154,7 +173,8 @@ const ControlPanel = ({
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button type="button" onClick={selectAll}  style={btnSm}>All</button>
             <button type="button" onClick={selectNone} style={btnSm}>None</button>
-            <button type="button" onClick={invertMask} style={btnSm}>Invert</button>
+            <button type="button" onClick={selectPaved} style={btnSm}>Paved</button>
+            <button type="button" onClick={selectUnpaved} style={btnSm}>Unpaved</button>
           </div>
 
           {GROUPS.map((group) => (
@@ -181,9 +201,9 @@ const ControlPanel = ({
             </fieldset>
           ))}
 
-          <p style={{ color: '#666', fontSize: 12, marginTop: 8 }}>
+          {/* <p style={{ color: '#666', fontSize: 12, marginTop: 8 }}>
             Tip: Changes are applied when you press <b>Apply</b>.
-          </p>
+          </p> */}
         </div>
       )}
     </div>
