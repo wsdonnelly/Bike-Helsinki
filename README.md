@@ -1,5 +1,4 @@
-![](./demo_1.gif)
-![](./demo_2.gif)
+![](./demo_5.gif)
 ![](./buildgraph_diagram.svg)
 
 # Injest
