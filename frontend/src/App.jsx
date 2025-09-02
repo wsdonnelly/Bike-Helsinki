@@ -20,7 +20,7 @@ const App = () => {
       const result = await getRoute({
         startIdx: snappedStart.idx,
         endIdx:   snappedEnd.idx,
-        // options: { bikeSurfaceMask: surfaceMask, walkSurfaceMask: surfaceMask }
+        // options: { bikeSurfaceMask: surfaceMask }
       });
       console.log('ROUTE RESULT', result);
       console.log('ROUTE TIME', result.durationS / 60, 'mins')

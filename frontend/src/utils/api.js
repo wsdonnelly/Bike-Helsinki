@@ -32,7 +32,7 @@ export async function snapToGraph(lat, lon) {
  * @param {number} params.endIdx   - end node index
  * @param {object} [params.options] - optional routing options to override server defaults
  *   {
- *     bikeSurfaceMask?: number, walkSurfaceMask?: number,
+ *     bikeSurfaceMask?: number,
  *     bikeSpeedMps?: number,   walkSpeedMps?: number,
  *     rideToWalkPenaltyS?: number, walkToRidePenaltyS?: number,
  *     bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
@@ -53,7 +53,6 @@ export async function getRoute({ startIdx, endIdx, options = {} }) {
     endIdx,
     // optional per-request overrides (masks/speeds)
     ...options,
-    walkSurfaceMask: ALL_SURFACES,
   });
   // data: { path, coords, modes, distanceM, durationS, startCoord, endCoord }
   return data;
@@ -65,7 +64,7 @@ export async function getRoute({ startIdx, endIdx, options = {} }) {
  *
  * Pass any subset of:
  * {
- *   bikeSurfaceMask?: number, walkSurfaceMask?: number,
+ *   bikeSurfaceMask?: number,
  *   bikeSpeedMps?: number,    walkSpeedMps?: number,
  *   rideToWalkPenaltyS?: number, walkToRidePenaltyS?: number,
  *   bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
@@ -84,8 +83,8 @@ export async function setRoutingDefaults(defaultsPatch) {
 //  * @returns {Promise<void>}
 //  */
 // export async function setSurfaceMaskBoth(mask) {
-//   // Example server expects { bikeSurfaceMask, walkSurfaceMask }
-//   await API.post('/filter', { bikeSurfaceMask: mask, walkSurfaceMask: mask });
+//   // Example server expects { bikeSurfaceMask }
+//   await API.post('/filter', { bikeSurfaceMask: mask });
 // }
 export async function setBikeSurfaceMask(mask) {
   await API.post('/filter', { bikeSurfaceMask: mask });

@@ -63,7 +63,6 @@ const sanitizeFactors = (arr) =>
 
 const defaults = {
   bikeSurfaceMask: 0xFFFF,
-  walkSurfaceMask: 0xFFFF,
   bikeSpeedMps: 6.0,      // ~21.6 km/h
   walkSpeedMps: 1.5,      // ~5.4 km/h
   rideToWalkPenaltyS: 5.0,
@@ -109,7 +108,7 @@ app.post('/route', (req, res) => {
 
   const {
     startIdx, endIdx,
-    bikeSurfaceMask, walkSurfaceMask,
+    bikeSurfaceMask,
     bikeSpeedMps, walkSpeedMps,
     rideToWalkPenaltyS, walkToRidePenaltyS,
     bikeSurfaceFactor, walkSurfaceFactor
@@ -129,7 +128,6 @@ app.post('/route', (req, res) => {
     sourceIdx: s,
     targetIdx: e,
     bikeSurfaceMask: clampU16(bikeSurfaceMask, defaults.bikeSurfaceMask),
-    walkSurfaceMask: clampU16(walkSurfaceMask, defaults.walkSurfaceMask),
     bikeSpeedMps:  finiteOr(bikeSpeedMps,  defaults.bikeSpeedMps),
     walkSpeedMps:  finiteOr(walkSpeedMps,  defaults.walkSpeedMps),
     rideToWalkPenaltyS: finiteOr(rideToWalkPenaltyS, defaults.rideToWalkPenaltyS),
@@ -204,7 +202,6 @@ app.post('/filter', (req, res) => {
   const b = req.body || {};
 
   if (Number.isInteger(b.bikeSurfaceMask)) defaults.bikeSurfaceMask = (b.bikeSurfaceMask & 0xFFFF);
-  if (Number.isInteger(b.walkSurfaceMask)) defaults.walkSurfaceMask = (b.walkSurfaceMask & 0xFFFF);
 
   if (Number.isFinite(b.bikeSpeedMps)) defaults.bikeSpeedMps = b.bikeSpeedMps;
   if (Number.isFinite(b.walkSpeedMps)) defaults.walkSpeedMps = b.walkSpeedMps;

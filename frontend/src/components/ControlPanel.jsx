@@ -10,6 +10,7 @@ export const SurfaceBits = {
   SURF_UNHEWN_COBBLESTONES: 1 << 5,
   SURF_COBBLESTONES:        1 << 6,
   SURF_BRICKS:              1 << 7,
+
   SURF_UNPAVED:             1 << 8,
   SURF_COMPACTED:           1 << 9,
   SURF_FINE_GRAVEL:         1 << 10,
@@ -25,6 +26,7 @@ const GROUPS = [
   {
     title: 'Paved surfaces',
     items: [
+      ['PAVED',   SurfaceBits.SURF_PAVED,   'Generic paved'],
       ['ASPHALT',             SurfaceBits.SURF_ASPHALT,             'Asphalt'],
       ['CONCRETE',            SurfaceBits.SURF_CONCRETE,            'Concrete'],
       ['PAVING_STONES',       SurfaceBits.SURF_PAVING_STONES,       'Paving stones'],
@@ -37,6 +39,7 @@ const GROUPS = [
   {
     title: 'Unpaved surfaces',
     items: [
+      ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Generic unpaved'],
       ['COMPACTED',    SurfaceBits.SURF_COMPACTED,    'Compacted'],
       ['FINE_GRAVEL',  SurfaceBits.SURF_FINE_GRAVEL,  'Fine gravel'],
       ['GRAVEL',       SurfaceBits.SURF_GRAVEL,       'Gravel'],

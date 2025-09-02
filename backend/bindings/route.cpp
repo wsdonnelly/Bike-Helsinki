@@ -399,7 +399,7 @@ struct AStarParams
 {
   // Filtering
   uint16_t bikeSurfaceMask = 0xFFFF;
-  uint16_t walkSurfaceMask = 0xFFFF;
+  // uint16_t walkSurfaceMask = 0xFFFF;
 
   // Speeds (meters/sec)
   double bikeSpeedMps = 6.0;  // ~21.6 km/h
@@ -595,7 +595,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
         if (edgesView.surfaceFlags &&
-            (params.walkSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
+             edgesView.surfaceFlags[edgeIdx] == 0)
           continue;
         const uint32_t v = edgesView.neighbors[edgeIdx];
         const double len =
@@ -678,7 +678,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
         if (edgesView.surfaceFlags &&
-            (params.walkSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
+            edgesView.surfaceFlags[edgeIdx] == 0)
           continue;
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
@@ -758,8 +758,8 @@ static AStarParams parseParams(Napi::Env env, const Napi::Object& obj)
   // Masks (uint16)
   if (auto m = getU32("bikeSurfaceMask"))
     params.bikeSurfaceMask = static_cast<uint16_t>(*m);
-  if (auto m = getU32("walkSurfaceMask"))
-    params.walkSurfaceMask = static_cast<uint16_t>(*m);
+  // if (auto m = getU32("walkSurfaceMask"))
+  //   params.walkSurfaceMask = static_cast<uint16_t>(*m);
 
   // Speeds
   if (auto s = getNum("bikeSpeedMps")) params.bikeSpeedMps = *s;
@@ -859,7 +859,7 @@ class FindPathWorker : public Napi::AsyncWorker
 // JS: findPath(options, callback)
 // options = {
 //   sourceIdx: <u32>, targetIdx: <u32>,
-//   bikeSurfaceMask?: u16, walkSurfaceMask?: u16,
+//   bikeSurfaceMask?: u16,
 //   bikeSpeedMps?: number, walkSpeedMps?: number,
 //   rideToWalkPenaltyS?: number, walkToRidePenaltyS?: number,
 //   bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
