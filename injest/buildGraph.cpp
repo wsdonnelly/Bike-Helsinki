@@ -165,13 +165,13 @@ static inline bool isYes(const char* v)
 
 // static inline bool isNo(const char* v)
 // {
-  // return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
+// return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
 // }
 static inline bool isNo(const char* v)
 {
-  return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0 || std::strcmp(v, "destination") == 0);
+  return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0 ||
+               std::strcmp(v, "destination") == 0);
 }
-
 
 struct WayCollector : public osmium::handler::Handler
 {

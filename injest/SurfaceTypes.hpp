@@ -15,7 +15,7 @@ using SurfaceMask = uint16_t;
 
 enum class SurfaceBit : SurfaceMask
 {
-  PAVED = 1u << 0,  // parent category
+  PAVED = 1u << 0,  // generic
   ASPHALT = 1u << 1,
   CONCRETE = 1u << 2,
   PAVING_STONES = 1u << 3,
@@ -24,7 +24,7 @@ enum class SurfaceBit : SurfaceMask
   COBBLESTONES = 1u << 6,
   BRICKS = 1u << 7,
 
-  UNPAVED = 1u << 8,  // parent category
+  UNPAVED = 1u << 8,  // generic
   COMPACTED = 1u << 9,
   FINE_GRAVEL = 1u << 10,
   GRAVEL = 1u << 11,
@@ -34,16 +34,6 @@ enum class SurfaceBit : SurfaceMask
 
   UNKNOWN = 1u << 15  // catch-all
 };
-
-constexpr SurfaceMask bit(SurfaceBit b) noexcept
-{
-  return static_cast<SurfaceMask>(b);
-}
-
-constexpr bool overlaps(SurfaceMask a, SurfaceMask b) noexcept
-{
-  return (a & b) != 0;
-}
 
 // Primary surface code (1 byte). Index into per-surface weight/color tables.
 enum class SurfacePrimary : uint8_t
@@ -66,6 +56,16 @@ enum class SurfacePrimary : uint8_t
 };
 
 constexpr SurfaceMask ALL_SURFACES = 0xFFFFu;
+constexpr SurfaceMask bit(SurfaceBit b) noexcept
+{
+  return static_cast<SurfaceMask>(b);
+}
+
+constexpr bool overlaps(SurfaceMask a, SurfaceMask b) noexcept
+{
+  return (a & b) != 0;
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mode bits per directed edge

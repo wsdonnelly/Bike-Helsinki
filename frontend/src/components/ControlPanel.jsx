@@ -63,11 +63,16 @@ const groupMask = (title) =>
     .reduce((m, [, bit]) => m | bit, 0);
 
 // Masks
+// const PAVED_BITS_MASK =
+//   groupMask('Paved surfaces') | (SurfaceBits.SURF_PAVED || 0);
+
+// const UNPAVED_BITS_MASK =
+//   groupMask('Unpaved surfaces') | (SurfaceBits.SURF_UNPAVED || 0);
 const PAVED_BITS_MASK =
-  groupMask('Paved surfaces') | (SurfaceBits.SURF_PAVED || 0);
+  groupMask('Paved surfaces');
 
 const UNPAVED_BITS_MASK =
-  groupMask('Unpaved surfaces') | (SurfaceBits.SURF_UNPAVED || 0);
+  groupMask('Unpaved surfaces');
 
 // (You already have)
 const ALL_BITS_MASK = GROUPS.reduce(

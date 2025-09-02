@@ -1,50 +1,6 @@
+injest/BuildGraph
+    - improve way collector
 
-DONE
--->Refactor SurfaceTypes as bits eg. more versitile in the long run, perhaps make some typedef or const like using bitWidth = uint16_t;
-    enum SurfaceTypes : bitWidth
-    {
-        SURF_PAVED = 1 << 0,
-
-DONE
--->In bindings/route.cpp
-    Add new function 'BuildFilteredGraph' that can be called from the frontend on controls state change
-    Add backend endpoint
-
-DONE
--->Add control features to frontend
-    should probably be triggered on controls window close, not every selection
-    main map window should have side bar (or something) that always shows the selection
-
----------------------------------------------------OPEN-----------------------------------------------------------------
-
--->Filtering graph creates disconnected networks. add 'walkable' segments to connect graphs.
-    display with dotted line
-    tags:
-        bicycle	no
-        footway	sidewalk
-        highway	footway
-        etc
-    no need to get surface types
-
--->Disply graphlines, (either in debug mode or normal) colored by surface type.
-    Allow hover or click on polyline to display information
-
--->Display all graphlines (like current debug mode) for current zoom level and current filtered graph in color with button
-    is too big for browser?
-    maybe limit display to single surafce types on master branch
+add clangtidy
 
 
--->Investigate if its needed to build initial kd-tree blob.
-    Now snap to graph, builds kd_tree on demand based on current filtered graph
-
--->Refactor hardcoded paths
-
--->Investigate optimizing the graph.
-    Make directed graph? prune redundant edges etc?? reduce memory consumption.
-
--->Investigate simplyfying surface types in UI. maybe could just be: dedicated bike path (paved), trail etc
-    Constrain the UI to a small set of presets (e.g., “paved only”, “no stairs”, “gravel OK”)
-    and prebuild a handful of hierarchies. If you have ≤ 6–8 combos, this is viable.
-
--->Improve tag reading in injest
-    eg. add Tag:highway=path to bikable graph
