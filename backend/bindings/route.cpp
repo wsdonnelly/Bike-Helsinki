@@ -399,7 +399,6 @@ struct AStarParams
 {
   // Filtering
   uint16_t bikeSurfaceMask = 0xFFFF;
-  // uint16_t walkSurfaceMask = 0xFFFF;
 
   // Speeds (meters/sec)
   double bikeSpeedMps = 6.0;  // ~21.6 km/h
@@ -410,6 +409,8 @@ struct AStarParams
   double walkToRidePenaltyS = 3.0;      // remount
 
   // Per-surface primary multipliers (index by uint8 surfacePrimary)
+  // unused now but can be used to make custom surface factors /speeds based on
+  // user bike eg road, mountain, gravel etc.
   // If empty, all factors default to 1.0
   std::vector<double> bikeSurfaceFactor;
   std::vector<double> walkSurfaceFactor;
@@ -418,12 +419,16 @@ struct AStarParams
 struct AStarResult
 {
   bool success{false};
-  //node by IDX rename perhaps?
+  // node by IDX rename perhaps?
   std::vector<uint32_t> pathNodes;  // node indices s..t
   std::vector<uint8_t> pathModes;   // MODE_* for each step between nodes;
                                     // length = pathNodes.size()-1
   double distanceM{0.0};
   double durationS{0.0};
+  // new feature precentage
+  double distanceBike{0.0};
+  // std::vector<double> distanceBike(16, 0.0);
+  double distanceWalk{0.0};
 };
 
 // Get factor by surface primary index; fall back to 1.0 if missing/invalid.
@@ -466,6 +471,8 @@ struct StateKey
 };
 
 // Core A* (goal: reach node t in either layer with min time)
+// remove passed edges/nodes since they are global ? no keep since pass to other
+// functions maybe is clearer?
 static AStarResult aStarTwoLayer(const EdgesView& edgesView,
                                  const NodesView& nodesView, uint32_t sourceIdx,
                                  uint32_t targetIdx, const AStarParams& params)
@@ -594,8 +601,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
       for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
-        if (edgesView.surfaceFlags &&
-             edgesView.surfaceFlags[edgeIdx] == 0)
+        if (edgesView.surfaceFlags && edgesView.surfaceFlags[edgeIdx] == 0)
           continue;
         const uint32_t v = edgesView.neighbors[edgeIdx];
         const double len =
@@ -669,6 +675,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
                                 edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
         totalMeters += len;
+        result.distanceBike += len;
         totalSeconds += (len / params.bikeSpeedMps) * factor;
         result.pathNodes.push_back(v);
         result.pathModes.push_back(MODE_BIKE);
@@ -677,8 +684,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
       else
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
-        if (edgesView.surfaceFlags &&
-            edgesView.surfaceFlags[edgeIdx] == 0)
+        if (edgesView.surfaceFlags && edgesView.surfaceFlags[edgeIdx] == 0)
           continue;
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
@@ -688,6 +694,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
                                 edgesView.surfacePrimary[edgeIdx])
                 : 1.0;
         totalMeters += len;
+        result.distanceWalk += len;
         totalSeconds += (len / params.walkSpeedMps) * factor;
         result.pathNodes.push_back(v);
         result.pathModes.push_back(MODE_FOOT);
@@ -725,6 +732,10 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
   result.distanceM = totalMeters;
   result.durationS = totalSeconds;
   result.success = true;
+  // debug
+  std::cout << "distanceBike in A*: " << result.distanceBike
+            << std::endl;
+  std::cout << "distanceWalk in A*: " << result.distanceWalk << std::endl;
   return result;
 }
 
@@ -845,6 +856,11 @@ class FindPathWorker : public Napi::AsyncWorker
 
     out.Set("distanceM", Napi::Number::New(env, res.distanceM));
     out.Set("durationS", Napi::Number::New(env, res.durationS));
+
+    // newStuff
+    out.Set("distanceBike", Napi::Number::New(env, res.distanceBike));
+    out.Set("distanceWalk", Napi::Number::New(env, res.distanceWalk));
+
     Callback().Call({env.Null(), out});
   }
 
@@ -896,7 +912,7 @@ Napi::Value FindPath(const Napi::CallbackInfo& info)
     Napi::TypeError::New(env, e.what()).ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  //rename
+  // rename
   auto cb = info[1].As<Napi::Function>();
   auto* worker =
       new FindPathWorker(cb, sourceIdx, targetIdx, std::move(params));

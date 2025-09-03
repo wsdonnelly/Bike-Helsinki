@@ -163,15 +163,15 @@ static inline bool isYes(const char* v)
           std::strcmp(v, "permissive") == 0);
 }
 
-// static inline bool isNo(const char* v)
-// {
-// return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
-// }
 static inline bool isNo(const char* v)
 {
-  return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0 ||
-               std::strcmp(v, "destination") == 0);
+  return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0);
 }
+// static inline bool isNo(const char* v)
+// {
+//   return v && (std::strcmp(v, "no") == 0 || std::strcmp(v, "private") == 0 ||
+//                std::strcmp(v, "destination") == 0);
+// }
 
 struct WayCollector : public osmium::handler::Handler
 {
@@ -179,11 +179,25 @@ struct WayCollector : public osmium::handler::Handler
   std::unordered_map<uint64_t, WayMeta>& wayIdWayMetaMap;
 
   static inline const std::unordered_set<std::string_view> kBikeHighways{
-      "cycleway",  "path",     "residential",  "service",
-      "secondary", "tertiary", "unclassified", "track"};
+      "cycleway", "path",         "residential", "service",   "secondary",
+      "tertiary", "unclassified", "track",       "pedestrian", "unclassified"};
+
   static inline const std::unordered_set<std::string_view> kFootHighways{
       "footway",     "path",    "pedestrian",   "steps",
-      "residential", "service", "living_street"};
+      "residential", "service", "living_street", "track", "unclassified"};
+
+  // Acceptable OSM route=* for bike/foot
+  static inline const std::unordered_set<std::string_view> kBikeRoutes{
+      "bicycle", "mtb", "road"};
+  static inline const std::unordered_set<std::string_view> kFootRoutes{
+      "hiking", "foot", "nordic_walking", "running", "fitness_trail"};
+
+  // Explicitly exclude these route=* (ferries & other transports)
+  static inline const std::unordered_set<std::string_view>
+      // add others
+      kTransportRoutesBlacklist{
+          "ferry",  "bus",        "tram",       "train",    "railway",
+          "subway", "light_rail", "trolleybus", "monorail", "ski"};
 
   WayCollector(
       std::unordered_map<uint64_t, std::vector<uint64_t>>& wayIdNodeIdsMapIn,
@@ -198,13 +212,60 @@ struct WayCollector : public osmium::handler::Handler
     const char* accVal = tags.get_value_by_key("access");
     const char* bicycleVal = tags.get_value_by_key("bicycle");
     const char* footVal = tags.get_value_by_key("foot");
+    const char* routeVal = tags.get_value_by_key("route");
+    const char* aerialwayVal = tags.get_value_by_key("aerialway");
+    const char* railwayVal = tags.get_value_by_key("railway");
+    const char* waterwayVal = tags.get_value_by_key("waterway");
+
+    // Early-out: exclude obvious non-walk/bike transport infrastructures on
+    // ways
+    auto isActiveRail = [](const char* v) -> bool {
+      if (!v) return false;
+
+      std::string_view sv(v);
+      static const std::unordered_set<std::string_view> kBlock{
+          "rail",      "tram",         "subway",    "light_rail",  "monorail",
+          "funicular", "narrow_gauge", "preserved", "construction"};
+      // explicitly allow these
+      if (sv == "platform" || sv == "razed" || sv == "abandoned" ||
+          sv == "disused" || sv == "dismantled" || sv == "proposed")
+      {
+        return false;
+      }
+      return kBlock.count(sv) > 0;
+    };
+
+    if ((routeVal && kTransportRoutesBlacklist.count(routeVal)) ||
+        aerialwayVal || waterwayVal || isActiveRail(railwayVal))
+    {
+      return;
+    }
 
     bool candidate_bike =
         (highwayVal && kBikeHighways.count(highwayVal)) || isYes(bicycleVal);
     bool candidate_foot =
         (highwayVal && kFootHighways.count(highwayVal)) || isYes(footVal);
 
-    if (isNo(accVal) && !isYes(bicycleVal) && !isYes(footVal)) return;
+    // If a route=* is present on the way:
+    // - Accept if it's an allowed walking/cycling route (additive, not
+    // overriding).
+    // - (Ferries & other transports already returned above.)
+    if (routeVal)
+    {
+      if (kBikeRoutes.count(routeVal)) candidate_bike = true;
+      if (kFootRoutes.count(routeVal)) candidate_foot = true;
+    }
+
+    // Respect explicit prohibitions
+    if (isNo(bicycleVal)) candidate_bike = false;
+    if (isNo(footVal)) candidate_foot = false;
+
+    // If general access is blocked, keep only explicit per-mode overrides
+    if (isNo(accVal) && !isYes(bicycleVal) && !isYes(footVal))
+    {
+      return;
+    }
+
     if (!candidate_bike && !candidate_foot) return;
 
     WayMeta wayMeta;
@@ -217,7 +278,9 @@ struct WayCollector : public osmium::handler::Handler
                            std::strcmp(highwayVal, "motorway") != 0);
 
     if (bicycleVal && std::strcmp(bicycleVal, "dismount") == 0)
+    {
       bike_allowed = false;
+    }
 
     bool fwd{true}, back{true};
     const char* isOneWay = tags.get_value_by_key("oneway");

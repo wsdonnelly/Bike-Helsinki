@@ -1,16 +1,16 @@
 // frontend/src/utils/api.js
-import axios from 'axios';
+import axios from "axios";
 
 // Prefer env override (e.g. Vite: import.meta.env.VITE_API_BASE) and fallback to localhost:3000
 // const BASE_URL =
 //   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) ||
 //   process.env.REACT_APP_API_BASE ||
 //   'http://localhost:3000';
-const BASE_URL = 'http://localhost:3000'; //get rid of me
+const BASE_URL = "http://localhost:3000"; //get rid of me
 
 export const API = axios.create({ baseURL: BASE_URL });
 
-export const ALL_SURFACES = 0xFFFF;
+export const ALL_SURFACES = 0xffff;
 
 /**
  * Snap a lat/lon to the nearest graph node.
@@ -19,7 +19,7 @@ export const ALL_SURFACES = 0xFFFF;
  * @returns {Promise<{ idx:number, lat:number, lon:number }>}
  */
 export async function snapToGraph(lat, lon) {
-  const { data } = await API.get('/snap', { params: { lat, lon } });
+  const { data } = await API.get("/snap", { params: { lat, lon } });
   return data; // { idx, lat, lon }
 }
 
@@ -43,23 +43,25 @@ export async function snapToGraph(lat, lon) {
  *   modes:number[],                     // [1|2] per segment
  *   distanceM:number,
  *   durationS:number,
+ *   distanceBike,
+ *   distanceWalk,
  *   startCoord?:[number,number],
  *   endCoord?:[number,number]
  * }>}
  */
 export async function getRoute({ startIdx, endIdx, options = {} }) {
-  const { data } = await API.post('/route', {
+  const { data } = await API.post("/route", {
     startIdx,
     endIdx,
     // optional per-request overrides (masks/speeds)
     ...options,
   });
-  // data: { path, coords, modes, distanceM, durationS, startCoord, endCoord }
+  // data: { path, coords, modes, distanceM, durationS, distanceBike, distanceWalk, startCoord, endCoord }
   return data;
 }
 
 /**
- * Update server-side routing defaults (does NOT rebuild graphs).
+ * Update server-side routing defaults.
  * Useful for toggling masks/speeds globally without passing options every time.
  *
  * Pass any subset of:
@@ -74,7 +76,7 @@ export async function getRoute({ startIdx, endIdx, options = {} }) {
  * @returns {Promise<void>}
  */
 export async function setRoutingDefaults(defaultsPatch) {
-  await API.post('/filter', defaultsPatch);
+  await API.post("/filter", defaultsPatch);
 }
 
 // /**
@@ -87,14 +89,13 @@ export async function setRoutingDefaults(defaultsPatch) {
 //   await API.post('/filter', { bikeSurfaceMask: mask });
 // }
 export async function setBikeSurfaceMask(mask) {
-  await API.post('/filter', { bikeSurfaceMask: mask });
+  await API.post("/filter", { bikeSurfaceMask: mask });
 }
-
 
 /**
  * Get meta info (e.g., totalNodes, server defaults).
  * @returns {Promise<{ totalNodes:number, defaults:object }>}
  */
 export async function getMeta() {
-  return API.get('/meta').then(res => res.data);
+  return API.get("/meta").then((res) => res.data);
 }

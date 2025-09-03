@@ -1,69 +1,75 @@
-import React from 'react';
+import React from "react";
 
 // Bit flags must match backend SurfaceTypes.hpp
 export const SurfaceBits = {
-  SURF_PAVED:               1 << 0,
-  SURF_ASPHALT:             1 << 1,
-  SURF_CONCRETE:            1 << 2,
-  SURF_PAVING_STONES:       1 << 3,
-  SURF_SETT:                1 << 4,
+  SURF_PAVED: 1 << 0,
+  SURF_ASPHALT: 1 << 1,
+  SURF_CONCRETE: 1 << 2,
+  SURF_PAVING_STONES: 1 << 3,
+  SURF_SETT: 1 << 4,
   SURF_UNHEWN_COBBLESTONES: 1 << 5,
-  SURF_COBBLESTONES:        1 << 6,
-  SURF_BRICKS:              1 << 7,
+  SURF_COBBLESTONES: 1 << 6,
+  SURF_BRICKS: 1 << 7,
 
-  SURF_UNPAVED:             1 << 8,
-  SURF_COMPACTED:           1 << 9,
-  SURF_FINE_GRAVEL:         1 << 10,
-  SURF_GRAVEL:              1 << 11,
-  SURF_GROUND:              1 << 12,
-  SURF_DIRT:                1 << 13,
-  SURF_EARTH:               1 << 14,
-  SURF_UNKNOWN:             1 << 15
+  SURF_UNPAVED: 1 << 8,
+  SURF_COMPACTED: 1 << 9,
+  SURF_FINE_GRAVEL: 1 << 10,
+  SURF_GRAVEL: 1 << 11,
+  SURF_GROUND: 1 << 12,
+  SURF_DIRT: 1 << 13,
+  SURF_EARTH: 1 << 14,
+  SURF_UNKNOWN: 1 << 15,
 };
 
 // Stable order + friendlier labels
 const GROUPS = [
   {
-    title: 'Paved surfaces',
+    title: "Paved surfaces",
     items: [
-      ['PAVED',   SurfaceBits.SURF_PAVED,   'Generic paved'],
-      ['ASPHALT',             SurfaceBits.SURF_ASPHALT,             'Asphalt'],
-      ['CONCRETE',            SurfaceBits.SURF_CONCRETE,            'Concrete'],
-      ['PAVING_STONES',       SurfaceBits.SURF_PAVING_STONES,       'Paving stones'],
-      ['SETT',                SurfaceBits.SURF_SETT,                'Sett'],
-      ['UNHEWN_COBBLESTONES', SurfaceBits.SURF_UNHEWN_COBBLESTONES, 'Unhewn cobblestones'],
-      ['COBBLESTONES',        SurfaceBits.SURF_COBBLESTONES,        'Cobblestones'],
-      ['BRICKS',              SurfaceBits.SURF_BRICKS,              'Bricks'],
-    ]
+      ["PAVED", SurfaceBits.SURF_PAVED, "Generic paved"],
+      ["ASPHALT", SurfaceBits.SURF_ASPHALT, "Asphalt"],
+      ["CONCRETE", SurfaceBits.SURF_CONCRETE, "Concrete"],
+      ["PAVING_STONES", SurfaceBits.SURF_PAVING_STONES, "Paving stones"],
+      ["SETT", SurfaceBits.SURF_SETT, "Sett"],
+      [
+        "UNHEWN_COBBLESTONES",
+        SurfaceBits.SURF_UNHEWN_COBBLESTONES,
+        "Unhewn cobblestones",
+      ],
+      ["COBBLESTONES", SurfaceBits.SURF_COBBLESTONES, "Cobblestones"],
+      ["BRICKS", SurfaceBits.SURF_BRICKS, "Bricks"],
+    ],
   },
   {
-    title: 'Unpaved surfaces',
+    title: "Unpaved surfaces",
     items: [
-      ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Generic unpaved'],
-      ['COMPACTED',    SurfaceBits.SURF_COMPACTED,    'Compacted'],
-      ['FINE_GRAVEL',  SurfaceBits.SURF_FINE_GRAVEL,  'Fine gravel'],
-      ['GRAVEL',       SurfaceBits.SURF_GRAVEL,       'Gravel'],
-      ['GROUND',       SurfaceBits.SURF_GROUND,       'Ground'],
-      ['DIRT',         SurfaceBits.SURF_DIRT,         'Dirt'],
-      ['EARTH',        SurfaceBits.SURF_EARTH,        'Earth'],
-    ]
-  }
+      ["UNPAVED", SurfaceBits.SURF_UNPAVED, "Generic unpaved"],
+      ["COMPACTED", SurfaceBits.SURF_COMPACTED, "Compacted"],
+      ["FINE_GRAVEL", SurfaceBits.SURF_FINE_GRAVEL, "Fine gravel"],
+      ["GRAVEL", SurfaceBits.SURF_GRAVEL, "Gravel"],
+      ["GROUND", SurfaceBits.SURF_GROUND, "Ground"],
+      ["DIRT", SurfaceBits.SURF_DIRT, "Dirt"],
+      ["EARTH", SurfaceBits.SURF_EARTH, "Earth"],
+    ],
+  },
 ];
-  // {
-  //   title: 'Generic & unknown',
-  //   items: [
-  //     ['PAVED',   SurfaceBits.SURF_PAVED,   'Any paved'],
-  //     ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Any unpaved'],
-  //     ['UNKNOWN', SurfaceBits.SURF_UNKNOWN, 'Unknown'],
-  //   ]
-  // }
+// {
+//   title: 'Generic & unknown',
+//   items: [
+//     ['PAVED',   SurfaceBits.SURF_PAVED,   'Any paved'],
+//     ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Any unpaved'],
+//     ['UNKNOWN', SurfaceBits.SURF_UNKNOWN, 'Unknown'],
+//   ]
+// }
 
 // Utility to compute masks from GROUPS
 
 // Helper to OR all bits in a named group
 const groupMask = (title) =>
-  (GROUPS.find(g => g.title === title)?.items ?? [])
-    .reduce((m, [, bit]) => m | bit, 0);
+  (GROUPS.find((g) => g.title === title)?.items ?? []).reduce(
+    (m, [, bit]) => m | bit,
+    0
+  );
 
 // Masks
 // const PAVED_BITS_MASK =
@@ -71,11 +77,9 @@ const groupMask = (title) =>
 
 // const UNPAVED_BITS_MASK =
 //   groupMask('Unpaved surfaces') | (SurfaceBits.SURF_UNPAVED || 0);
-const PAVED_BITS_MASK =
-  groupMask('Paved surfaces');
+const PAVED_BITS_MASK = groupMask("Paved surfaces");
 
-const UNPAVED_BITS_MASK =
-  groupMask('Unpaved surfaces');
+const UNPAVED_BITS_MASK = groupMask("Unpaved surfaces");
 
 // (You already have)
 const ALL_BITS_MASK = GROUPS.reduce(
@@ -83,19 +87,18 @@ const ALL_BITS_MASK = GROUPS.reduce(
   0
 );
 
-
 const ControlPanel = ({
   surfaceMask,
-  onToggleSurface,       // (bit) => void
-  onSetSurfaceMask,      // (newMask) => void  (optional)
+  onToggleSurface, // (bit) => void
+  onSetSurfaceMask, // (newMask) => void  (optional)
   panelOpen,
-  onTogglePanel
+  onTogglePanel,
 }) => {
   // Bulk actions
   const applyBulk = (newMask) => {
     //add this here? unknow is added to all masks for the time being
-    newMask |= SurfaceBits.SURF_UNKNOWN
-    if (typeof onSetSurfaceMask === 'function') {
+    newMask |= SurfaceBits.SURF_UNKNOWN;
+    if (typeof onSetSurfaceMask === "function") {
       onSetSurfaceMask(newMask);
       return;
     }
@@ -108,13 +111,22 @@ const ControlPanel = ({
     }
   };
 
-  const selectAll  = () => applyBulk(ALL_BITS_MASK);
+  const selectAll = () => applyBulk(ALL_BITS_MASK);
   const selectNone = () => applyBulk(0);
-  const selectPaved = () => applyBulk(PAVED_BITS_MASK)
-  const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK)
+  const selectPaved = () => applyBulk(PAVED_BITS_MASK);
+  const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, height: '100%', zIndex: 9999, pointerEvents: 'none' }}>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        height: "100%",
+        zIndex: 9999,
+        pointerEvents: "none",
+      }}
+    >
       {/* ☰ is visible only when panel is CLOSED */}
       {!panelOpen && (
         <button
@@ -122,17 +134,17 @@ const ControlPanel = ({
           aria-label="Open surface filters"
           onClick={onTogglePanel}
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 80,
             left: 10,
-            padding: '6px 10px',
+            padding: "6px 10px",
             zIndex: 10000,
-            border: '1px solid #ccc',
+            border: "1px solid #ccc",
             borderRadius: 6,
-            backgroundColor: '#fff',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-            cursor: 'pointer',
-            pointerEvents: 'auto'
+            backgroundColor: "#fff",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+            cursor: "pointer",
+            pointerEvents: "auto",
           }}
         >
           ☰
@@ -146,31 +158,40 @@ const ControlPanel = ({
           aria-modal="false"
           aria-label="Surface filters"
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 0,
             left: 0,
             width: 300,
-            height: '100%',
-            backgroundColor: '#fff',
-            boxShadow: '2px 0 5px rgba(0,0,0,0.2)',
-            overflowY: 'auto',
+            height: "100%",
+            backgroundColor: "#fff",
+            boxShadow: "2px 0 5px rgba(0,0,0,0.2)",
+            overflowY: "auto",
             padding: 16,
-            pointerEvents: 'auto'
+            pointerEvents: "auto",
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>Surface Types</h2>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
+              Surface Types
+            </h2>
             {/* “Apply” instead of “Close” */}
             <button
               type="button"
               aria-label="Apply"
               onClick={onTogglePanel}
               style={{
-                border: '1px solid #ddd',
-                background: '#fafafa',
+                border: "1px solid #ddd",
+                background: "#fafafa",
                 borderRadius: 6,
-                padding: '4px 10px',
-                cursor: 'pointer'
+                padding: "4px 10px",
+                cursor: "pointer",
               }}
             >
               Apply
@@ -178,23 +199,33 @@ const ControlPanel = ({
           </div>
 
           {/* Bulk actions */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button type="button" onClick={selectAll}  style={btnSm}>All</button>
-            <button type="button" onClick={selectNone} style={btnSm}>None</button>
-            <button type="button" onClick={selectPaved} style={btnSm}>Paved</button>
-            <button type="button" onClick={selectUnpaved} style={btnSm}>Unpaved</button>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button type="button" onClick={selectAll} style={btnSm}>
+              All
+            </button>
+            <button type="button" onClick={selectNone} style={btnSm}>
+              None
+            </button>
+            <button type="button" onClick={selectPaved} style={btnSm}>
+              Paved
+            </button>
+            <button type="button" onClick={selectUnpaved} style={btnSm}>
+              Unpaved
+            </button>
           </div>
 
           {GROUPS.map((group) => (
             <fieldset key={group.title} style={fs}>
               <legend style={legend}>{group.title}</legend>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {group.items.map(([key, bit, label]) => {
                   const id = `surf-${key.toLowerCase()}`;
                   const checked = (surfaceMask & bit) !== 0;
                   return (
                     <li key={key} style={row}>
-                      <label htmlFor={id} style={{ fontSize: 14 }}>{label}</label>
+                      <label htmlFor={id} style={{ fontSize: 14 }}>
+                        {label}
+                      </label>
                       <input
                         id={id}
                         type="checkbox"
@@ -220,26 +251,26 @@ const ControlPanel = ({
 
 // tiny style helpers
 const btnSm = {
-  border: '1px solid #ddd',
-  background: '#fff',
+  border: "1px solid #ddd",
+  background: "#fff",
   borderRadius: 6,
-  padding: '6px 10px',
+  padding: "6px 10px",
   fontSize: 12,
-  cursor: 'pointer'
+  cursor: "pointer",
 };
 const fs = {
-  border: '1px solid #eee',
+  border: "1px solid #eee",
   borderRadius: 6,
   padding: 12,
-  marginBottom: 12
+  marginBottom: 12,
 };
-const legend = { fontWeight: 600, fontSize: 13, padding: '0 6px' };
+const legend = { fontWeight: 600, fontSize: 13, padding: "0 6px" };
 const row = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '6px 0',
-  borderBottom: '1px dashed #f1f1f1'
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "6px 0",
+  borderBottom: "1px dashed #f1f1f1",
 };
 
 export default ControlPanel;

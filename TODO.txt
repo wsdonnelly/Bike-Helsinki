@@ -1,6 +1,18 @@
 injest/BuildGraph
     - improve way collector
 
-add clangtidy
+add clangtidy?
 
+user gives bike type eg road, gravel, mountain, hybrid etc. This sets speeds per surface.
+pass this as factors to backend.
+Can also be expanded to include walking speeds based on hiking preference.
 
+Add walking mode, with same surface preferences.
+
+Return distance of each surface in meters
+display in Frontend as percentage image
+
+Display as different colors in FH surface types
+or at least selected surfaces and other
+
+Rebuild A* to maximize selected surface, minimize time

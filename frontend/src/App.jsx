@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MapView } from './components/MapView';
 import ControlPanel from './components/ControlPanel';
-// import { snapToGraph, getRoute, setSurfaceMaskBoth } from './utils/api';
 import { snapToGraph, getRoute, setBikeSurfaceMask } from './utils/api';
 
 const App = () => {
@@ -25,6 +24,8 @@ const App = () => {
       console.log('ROUTE RESULT', result);
       console.log('ROUTE TIME', result.durationS / 60, 'mins')
       console.log('ROUTE LENGTH', result.distanceM / 1000, 'KM')
+      console.log('ROUTE distanceBike', result.distanceBike / 1000, 'KM')
+      console.log('ROUTE distanceWalk', result.distanceWalk / 1000, 'KM')
       setRouteCoords(result.coords ?? []);
       setRouteModes(result.modes  ?? []);
     } catch (err) {
