@@ -27,7 +27,20 @@ set(OSMIUM_INCLUDE_DIR    "/Users/willdonnelly/src/libosmium/include" CACHE PATH
 set(PROTOZERO_INCLUDE_DIR "/Users/willdonnelly/src/protozero/include" CACHE PATH "Path to protozero/include")
 
 # --- Executable --------------------------------------------------------------
-add_executable(buildGraph buildGraph.cpp)
+set(SOURCES
+  buildGraph.cpp
+  writeBlobs.cpp
+  wayCollector.cpp
+  nodeCollector.cpp
+)
+
+set(HEADERS
+    writeBlobs.hpp
+    wayCollector.hpp
+    nodeCollector.hpp
+)
+
+add_executable(buildGraph ${SOURCES} ${HEADERS})
 
 target_include_directories(buildGraph PRIVATE
   ${OSMIUM_INCLUDE_DIR}
@@ -46,8 +59,3 @@ target_link_libraries(buildGraph PRIVATE
   bz2     # bzip2
   expat   # Expat XML parser (optional if not reading .osm XML)
 )
-
-# ---------------------- (Removed KD build) -----------------------------------
-# add_executable(buildKdTree buildKdTree.cpp)
-# target_include_directories(buildKdTree PRIVATE ${OSMIUM_INCLUDE_DIR} ${PROTOZERO_INCLUDE_DIR})
-# target_link_libraries(buildKdTree PRIVATE z bz2 expat)

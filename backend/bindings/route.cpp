@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include "Utils.hpp"
+#include "utils.hpp"
 
 // ---------------- Blob headers (match your ingest/writer) ----------------
 namespace blob

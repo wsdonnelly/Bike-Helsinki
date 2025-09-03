@@ -38,6 +38,7 @@ enum class SurfaceBit : SurfaceMask
 // Primary surface code (1 byte). Index into per-surface weight/color tables.
 enum class SurfacePrimary : uint8_t
 {
+  PAVED,
   ASPHALT,
   CONCRETE,
   PAVING_STONES,
@@ -45,26 +46,27 @@ enum class SurfacePrimary : uint8_t
   UNHEWN_COBBLESTONES,
   COBBLESTONES,
   BRICKS,
+  UNPAVED,
   COMPACTED,
   FINE_GRAVEL,
   GRAVEL,
   GROUND,
   DIRT,
   EARTH,
-  UNKNOWN,
-  COUNT
+  UNKNOWN
 };
 
-constexpr SurfaceMask ALL_SURFACES = 0xFFFFu;
+//is this needed?
+// constexpr SurfaceMask ALL_SURFACES = 0xFFFFu;
 constexpr SurfaceMask bit(SurfaceBit b) noexcept
 {
   return static_cast<SurfaceMask>(b);
 }
 
-constexpr bool overlaps(SurfaceMask a, SurfaceMask b) noexcept
-{
-  return (a & b) != 0;
-}
+// constexpr bool overlaps(SurfaceMask a, SurfaceMask b) noexcept
+// {
+//   return (a & b) != 0;
+// }
 
 
 // ─────────────────────────────────────────────────────────────────────────────
