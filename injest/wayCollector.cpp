@@ -10,13 +10,12 @@ namespace injest
 // Surface mapping implementation
 // ─────────────────────────────────────────────────────────────────────────────
 void SurfaceMaps::fromTag(const char* surfaceVal,
-                          types::SurfacePrimary& surfacePrimaryOut,
-                          types::SurfaceMask& surfaceBitOut)
+                          types::SurfacePrimary& surfacePrimaryOut)
 {
   if (!surfaceVal || !*surfaceVal)
   {
     surfacePrimaryOut = types::SurfacePrimary::UNKNOWN;
-    surfaceBitOut = types::bit(types::SurfaceBit::UNKNOWN);
+
     return;
   }
 
@@ -27,12 +26,10 @@ void SurfaceMaps::fromTag(const char* surfaceVal,
   if (it != kEntries.end())
   {
     surfacePrimaryOut = it->primary;
-    surfaceBitOut = it->surfaceBit;
   }
   else
   {
     surfacePrimaryOut = types::SurfacePrimary::UNKNOWN;
-    surfaceBitOut = types::bit(types::SurfaceBit::UNKNOWN);
   }
 }
 
@@ -125,8 +122,8 @@ void WayCollector::way(const osmium::Way& way)
 
   WayMeta wayMeta;
   // set surface value
-  SurfaceMaps::fromTag(tags.get_value_by_key("surface"), wayMeta.surfacePrimary,
-                       wayMeta.surfaceBit);
+  SurfaceMaps::fromTag(tags.get_value_by_key("surface"),
+                       wayMeta.surfacePrimary);
 
   bool bike_allowed = !isNo(bicycleVal) && candidate_bike;
   bool foot_allowed =

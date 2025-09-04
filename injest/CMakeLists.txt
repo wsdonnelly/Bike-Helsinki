@@ -38,6 +38,8 @@ set(HEADERS
     writeBlobs.hpp
     wayCollector.hpp
     nodeCollector.hpp
+    surfaceTypes.hpp
+    blobHeaders.hpp
 )
 
 add_executable(buildGraph ${SOURCES} ${HEADERS})

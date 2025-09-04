@@ -14,7 +14,7 @@
 namespace injest
 {
 // ─────────────────────────────────────────────────────────────────────────────
-// Surface mapping (OSM tag → primary + flags)
+// Surface mapping (OSM tag → SurfacePrimary)
 // ─────────────────────────────────────────────────────────────────────────────
 struct SurfaceMaps
 {
@@ -22,49 +22,31 @@ struct SurfaceMaps
   {
     std::string_view key;
     types::SurfacePrimary primary;
-    types::SurfaceMask surfaceBit;
   };
 
   static constexpr std::array<Entry, 16> kEntries{
-      {{"paved", types::SurfacePrimary::PAVED,
-        types::bit(types::SurfaceBit::PAVED)},
-       {"asphalt", types::SurfacePrimary::ASPHALT,
-        types::bit(types::SurfaceBit::ASPHALT)},
-       {"concrete", types::SurfacePrimary::CONCRETE,
-        types::bit(types::SurfaceBit::CONCRETE)},
-       {"paving_stones", types::SurfacePrimary::PAVING_STONES,
-        types::bit(types::SurfaceBit::PAVING_STONES)},
-       {"sett", types::SurfacePrimary::SETT,
-        types::bit(types::SurfaceBit::SETT)},
-       {"unhewn_cobblestones", types::SurfacePrimary::UNHEWN_COBBLESTONES,
-        types::bit(types::SurfaceBit::UNHEWN_COBBLESTONES)},
-       {"cobblestones", types::SurfacePrimary::COBBLESTONES,
-        types::bit(types::SurfaceBit::COBBLESTONES)},
-       {"bricks", types::SurfacePrimary::BRICKS,
-        types::bit(types::SurfaceBit::BRICKS)},
+      {{"paved", types::SurfacePrimary::PAVED},
+       {"asphalt", types::SurfacePrimary::ASPHALT},
+       {"concrete", types::SurfacePrimary::CONCRETE},
+       {"paving_stones", types::SurfacePrimary::PAVING_STONES},
+       {"sett", types::SurfacePrimary::SETT},
+       {"unhewn_cobblestones", types::SurfacePrimary::UNHEWN_COBBLESTONES},
+       {"cobblestones", types::SurfacePrimary::COBBLESTONES},
+       {"bricks", types::SurfacePrimary::BRICKS},
 
-       {"unpaved", types::SurfacePrimary::UNPAVED,
-        types::bit(types::SurfaceBit::UNPAVED)},
-       {"compacted", types::SurfacePrimary::COMPACTED,
-        types::bit(types::SurfaceBit::COMPACTED)},
-       {"fine_gravel", types::SurfacePrimary::FINE_GRAVEL,
-        types::bit(types::SurfaceBit::FINE_GRAVEL)},
-       {"gravel", types::SurfacePrimary::GRAVEL,
-        types::bit(types::SurfaceBit::GRAVEL)},
-       {"ground", types::SurfacePrimary::GROUND,
-        types::bit(types::SurfaceBit::GROUND)},
-       {"dirt", types::SurfacePrimary::DIRT,
-        types::bit(types::SurfaceBit::DIRT)},
-       {"earth", types::SurfacePrimary::EARTH,
-        types::bit(types::SurfaceBit::EARTH)},
+       {"unpaved", types::SurfacePrimary::UNPAVED},
+       {"compacted", types::SurfacePrimary::COMPACTED},
+       {"fine_gravel", types::SurfacePrimary::FINE_GRAVEL},
+       {"gravel", types::SurfacePrimary::GRAVEL},
+       {"ground", types::SurfacePrimary::GROUND},
+       {"dirt", types::SurfacePrimary::DIRT},
+       {"earth", types::SurfacePrimary::EARTH},
 
-       {"unknown", types::SurfacePrimary::UNKNOWN,
-        types::bit(types::SurfaceBit::UNKNOWN)}}};
+       {"unknown", types::SurfacePrimary::UNKNOWN}}};
 
   // Set wayMeta's surface fields based on OSM surface tag
   static void fromTag(const char* surfaceVal,
-                      types::SurfacePrimary& surfacePrimaryOut,
-                      types::SurfaceMask& surfaceBitOut);
+                      types::SurfacePrimary& surfacePrimaryOut);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,7 +58,6 @@ struct WayMeta
   bool bikeBack{false};
   bool footAllowed{false};
   types::SurfacePrimary surfacePrimary{types::SurfacePrimary::UNKNOWN};
-  types::SurfaceMask surfaceBit{types::bit(types::SurfaceBit::UNKNOWN)};
 };
 
 // Helper functions for OSM tag parsing

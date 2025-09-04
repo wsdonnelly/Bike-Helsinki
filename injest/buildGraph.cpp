@@ -1,21 +1,18 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <osmium/io/any_input.hpp>
+#include <osmium/visitor.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include <osmium/io/any_input.hpp>
-#include <osmium/visitor.hpp>
-
-
+#include "nodeCollector.hpp"
 #include "surfaceTypes.hpp"
 #include "utils.hpp"
 #include "wayCollector.hpp"
 #include "writeBlobs.hpp"
-#include "nodeCollector.hpp"
-
 
 using namespace injest;
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,7 +126,7 @@ int main(int argc, char* argv[])
   // Prepare arrays
   std::vector<uint32_t> neighbors(numEdges);
   std::vector<float> lengthsMeters(numEdges);
-  std::vector<uint16_t> surfaceBitVec(numEdges);
+  // std::vector<uint16_t> surfaceBitVec(numEdges);
   std::vector<uint8_t> surfacePrimaryVec(numEdges);
   std::vector<uint8_t> modeMasks(numEdges);
   std::vector<uint32_t> cur = offsets;
@@ -165,7 +162,7 @@ int main(int argc, char* argv[])
         uint32_t idx = cur[idxU]++;
         neighbors[idx] = idxV;
         lengthsMeters[idx] = dist;
-        surfaceBitVec[idx] = (uint16_t)wayMeta.surfaceBit;
+        // surfaceBitVec[idx] = (uint16_t)wayMeta.surfaceBit;
         surfacePrimaryVec[idx] = (uint8_t)wayMeta.surfacePrimary;
 
         uint8_t modeMask{0};
@@ -184,7 +181,7 @@ int main(int argc, char* argv[])
         uint32_t idx = cur[idxV]++;
         neighbors[idx] = idxU;
         lengthsMeters[idx] = dist;
-        surfaceBitVec[idx] = (uint16_t)wayMeta.surfaceBit;
+        // surfaceBitVec[idx] = (uint16_t)wayMeta.surfaceBit;
         surfacePrimaryVec[idx] = (uint8_t)wayMeta.surfacePrimary;
         uint8_t modeMask{0};
         if (wayMeta.bikeBack) modeMask |= (uint8_t)types::MODE_BIKE;
@@ -197,7 +194,9 @@ int main(int argc, char* argv[])
   // Write blobs
   writeGraphNodesBin(allNodeIds, nodeIdCoordMap);
   writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, lengthsMeters,
-                     surfaceBitVec, surfacePrimaryVec, modeMasks);
+                     surfacePrimaryVec, modeMasks);
+  // writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, lengthsMeters,
+  //                    surfaceBitVec, surfacePrimaryVec, modeMasks);
 
   return 0;
 }

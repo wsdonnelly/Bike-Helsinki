@@ -43,12 +43,8 @@ const nodesBin = fs.readFileSync(nodesPath);
 
 function readTotalNodes(buf) {
   if (buf.length >= 20 && buf.subarray(0, 8).toString("ascii") === "MMAPNODE") {
-    const version = buf.readUInt32LE(8);
-    if (version !== 1) throw new Error(`Unsupported nodes version: ${version}`);
-    return buf.readUInt32LE(12); // num_nodes
+    return buf.readUInt32LE(8); // num_nodes
   }
-  if (buf.length >= 4) return buf.readUInt32LE(0); // legacy
-  throw new Error("graph_nodes.bin too small");
 }
 const TOTAL_NODES = readTotalNodes(nodesBin);
 console.log("TOTAL_NODES =", TOTAL_NODES);

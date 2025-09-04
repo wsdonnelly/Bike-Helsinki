@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <cstring>
 
 namespace injest
 {
@@ -11,8 +12,8 @@ void writeGraphNodesBin(
     const std::unordered_map<uint64_t, std::pair<float, float>>& nodeIdCoordMap)
 {
   NodesHeader hdr;
+  std::memcpy(hdr.magic, "MMAPNODE", 8);
   hdr.numNodes = static_cast<uint32_t>(allNodeIds.size());
-  hdr.coordType = 0;  // float32 deg
 
   std::ofstream out("../../data/graph_nodes.bin", std::ios::binary);
   if (!out) throw std::runtime_error("Cannot open graph_nodes.bin for write");
@@ -46,14 +47,13 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
                         const std::vector<uint32_t>& offsets,
                         const std::vector<uint32_t>& neighbors,
                         const std::vector<float>& lengthsMeters,
-                        const std::vector<uint16_t>& surfaceFlags,
                         const std::vector<uint8_t>& surfacePrimary,
                         const std::vector<uint8_t>& modeMasks)
 {
   EdgesHeader hdr;
+  std::memcpy(hdr.magic, "MMAPEDGE", 8);
   hdr.numNodes = numNodes;
   hdr.numEdges = numEdges;
-  hdr.hasSurfaceFlags = 1;
   hdr.hasSurfacePrimary = 1;
   hdr.hasModeMask = 1;
   hdr.lengthType = 0;
@@ -67,14 +67,12 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
   uint32_t offsetsSize = static_cast<uint32_t>(offsets.size());
   uint32_t neighborsSize = static_cast<uint32_t>(neighbors.size());
   uint32_t lengthsSize = static_cast<uint32_t>(lengthsMeters.size());
-  uint32_t surfaceFlagsSize = static_cast<uint32_t>(surfaceFlags.size());
   uint32_t surfacePrimarySize = static_cast<uint32_t>(surfacePrimary.size());
   uint32_t modeMasksSize = static_cast<uint32_t>(modeMasks.size());
 
   out.write(reinterpret_cast<const char*>(&offsetsSize), 4);
   out.write(reinterpret_cast<const char*>(&neighborsSize), 4);
   out.write(reinterpret_cast<const char*>(&lengthsSize), 4);
-  out.write(reinterpret_cast<const char*>(&surfaceFlagsSize), 4);
   out.write(reinterpret_cast<const char*>(&surfacePrimarySize), 4);
   out.write(reinterpret_cast<const char*>(&modeMasksSize), 4);
 
@@ -85,8 +83,6 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
             neighborsSize * sizeof(uint32_t));
   out.write(reinterpret_cast<const char*>(lengthsMeters.data()),
             lengthsSize * sizeof(float));
-  out.write(reinterpret_cast<const char*>(surfaceFlags.data()),
-            surfaceFlagsSize * sizeof(uint16_t));
   out.write(reinterpret_cast<const char*>(surfacePrimary.data()),
             surfacePrimarySize * sizeof(uint8_t));
   out.write(reinterpret_cast<const char*>(modeMasks.data()),
@@ -95,4 +91,4 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
   out.close();
   std::cout << "Wrote graph_edges.bin (" << numEdges << " directed edges)\n";
 }
-}  // namespace writers
+}  // namespace injest

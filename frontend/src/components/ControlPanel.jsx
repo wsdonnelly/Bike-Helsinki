@@ -1,6 +1,6 @@
 import React from "react";
 
-// Bit flags must match backend SurfaceTypes.hpp
+// Bit flags must match injest/surfaceTypes.hpp
 export const SurfaceBits = {
   SURF_PAVED: 1 << 0,
   SURF_ASPHALT: 1 << 1,

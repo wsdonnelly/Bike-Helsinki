@@ -10,7 +10,7 @@ const BASE_URL = "http://localhost:3000"; //get rid of me
 
 export const API = axios.create({ baseURL: BASE_URL });
 
-export const ALL_SURFACES = 0xffff;
+export const ALL_SURFACES = 0xffff; //needed?
 
 /**
  * Snap a lat/lon to the nearest graph node.

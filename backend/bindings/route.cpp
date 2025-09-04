@@ -22,42 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "blobHeaders.hpp"
 #include "utils.hpp"
-
-// ---------------- Blob headers (match your ingest/writer) ----------------
-namespace blob
-{
-
-struct NodesHeader
-{
-  char magic[8];        // "MMAPNODE"
-  uint32_t version;     // = 1
-  uint32_t numNodes;    // N
-  uint8_t coordType;    // 0=float32 degrees, 1=int32 microdegrees
-  uint8_t reserved[3];  // zero
-};
-static_assert(sizeof(NodesHeader) == 20, "NodesHeader must be 20 bytes");
-
-struct EdgesHeader
-{
-  char magic[8];              // "MMAPGRPH"
-  uint32_t version;           // = 1
-  uint32_t numNodes;          // N
-  uint32_t numEdges;          // E (directed)
-  uint8_t hasSurfacePrimary;  // =1
-  uint8_t hasSurfaceFlags;    // =1
-  uint8_t hasModeMask;        // =1
-  uint8_t lengthType;         // 0=float32 meters
-};
-static_assert(sizeof(EdgesHeader) == 24, "EdgesHeader must be 24 bytes");
-
-enum CoordType : uint8_t
-{
-  DegreesF32 = 0,
-  MicrodegI32 = 1
-};
-
-}  // namespace blob
 
 // ---------------- mmap helpers ----------------
 // 1) Make the mapping handle move-only
@@ -148,11 +114,8 @@ struct NodesView
   std::shared_ptr<MappedFile> hold;  // keep mapping alive
   uint32_t numNodes{0};
   const uint64_t* ids{nullptr};
-  const float* lat_f32{nullptr};  // if coordType==0
+  const float* lat_f32{nullptr};
   const float* lon_f32{nullptr};
-  const int32_t* lat_i32{nullptr};  // if coordType==1 (microdegrees)
-  const int32_t* lon_i32{nullptr};
-  blob::CoordType coord{blob::DegreesF32};
 };
 
 struct EdgesView
@@ -163,7 +126,6 @@ struct EdgesView
   const uint32_t* offsets{nullptr};        // N+1
   const uint32_t* neighbors{nullptr};      // E
   const float* lengthsMeters{nullptr};     // E
-  const uint16_t* surfaceFlags{nullptr};   // E
   const uint8_t* surfacePrimary{nullptr};  // E
   const uint8_t* modeMask{nullptr};        // E (bit0=BIKE, bit1=FOOT)
 };
@@ -182,9 +144,9 @@ static NodesView loadNodes(const std::string& filePath)
   };
 
   // Header
-  requireBytes(sizeof(blob::NodesHeader));
-  const auto* header = reinterpret_cast<const blob::NodesHeader*>(cursor);
-  if (std::memcmp(header->magic, "MMAPNODE", 8) != 0 || header->version != 1)
+  requireBytes(sizeof(injest::NodesHeader));
+  const auto* header = reinterpret_cast<const injest::NodesHeader*>(cursor);
+  if (std::memcmp(header->magic, "MMAPNODE", 8) != 0)
   {
     throw std::runtime_error("bad nodes header");
   }
@@ -193,30 +155,18 @@ static NodesView loadNodes(const std::string& filePath)
   NodesView nodesView;
   nodesView.hold = mapping;
   nodesView.numNodes = header->numNodes;
-  nodesView.coord = static_cast<blob::CoordType>(header->coordType);
 
   // IDs
   requireBytes(sizeof(uint64_t) * nodesView.numNodes);
   nodesView.ids = reinterpret_cast<const uint64_t*>(cursor);
   cursor += sizeof(uint64_t) * nodesView.numNodes;
 
-  // Coordinates (layout depends on coordType)
-  if (nodesView.coord == blob::DegreesF32)
-  {
-    requireBytes(sizeof(float) * nodesView.numNodes * 2);
-    nodesView.lat_f32 = reinterpret_cast<const float*>(cursor);
-    cursor += sizeof(float) * nodesView.numNodes;
-    nodesView.lon_f32 = reinterpret_cast<const float*>(cursor);
-    cursor += sizeof(float) * nodesView.numNodes;
-  }
-  else
-  {
-    requireBytes(sizeof(int32_t) * nodesView.numNodes * 2);
-    nodesView.lat_i32 = reinterpret_cast<const int32_t*>(cursor);
-    cursor += sizeof(int32_t) * nodesView.numNodes;
-    nodesView.lon_i32 = reinterpret_cast<const int32_t*>(cursor);
-    cursor += sizeof(int32_t) * nodesView.numNodes;
-  }
+  // Coordinates
+  requireBytes(sizeof(float) * nodesView.numNodes * 2);
+  nodesView.lat_f32 = reinterpret_cast<const float*>(cursor);
+  cursor += sizeof(float) * nodesView.numNodes;
+  nodesView.lon_f32 = reinterpret_cast<const float*>(cursor);
+  cursor += sizeof(float) * nodesView.numNodes;
 
   return nodesView;
 }
@@ -235,13 +185,13 @@ static EdgesView loadEdges(const std::string& filePath)
   };
 
   // --- Header ---
-  requireBytes(sizeof(blob::EdgesHeader));
-  const auto* header = reinterpret_cast<const blob::EdgesHeader*>(cursor);
+  requireBytes(sizeof(injest::EdgesHeader));
+  const auto* header = reinterpret_cast<const injest::EdgesHeader*>(cursor);
 
   // accept both
   const bool okMagic = (std::memcmp(header->magic, "MMAPGRPH", 8) == 0) ||
                        (std::memcmp(header->magic, "MMAPEDGE", 8) == 0);
-  if (!okMagic || header->version != 1)
+  if (!okMagic)
   {
     throw std::runtime_error("bad edges header: " + filePath);
   }
@@ -254,37 +204,31 @@ static EdgesView loadEdges(const std::string& filePath)
 
   // --- Lengths block (6×u32) ---
   requireBytes(6 * sizeof(uint32_t));
-  uint32_t offsetsCount, neighborsCount, lengthCount, flagsCount, primaryCount,
-      modeMaskCount;
+  uint32_t offsetsSize, neighborsSize, lengthsSize, surfacePrimarySize,
+      modeMasksSize;
 
-  std::memcpy(&offsetsCount, cursor, 4);
+  std::memcpy(&offsetsSize, cursor, 4);
   cursor += 4;
-  std::memcpy(&neighborsCount, cursor, 4);
+  std::memcpy(&neighborsSize, cursor, 4);
   cursor += 4;
-  std::memcpy(&lengthCount, cursor, 4);
+  std::memcpy(&lengthsSize, cursor, 4);
   cursor += 4;
-  std::memcpy(&flagsCount, cursor, 4);
+  std::memcpy(&surfacePrimarySize, cursor, 4);
   cursor += 4;
-  std::memcpy(&primaryCount, cursor, 4);
-  cursor += 4;
-  std::memcpy(&modeMaskCount, cursor, 4);
+  std::memcpy(&modeMasksSize, cursor, 4);
   cursor += 4;
 
   // Basic consistency
-  if (offsetsCount != header->numNodes + 1 ||
-      neighborsCount != header->numEdges || lengthCount != header->numEdges)
+  if (offsetsSize != header->numNodes + 1 ||
+      neighborsSize != header->numEdges || lengthsSize != header->numEdges)
   {
     throw std::runtime_error("lengths block mismatch: " + filePath);
   }
-  if (header->hasSurfaceFlags && flagsCount != header->numEdges)
-  {
-    throw std::runtime_error("flags length mismatch: " + filePath);
-  }
-  if (header->hasSurfacePrimary && primaryCount != header->numEdges)
+  if (header->hasSurfacePrimary && surfacePrimarySize != header->numEdges)
   {
     throw std::runtime_error("primary length mismatch: " + filePath);
   }
-  if (header->hasModeMask && modeMaskCount != header->numEdges)
+  if (header->hasModeMask && modeMasksSize != header->numEdges)
   {
     throw std::runtime_error("modeMask length mismatch: " + filePath);
   }
@@ -295,37 +239,30 @@ static EdgesView loadEdges(const std::string& filePath)
   edgesView.numNodes = header->numNodes;
   edgesView.numEdges = header->numEdges;
 
-  requireBytes(sizeof(uint32_t) * offsetsCount);
+  requireBytes(sizeof(uint32_t) * offsetsSize);
   edgesView.offsets = reinterpret_cast<const uint32_t*>(cursor);
-  cursor += sizeof(uint32_t) * offsetsCount;
+  cursor += sizeof(uint32_t) * offsetsSize;
 
-  requireBytes(sizeof(uint32_t) * neighborsCount);
+  requireBytes(sizeof(uint32_t) * neighborsSize);
   edgesView.neighbors = reinterpret_cast<const uint32_t*>(cursor);
-  cursor += sizeof(uint32_t) * neighborsCount;
+  cursor += sizeof(uint32_t) * neighborsSize;
 
-  requireBytes(sizeof(float) * lengthCount);
+  requireBytes(sizeof(float) * lengthsSize);
   edgesView.lengthsMeters = reinterpret_cast<const float*>(cursor);
-  cursor += sizeof(float) * lengthCount;
-
-  if (header->hasSurfaceFlags)
-  {
-    requireBytes(sizeof(uint16_t) * flagsCount);
-    edgesView.surfaceFlags = reinterpret_cast<const uint16_t*>(cursor);
-    cursor += sizeof(uint16_t) * flagsCount;
-  }
+  cursor += sizeof(float) * lengthsSize;
 
   if (header->hasSurfacePrimary)
   {
-    requireBytes(sizeof(uint8_t) * primaryCount);
+    requireBytes(sizeof(uint8_t) * surfacePrimarySize);
     edgesView.surfacePrimary = reinterpret_cast<const uint8_t*>(cursor);
-    cursor += sizeof(uint8_t) * primaryCount;
+    cursor += sizeof(uint8_t) * surfacePrimarySize;
   }
 
   if (header->hasModeMask)
   {
-    requireBytes(sizeof(uint8_t) * modeMaskCount);
+    requireBytes(sizeof(uint8_t) * modeMasksSize);
     edgesView.modeMask = reinterpret_cast<const uint8_t*>(cursor);
-    cursor += sizeof(uint8_t) * modeMaskCount;
+    cursor += sizeof(uint8_t) * modeMasksSize;
   }
 
   // Required fields sanity
@@ -348,16 +285,8 @@ static EdgesView loadEdges(const std::string& filePath)
 static inline void nodeDeg(const NodesView& nodeView, uint32_t idx,
                            double& latDeg, double& lonDeg)
 {
-  if (nodeView.coord == blob::DegreesF32)
-  {
-    latDeg = static_cast<double>(nodeView.lat_f32[idx]);
-    lonDeg = static_cast<double>(nodeView.lon_f32[idx]);
-  }
-  else
-  {
-    latDeg = static_cast<double>(nodeView.lat_i32[idx]) * 1e-6;
-    lonDeg = static_cast<double>(nodeView.lon_i32[idx]) * 1e-6;
-  }
+  latDeg = static_cast<double>(nodeView.lat_f32[idx]);
+  lonDeg = static_cast<double>(nodeView.lon_f32[idx]);
 }
 
 // ---------------- Two-mode A* over CSR ----------------
@@ -455,6 +384,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
                                  const NodesView& nodesView, uint32_t sourceIdx,
                                  uint32_t targetIdx, const AStarParams& params)
 {
+  std::cerr << "starting A* with params: " << std::endl;
   const uint32_t numNodes = edgesView.numNodes;
   if (sourceIdx >= numNodes || targetIdx >= numNodes)
   {
@@ -470,7 +400,9 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
     double currentLat, currentLon;
     nodeDeg(nodesView, currentIdx, currentLat, currentLon);
     // optimistic
-    return utils::haversineMeters(currentLat, currentLon, targetLat, targetLon) / vmax;
+    return utils::haversineMeters(currentLat, currentLon, targetLat,
+                                  targetLon) /
+           vmax;
   };
 
   const double INF = std::numeric_limits<double>::infinity();
@@ -552,9 +484,15 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
       for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
-        if (edgesView.surfaceFlags &&
-            (params.bikeSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
+        // skip unallowed surface with bitmask
+
+        if (edgesView.surfacePrimary &&
+            (params.bikeSurfaceMask &
+             (1u << static_cast<uint16_t>(
+                  edgesView.surfacePrimary[edgeIdx]))) == 0)
+        {
           continue;
+        }
         const uint32_t v = edgesView.neighbors[edgeIdx];
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
@@ -573,14 +511,14 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
         relaxSwitch(u, Layer::Ride, Layer::Walk, params.ride_to_walk_penalty_s);
       }
     }
+    // WALK
     else
     {
       // Movement on foot-allowed edges and allowed walk surfaces
       for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
-        if (edgesView.surfaceFlags && edgesView.surfaceFlags[edgeIdx] == 0)
-          continue;
+
         const uint32_t v = edgesView.neighbors[edgeIdx];
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
@@ -632,6 +570,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
   double totalMeters = 0.0;
   double totalSeconds = 0.0;
 
+  // this might be redundant compare to initial while (!openPQ.empty()) loop
   auto addMove = [&](uint32_t u, uint32_t v, Layer layerU) {
     // Find directed edge u->v and add its cost/length
     for (uint32_t edgeIdx = edgesView.offsets[u];
@@ -642,9 +581,14 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
       if (layerU == Layer::Ride)
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
-        if (edgesView.surfaceFlags &&
-            (params.bikeSurfaceMask & edgesView.surfaceFlags[edgeIdx]) == 0)
+
+        if (edgesView.surfacePrimary &&
+            (params.bikeSurfaceMask &
+             (1u << static_cast<uint16_t>(
+                  edgesView.surfacePrimary[edgeIdx]))) == 0)
+        {
           continue;
+        }
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
         const double factor =
@@ -659,11 +603,10 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
         result.pathModes.push_back(MODE_BIKE);
         return true;
       }
+      // WALK
       else
       {
         if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
-        if (edgesView.surfaceFlags && edgesView.surfaceFlags[edgeIdx] == 0)
-          continue;
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
         const double factor =
@@ -711,8 +654,7 @@ static AStarResult aStarTwoLayer(const EdgesView& edgesView,
   result.durationS = totalSeconds;
   result.success = true;
   // debug
-  std::cout << "distanceBike in A*: " << result.distanceBike
-            << std::endl;
+  std::cout << "distanceBike in A*: " << result.distanceBike << std::endl;
   std::cout << "distanceWalk in A*: " << result.distanceWalk << std::endl;
   return result;
 }
@@ -860,6 +802,7 @@ class FindPathWorker : public Napi::AsyncWorker
 // }
 Napi::Value FindPath(const Napi::CallbackInfo& info)
 {
+  std::cerr << "started findPath" << std::endl;
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[0].IsObject() || !info[1].IsFunction())
   {
@@ -904,7 +847,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
   {
     glNodes = loadNodes("../data/graph_nodes.bin");
     glEdges = loadEdges("../data/graph_edges.bin");
-    std::cerr << "[route] loaded numNodes =" << glNodes.numNodes
+    std::cerr << "[route.cpp] loaded numNodes =" << glNodes.numNodes
               << " numEdges =" << glEdges.numEdges << std::endl;
 
     // mmap tuning hints (optional)
@@ -915,9 +858,6 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     // ::madvise(const_cast<float*>(glEdges.lengthsMeters), sizeof(float) *
     // glEdges.E,
     //           MADV_RANDOM);
-    if (glEdges.surfaceFlags)
-      ::madvise(const_cast<uint16_t*>(glEdges.surfaceFlags),
-                sizeof(uint16_t) * glEdges.numEdges, MADV_RANDOM);
     if (glEdges.surfacePrimary)
       ::madvise(const_cast<uint8_t*>(glEdges.surfacePrimary),
                 sizeof(uint8_t) * glEdges.numEdges, MADV_RANDOM);

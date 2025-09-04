@@ -1,4 +1,4 @@
-// kd_snap.cpp — loads graph_nodes.bin (preferred) or kd_nodes.bin (fallback),
+// kd_snap.cpp — loads graph_nodes.bin
 // builds a Boost.Geometry R-tree for nearest-node snapping.
 //
 // Exports:
@@ -16,29 +16,12 @@
 #include <stdexcept>
 #include <vector>
 
+#include "blobHeaders.hpp"
+
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 // ---------------- Binary headers (must match buildGraph.cpp) ----------------
-namespace nodes_blob
-{
-struct NodesHeader
-{
-  char magic[8];        // "MMAPNODE"
-  uint32_t version;     // = 1
-  uint32_t numNodes;    // N
-  uint8_t coordType;    // 0=float32 degrees, 1=int32 microdegrees
-  uint8_t reserved[3];  // zero
-};
-
-static_assert(sizeof(NodesHeader) == 20, "NodesHeader must be 20 bytes");
-
-enum CoordType : uint8_t
-{
-  DegreesF32 = 0,
-  MicrodegI32 = 1
-};
-}  // namespace nodes_blob
 
 namespace geo
 {
@@ -69,7 +52,7 @@ static void buildTreeFromLatLon()
   // Build a temporary packed set of Values, then construct the R-tree.
   std::vector<Value> values;
   values.reserve(gLat.size());
-  for (uint32_t i = 0; i < gLat.size(); ++i)
+  for (uint32_t i{0}; i < gLat.size(); ++i)
   {
     values.emplace_back(
         geo::Point{static_cast<double>(gLat[i]), static_cast<double>(gLon[i])},
@@ -90,10 +73,10 @@ static bool loadFromGraphNodes(const std::string& path)
   std::ifstream in(path, std::ios::binary);
   if (!in) return false;
 
-  nodes_blob::NodesHeader hdr{};
+  injest::NodesHeader hdr{};
   in.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
   if (!in) throw std::runtime_error("graph_nodes.bin: failed to read header");
-  if (std::memcmp(hdr.magic, "MMAPNODE", 8) != 0 || hdr.version != 1)
+  if (std::memcmp(hdr.magic, "MMAPNODE", 8) != 0)
     throw std::runtime_error(
         "graph_nodes.bin: bad magic or unsupported version");
 
@@ -106,36 +89,11 @@ static bool loadFromGraphNodes(const std::string& path)
   gLat.resize(N);
   gLon.resize(N);
 
-  if (hdr.coordType == nodes_blob::DegreesF32)
-  {
-    // float32 degrees
-    in.read(reinterpret_cast<char*>(gLat.data()), sizeof(float) * N);
-    if (!in) throw std::runtime_error("graph_nodes.bin: truncated lat[]");
-    in.read(reinterpret_cast<char*>(gLon.data()), sizeof(float) * N);
-    if (!in) throw std::runtime_error("graph_nodes.bin: truncated lon[]");
-  }
-  else if (hdr.coordType == nodes_blob::MicrodegI32)
-  {
-    // int32 microdegrees -> convert to float degrees
-    std::vector<int32_t> latU(N), lonU(N);
-    in.read(reinterpret_cast<char*>(latU.data()), sizeof(int32_t) * N);
-    if (!in)
-      throw std::runtime_error("graph_nodes.bin: truncated lat_microdeg[]");
-    in.read(reinterpret_cast<char*>(lonU.data()), sizeof(int32_t) * N);
-    if (!in)
-      throw std::runtime_error("graph_nodes.bin: truncated lon_microdeg[]");
-
-    constexpr double kScale = 1.0 / 1'000'000.0;
-    for (uint32_t i = 0; i < N; ++i)
-    {
-      gLat[i] = static_cast<float>(static_cast<double>(latU[i]) * kScale);
-      gLon[i] = static_cast<float>(static_cast<double>(lonU[i]) * kScale);
-    }
-  }
-  else
-  {
-    throw std::runtime_error("graph_nodes.bin: unknown coordType");
-  }
+  // float32 degrees coords
+  in.read(reinterpret_cast<char*>(gLat.data()), sizeof(float) * N);
+  if (!in) throw std::runtime_error("graph_nodes.bin: truncated lat[]");
+  in.read(reinterpret_cast<char*>(gLon.data()), sizeof(float) * N);
+  if (!in) throw std::runtime_error("graph_nodes.bin: truncated lon[]");
 
   buildTreeFromLatLon();
   return true;
@@ -202,7 +160,8 @@ Napi::Value getNode(const Napi::CallbackInfo& info)
 Napi::Value GetLatArray(const Napi::CallbackInfo& info)
 {
   Napi::Env env = info.Env();
-  if (gLat.empty()) {
+  if (gLat.empty())
+  {
     // Return an empty typed array rather than an ArrayBuffer to nullptr
     return Napi::Float32Array::New(env, 0);
   }
@@ -210,11 +169,8 @@ Napi::Value GetLatArray(const Napi::CallbackInfo& info)
   // Create an external ArrayBuffer that wraps the vector's storage.
   // We pass a no-op finalizer so Node won't free memory we own.
   Napi::ArrayBuffer buf = Napi::ArrayBuffer::New(
-      env,
-      static_cast<void*>(gLat.data()),
-      gLat.size() * sizeof(float),
-      [](Napi::Env /*env*/, void* /*data*/) {}
-  );
+      env, static_cast<void*>(gLat.data()), gLat.size() * sizeof(float),
+      [](Napi::Env /*env*/, void* /*data*/) {});
 
   // Create the typed array view on that buffer (no copy)
   return Napi::Float32Array::New(env, gLat.size(), buf, /*byteOffset=*/0);
@@ -223,16 +179,14 @@ Napi::Value GetLatArray(const Napi::CallbackInfo& info)
 Napi::Value GetLonArray(const Napi::CallbackInfo& info)
 {
   Napi::Env env = info.Env();
-  if (gLon.empty()) {
+  if (gLon.empty())
+  {
     return Napi::Float32Array::New(env, 0);
   }
 
   Napi::ArrayBuffer buf = Napi::ArrayBuffer::New(
-      env,
-      static_cast<void*>(gLon.data()),
-      gLon.size() * sizeof(float),
-      [](Napi::Env /*env*/, void* /*data*/) {}
-  );
+      env, static_cast<void*>(gLon.data()), gLon.size() * sizeof(float),
+      [](Napi::Env /*env*/, void* /*data*/) {});
 
   return Napi::Float32Array::New(env, gLon.size(), buf, 0);
 }
@@ -241,7 +195,6 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try
   {
-    // Prefer graph_nodes.bin; if missing, fall back to kd_nodes.bin
     if (!loadFromGraphNodes("../data/graph_nodes.bin"))
     {
       std::cerr << "[kd_snap] graph_nodes.bin missing\n";
