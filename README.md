@@ -205,6 +205,8 @@ Core dependencies include:
 
 ```bash
 cd bindings/
+npx node-gyp configure && npx node-gyp build
+or
 npx node-gyp rebuild --release
 ```
 
