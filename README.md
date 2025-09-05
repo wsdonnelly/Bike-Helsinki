@@ -1,105 +1,171 @@
-![](./demo_5.gif)
-![](./buildgraph_diagram.svg)
+# BikeMap Application Architecture
+
+## System Overview
+
+```mermaid
+flowchart TD
+    %% Data Sources
+    OSM[OSM PBF File<br/>raw_data/]
+
+    %% Ingestion Process
+    subgraph INGEST [" 🔄 bikemap/injest "]
+        BUILD[buildGraph.cpp<br/>Main ingestion process]
+        WAY[WayCollector<br/>Extract bike/foot ways]
+        NODE[NodeCollector<br/>Extract coordinates]
+        WRITE[writeBlobs<br/>Serialize to binary]
+    end
+
+    %% Generated Data
+    subgraph DATA [" 💾 bikemap/data "]
+        NODES[graph_nodes.bin<br/>Node coordinates]
+        EDGES[graph_edges.bin<br/>Graph topology + metadata]
+    end
+
+    %% Backend
+    subgraph BACKEND [" 🖥️ bikemap/backend "]
+        EXPRESS[Express.js Server<br/>Node.js runtime]
+
+        subgraph ADDONS [" C++ N-API Addons "]
+            KDSNAP[kd_snap.cpp<br/>Nearest node search<br/><em>mmap graph_nodes.bin</em>]
+            ROUTE[route.cpp<br/>Shortest path algorithm<br/><em>mmap both bin files</em>]
+        end
+
+        subgraph ENDPOINTS [" API Endpoints "]
+            SNAP_EP[GET /snap<br/>lat,lon → nearest node]
+            ROUTE_EP[POST /route<br/>start,end,params → path]
+            FILTER_EP[POST /filter<br/>update defaults]
+        end
+    end
+
+    %% Frontend (placeholder)
+    subgraph FRONTEND [" 🌐 bikemap/frontend "]
+        UI[Web Interface<br/>Map + routing UI]
+    end
+
+    %% Flow connections - Ingestion
+    OSM --> BUILD
+    BUILD --> WAY
+    BUILD --> NODE
+    WAY --> WRITE
+    NODE --> WRITE
+    WRITE --> NODES
+    WRITE --> EDGES
+
+    %% Flow connections - Backend
+    NODES --> KDSNAP
+    NODES --> ROUTE
+    EDGES --> ROUTE
+
+    KDSNAP --> SNAP_EP
+    ROUTE --> ROUTE_EP
+    EXPRESS --> FILTER_EP
+
+    %% Flow connections - API
+    SNAP_EP --> UI
+    ROUTE_EP --> UI
+    FILTER_EP --> UI
+
+    %% Styling
+    classDef dataFile fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef service fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef api fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef cpp fill:#ffebee,stroke:#c62828,stroke-width:2px
+
+    class OSM,NODES,EDGES dataFile
+    class BUILD,WAY,NODE,WRITE process
+    class EXPRESS,UI service
+    class SNAP_EP,ROUTE_EP,FILTER_EP api
+    class KDSNAP,ROUTE cpp
+```
+# binary file formats
+```
+graph_nodes.bin
+
+┌─────────────────┬──────┬─────────────────────────────────┐
+│ NodesHeader     │ 16B  │ File metadata                   │
+├─────────────────┼──────┼─────────────────────────────────┤
+│   magic[8]      │  8B  │ "MMAPNODE" identifier           │
+│   numNodes      │  4B  │ Count of nodes (N)              │
+│   reserved      │  4B  │ Padding                         │
+├─────────────────┼──────┼─────────────────────────────────┤
+│ NodeIDs         │ N*8B │ OSM node identifiers            │
+│   id[0]         │  8B  │ uint64_t                        │
+│   id[1]         │  8B  │ uint64_t                        │
+│   ...           │ ...  │ ...                             │
+│   id[N-1]       │  8B  │ uint64_t                        │
+├─────────────────┼──────┼─────────────────────────────────┤
+│ Latitudes       │ N*4B │ Coordinates (degrees)           │
+│   lat[0]        │  4B  │ float32 (WGS84)                 │
+│   lat[1]        │  4B  │ float32                         │
+│   ...           │ ...  │ ...                             │
+│   lat[N-1]      │  4B  │ float32                         │
+├─────────────────┼──────┼─────────────────────────────────┤
+│ Longitudes      │ N*4B │ Coordinates (degrees)           │
+│   lon[0]        │  4B  │ float32 (WGS84)                 │
+│   lon[1]        │  4B  │ float32                         │
+│   ...           │ ...  │ ...                             │
+│   lon[N-1]      │  4B  │ float32                         │
+└─────────────────┴──────┴─────────────────────────────────┘
+```
+```
+graph_edges.bin
+
+Format: Compressed Sparse Row (CSR) adjacency list
+Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
+
+┌─────────────────────┬────────┬─────────────────────────────────────────┐
+│ EdgesHeader         │  20B   │ File metadata                           │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│   magic[8]          │   8B   │ "MMAPEDGE" identifier                   │
+│   numNodes          │   4B   │ Count of nodes                          │
+│   numEdges          │   4B   │ Count of directed edges                 │
+│   hasSurfacePrimary │   1B   │ Surface data present (1)                │
+│   hasModeMask       │   1B   │ Mode data present (1)                   │
+│   lengthType        │   1B   │ Length format (0=float32)               │
+│   reserved          │   1B   │ Padding                                 │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│ Array Sizes         │  20B   │ Defensive parsing metadata              │
+│   offsetsSize       │   4B   │ uint32_t: offsets array length          │
+│   neighborsSize     │   4B   │ uint32_t: neighbors array length        │
+│   lengthsSize       │   4B   │ uint32_t: lengths array length          │
+│   surfacePrimSize   │   4B   │ uint32_t: surface array length          │
+│   modeMasksSize     │   4B   │ uint32_t: mode masks array length       │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│ Offsets             │(N+1)*4B│ CSR adjacency list pointers             │
+│   offset[0]         │   4B   │ uint32_t: start of node 0 edges         │
+│   offset[1]         │   4B   │ uint32_t: start of node 1 edges         │
+│   ...               │  ...   │ ...                                     │
+│   offset[N]         │   4B   │ uint32_t: end marker                    │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│ Neighbors           │ E*4B   │ Target node indices                     │
+│   neighbor[0]       │   4B   │ uint32_t: target node index             │
+│   neighbor[1]       │   4B   │ uint32_t: target node index             │
+│   ...               │  ...   │ ...                                     │
+│   neighbor[E-1]     │   4B   │ uint32_t: target node index             │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│ Lengths             │ E*4B   │ Edge lengths in meters                  │
+│   length[0]         │   4B   │ float32: distance in meters             │
+│   length[1]         │   4B   │ float32: distance in meters             │
+│   ...               │  ...   │ ...                                     │
+│   length[E-1]       │   4B   │ float32: distance in meters             │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│ Surface Primary     │ E*1B   │ Primary surface type                    │
+│   surface[0]        │   1B   │ uint8_t: SurfacePrimary enum            │
+│   surface[1]        │   1B   │ uint8_t: SurfacePrimary enum            │
+│   ...               │  ...   │ ...                                     │
+│   surface[E-1]      │   1B   │ uint8_t: SurfacePrimary enum            │
+├─────────────────────┼────────┼─────────────────────────────────────────┤
+│ Mode Masks          │ E*1B   │ Allowed transport modes                 │
+│   mode[0]           │   1B   │ uint8_t: bike(1)|foot(2) flags          │
+│   mode[1]           │   1B   │ uint8_t: bike(1)|foot(2) flags          │
+│   ...               │  ...   │ ...                                     │
+│   mode[E-1]         │   1B   │ uint8_t: bike(1)|foot(2) flags          │
+└─────────────────────┴────────┴─────────────────────────────────────────┘
+```
 
 # Injest
-flowchart TB
-    A[OSM PBF] --> B[WayCollector<br/>• pick bike/foot-relevant ways<br/>• read tags: highway, access, bicycle, foot,<br/>  oneway, oneway:bicycle, cycleway, surface<br/>• compute WayMeta:<br/>  - bike_fwd/back, foot_fwd/back<br/>  - surface_primary, surface_flags]
-    A --> C[NodeCollector<br/>• collect coords only for used node IDs]
-
-    B --> D[Build ID mapping<br/>• allNodeIds (sorted)<br/>• nodeId → idx (0..N-1)]
-    C --> D
-
-    D --> E[Count directed edges<br/>• for each consecutive pair in way:<br/>  - if (bike_fwd || foot_fwd) ++deg[u]<br/>  - if (bike_back || foot_back) ++deg[v]<br/>• prefix-sum → offsets (CSR)]
-
-    E --> F[Fill CSR arrays (size E)<br/>• neighbors, length_m (haversine)<br/>• surface_flags (u16), surface_primary (u8)<br/>• mode_mask (u8: bit0=BIKE, bit1=FOOT)<br/>• write both directions as permitted]
-
-    F --> G[[graph_nodes.bin]]
-    F --> H[[graph_edges.bin]]
-
-flowchart TB
-    subgraph N[graph_nodes.bin]
-      nh[NodesHeader (20B)<br/>magic "MMAPNODE"<br/>version u32=1<br/>num_nodes u32=N<br/>coord_type u8=0 (float32 deg)<br/>reserved[3]]
-      nids[ids[N] • u64 each]
-      nlat[lat[N] • float32 deg]
-      nlon[lon[N] • float32 deg]
-    end
-
-    subgraph E[graph_edges.bin]
-      eh[EdgesHeader (24B)<br/>magic "MMAPEDGE"<br/>version u32=1<br/>num_nodes u32=N<br/>num_edges u32=E<br/>has_surface_primary=1<br/>has_surface_flags=1<br/>has_mode_mask=1<br/>length_type=0 (float32 m)]
-      elens[Lengths block (6×u32)<br/>L_off=N+1, L_nei=E, L_len=E,<br/>L_fl=E, L_pri=E, L_mm=E]
-      off[offsets[L_off] • u32<br/>CSR: offsets[0]=0, offsets[N]=E]
-      nei[neighbors[L_nei] • u32 (node idx)]
-      len[length_m[L_len] • float32 (meters)]
-      sfl[surface_flags[L_fl] • u16 (bitmask)]
-      spr[surface_primary[L_pri] • u8 (enum)]
-      mm[mode_mask[L_mm] • u8 (bits)]
-    end
-
-    mm --> L1[mode_mask bits:<br/>bit0 (0x01): BIKE allowed<br/>bit1 (0x02): FOOT allowed]
-    sfl --> L2[surface_flags:<br/>bitset from SurfaceTypes.hpp<br/>(e.g., PAVED/GRAVEL/etc.)]
-    spr --> L3[surface_primary:<br/>compact enum bucket<br/>(ASPHALT/CONCRETE/GRAVEL/…)]
-
-
-## data formats
-
 
 # Backend
-## route.cpp
-1. Node loads addon → addon mmaps graph_nodes.bin + graph_edges.bin.
-
-2. Client hits /route (your Express layer) → calls findPath({sourceIdx,targetIdx,…}, cb).
-
-3. Async worker runs A* on the CSR with filters/speeds/penalties.
-
-4. On success: returns { path, modes, distance_m, duration_s } to JS.
-
-5. JS turns node indices into lat/lon (or uses a prebuilt coordinate array) and draws the polyline; color by modes or surface if desired.
-## Routing model: two-layer A*
-  - ### Modes & layers
-    - Edge mode_mask bits: 0x01=BIKE, 0x02=FOOT.
-    - Search state is (node, layer) ⇒ 2N states.
-    - You can move along edges within a layer or switch layers at the same node with a time penalty.
-
-  - ### Parameters (AStarParams)
-    - bike_surface_mask, walk_surface_mask (u16 filters against surface_flags).
-    - Speeds: bike_speed_mps, walk_speed_mps.
-    - Switch penalties: ride_to_walk_penalty_s, walk_to_ride_penalty_s.
-    - Optional per-surface primary time multipliers (arrays indexed by surface_primary u8).
-
-  - ### Heuristic (admissible)
-    - Straight-line haversine to target divided by max(bike_speed, walk_speed) so it’s optimistic across layers.
-
-  - ### Relaxation
-    - Edge relax (same layer): if edge allows the layer’s mode and passes surface filter, cost = length / speed * factor.
-    - Switch relax (same node): add penalty to change layer.
-
-  - ### Goal
-    - First time the queue pops target in any layer, that’s optimal.
-
-  - ### Reconstruction & metrics
-    - Walk parent pointers to build a (node, layer) chain.
-    - Convert to path_nodes (indices) and path_modes (per step: 1=BIKE, 2=FOOT), skipping duplicate nodes created by switches.
-    - Compute distance_m (sum of edge lengths) and duration_s (movement + switch penalties).
-
-  - ### Edge cases:
-    - If no path is found, returns { success:false } internally; JS callback gets "no route" error string.
-
-## N-API surface
-  - ### Init
-    - On module load (Init): maps both blobs (../data/graph_nodes.bin, ../data/graph_edges.bin), prints N and E, optionally madvi(MADV_RANDOM) for edge arrays.
-    - Exports findPath.
-
-  - ### findPath(options, callback)
-    - Validates sourceIdx and targetIdx (u32).
-    - Parses optional params: masks, speeds, penalties, bikeSurfaceFactor[], walkSurfaceFactor[].
-    - Runs routing in a Napi::AsyncWorker (off the Node event loop).
-    - *Callback signature: (err, result) where:*
-      - err is null on success or a string (e.g., "no route").
-      - result = { path: number[], modes: number[], distance_m: number, duration_s: number }.
-
-### Concurrency/safety:
-
-- The global G_nodes/G_edges are immutable; each request builds its own local vectors for A* state ⇒ thread-safe across concurrent calls.
-- Throughput depends on libuv pool size (UV_THREADPOOL_SIZE).
 
 # Frontend
