@@ -163,3 +163,82 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 │   mode[E-1]         │   1B   │ uint8_t: bike(1)|foot(2) flags          │
 └─────────────────────┴────────┴─────────────────────────────────────────┘
 ```
+# BikeMap Setup Guide
+
+## Prerequisites
+
+- **C++ compiler** (GCC/Clang with C++17 support)
+- **CMake** (version 3.16+)
+- **Node.js** (version 16+)
+- **npm**
+
+## 1. Data Ingestion
+
+### Fetch OSM data and build graph
+
+```bash
+cd injest/
+./all.sh
+```
+
+This script will:
+- Download latest Finland OSM data
+- Extract Helsinki region
+- Build and run the ingestion code
+- Generate `graph_nodes.bin` and `graph_edges.bin` in `../data/`
+
+## 2. Backend Setup
+
+### Install dependencies
+
+```bash
+cd backend/
+npm install
+```
+
+Core dependencies include:
+- `node-addon-api` - N-API bindings
+- `node-gyp` - Native addon build tool
+- `express`
+
+### Build C++ addons
+
+```bash
+cd bindings/
+npx node-gyp rebuild --release
+```
+
+This compiles `kd_snap.cpp` and `route.cpp` with optimizations enabled.
+
+### Start server
+
+```bash
+cd ..  # Back to backend/
+node index.js
+```
+
+Server will start on `http://localhost:3000` with endpoints:
+- `GET /snap` - Find nearest graph node
+- `POST /route` - Calculate optimal route
+- `POST /filter` - Update routing preferences
+
+## 3. Frontend Setup
+
+### Install dependencies
+
+```bash
+cd frontend/
+npm install
+```
+
+Key dependencies:
+- `react-leaflet` & `leaflet` - Interactive maps
+- `axios` - API communication
+
+### Start development server
+
+```bash
+npm run dev
+```
+
+Frontend will be available at `http://localhost:5173` (or similar).
