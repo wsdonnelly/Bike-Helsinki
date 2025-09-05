@@ -163,9 +163,3 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 │   mode[E-1]         │   1B   │ uint8_t: bike(1)|foot(2) flags          │
 └─────────────────────┴────────┴─────────────────────────────────────────┘
 ```
-
-# Injest
-
-# Backend
-
-# Frontend
