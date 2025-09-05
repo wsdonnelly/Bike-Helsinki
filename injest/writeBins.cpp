@@ -1,4 +1,4 @@
-#include "writeBlobs.hpp"
+#include "writeBins.hpp"
 
 #include <fstream>
 #include <iostream>

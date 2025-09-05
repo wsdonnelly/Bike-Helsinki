@@ -12,7 +12,7 @@
 #include "surfaceTypes.hpp"
 #include "utils.hpp"
 #include "wayCollector.hpp"
-#include "writeBlobs.hpp"
+#include "writeBins.hpp"
 
 using namespace injest;
 // ─────────────────────────────────────────────────────────────────────────────
@@ -126,7 +126,6 @@ int main(int argc, char* argv[])
   // Prepare arrays
   std::vector<uint32_t> neighbors(numEdges);
   std::vector<float> lengthsMeters(numEdges);
-  // std::vector<uint16_t> surfaceBitVec(numEdges);
   std::vector<uint8_t> surfacePrimaryVec(numEdges);
   std::vector<uint8_t> modeMasks(numEdges);
   std::vector<uint32_t> cur = offsets;
@@ -162,7 +161,6 @@ int main(int argc, char* argv[])
         uint32_t idx = cur[idxU]++;
         neighbors[idx] = idxV;
         lengthsMeters[idx] = dist;
-        // surfaceBitVec[idx] = (uint16_t)wayMeta.surfaceBit;
         surfacePrimaryVec[idx] = (uint8_t)wayMeta.surfacePrimary;
 
         uint8_t modeMask{0};
@@ -181,7 +179,6 @@ int main(int argc, char* argv[])
         uint32_t idx = cur[idxV]++;
         neighbors[idx] = idxU;
         lengthsMeters[idx] = dist;
-        // surfaceBitVec[idx] = (uint16_t)wayMeta.surfaceBit;
         surfacePrimaryVec[idx] = (uint8_t)wayMeta.surfacePrimary;
         uint8_t modeMask{0};
         if (wayMeta.bikeBack) modeMask |= (uint8_t)types::MODE_BIKE;
@@ -191,12 +188,10 @@ int main(int argc, char* argv[])
     }
   }
 
-  // Write blobs
+  // Write bins
   writeGraphNodesBin(allNodeIds, nodeIdCoordMap);
   writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, lengthsMeters,
                      surfacePrimaryVec, modeMasks);
-  // writeGraphEdgesBin(numNodes, numEdges, offsets, neighbors, lengthsMeters,
-  //                    surfaceBitVec, surfacePrimaryVec, modeMasks);
 
   return 0;
 }

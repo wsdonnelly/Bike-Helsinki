@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include "blobHeaders.hpp"
+#include "binHeaders.hpp"
 #include "utils.hpp"
 
 // ---------------- mmap helpers ----------------
@@ -108,7 +108,7 @@ static std::shared_ptr<MappedFile> mapReadonlySp(const std::string& filePath)
   return mapping;
 }
 
-// ---------------- Typed views over the blobs ----------------
+// ---------------- Typed views over the bins ----------------
 struct NodesView
 {
   std::shared_ptr<MappedFile> hold;  // keep mapping alive
@@ -139,7 +139,7 @@ static NodesView loadNodes(const std::string& filePath)
   auto requireBytes = [&](size_t bytes) {
     if (cursor + bytes > endPtr)
     {
-      throw std::runtime_error("nodes blob truncated");
+      throw std::runtime_error("nodes bin truncated");
     }
   };
 
@@ -180,7 +180,7 @@ static EdgesView loadEdges(const std::string& filePath)
   auto requireBytes = [&](size_t bytes) {
     if (cursor + bytes > endPtr)
     {
-      throw std::runtime_error("edges blob truncated: " + filePath);
+      throw std::runtime_error("edges bin truncated: " + filePath);
     }
   };
 
@@ -268,7 +268,7 @@ static EdgesView loadEdges(const std::string& filePath)
   // Required fields sanity
   if (!edgesView.modeMask)
   {
-    throw std::runtime_error("edges blob missing modeMask: " + filePath);
+    throw std::runtime_error("edges bin missing modeMask: " + filePath);
   }
 
   if (edgesView.offsets[0] != 0 ||

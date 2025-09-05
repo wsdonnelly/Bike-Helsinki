@@ -16,7 +16,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "blobHeaders.hpp"
+#include "binHeaders.hpp"
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;

@@ -29,17 +29,17 @@ set(PROTOZERO_INCLUDE_DIR "/Users/willdonnelly/src/protozero/include" CACHE PATH
 # --- Executable --------------------------------------------------------------
 set(SOURCES
   buildGraph.cpp
-  writeBlobs.cpp
+  writeBins.cpp
   wayCollector.cpp
   nodeCollector.cpp
 )
 
 set(HEADERS
-    writeBlobs.hpp
+    writeBins.hpp
     wayCollector.hpp
     nodeCollector.hpp
     surfaceTypes.hpp
-    blobHeaders.hpp
+    binHeaders.hpp
 )
 
 add_executable(buildGraph ${SOURCES} ${HEADERS})
