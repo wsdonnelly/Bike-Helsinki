@@ -12,7 +12,7 @@ flowchart TD
         BUILD[buildGraph.cpp<br/>Main ingestion process]
         WAY[WayCollector<br/>Extract bike/foot ways]
         NODE[NodeCollector<br/>Extract coordinates]
-        WRITE[writeBlobs<br/>Serialize to binary]
+        WRITE[writeBins<br/>Serialize to binary]
     end
 
     %% Generated Data
@@ -167,7 +167,7 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 
 ## Prerequisites
 
-- **C++ compiler** (GCC/Clang with C++17 support)
+- **C++ compiler** (with C++17 support)
 - **CMake** (version 3.16+)
 - **Node.js** (version 16+)
 - **npm**
@@ -177,7 +177,7 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 ### Fetch OSM data and build graph
 
 ```bash
-cd injest/
+in injest/
 ./all.sh
 ```
 
@@ -192,7 +192,7 @@ This script will:
 ### Install dependencies
 
 ```bash
-cd backend/
+in backend/
 npm install
 ```
 
@@ -204,7 +204,7 @@ Core dependencies include:
 ### Build C++ addons
 
 ```bash
-cd bindings/
+in backend/bindings/
 npx node-gyp configure && npx node-gyp build
 or
 npx node-gyp rebuild --release
@@ -215,7 +215,7 @@ This compiles `kd_snap.cpp` and `route.cpp` with optimizations enabled.
 ### Start server
 
 ```bash
-cd ..  # Back to backend/
+in backend/  # Back to backend/
 node index.js
 ```
 
@@ -229,11 +229,11 @@ Server will start on `http://localhost:3000` with endpoints:
 ### Install dependencies
 
 ```bash
-cd frontend/
+in frontend/
 npm install
 ```
 
-Key dependencies:
+Key dependencies include:
 - `react-leaflet` & `leaflet` - Interactive maps
 - `axios` - API communication
 
