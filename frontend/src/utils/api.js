@@ -1,12 +1,14 @@
 // frontend/src/utils/api.js
 import axios from "axios";
 
-// Prefer env override (e.g. Vite: import.meta.env.VITE_API_BASE) and fallback to localhost:3000
-// const BASE_URL =
-//   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) ||
-//   process.env.REACT_APP_API_BASE ||
-//   'http://localhost:3000';
-const BASE_URL = "http://localhost:3000"; //get rid of me
+import axios from "axios";
+
+// For single-service deployment: API and frontend served from same origin
+// In development: use localhost:3000
+// In production: use relative URLs (same origin as frontend)
+const BASE_URL = import.meta.env.DEV
+  ? 'http://localhost:3000'  // Development
+  : '';                      // Production (relative URLs)
 
 export const API = axios.create({ baseURL: BASE_URL });
 

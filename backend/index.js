@@ -35,8 +35,7 @@ console.log(
 const app = express();
 app.use(express.json({ limit: "256kb" }));
 app.use(cors());
-// Optional: app.use(compression()); app.use(helmet());
-
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
 // ---------- read num_nodes from graph_nodes.bin (new header + legacy fallback)
 const nodesPath = path.join("../data/graph_nodes.bin");
 const nodesBin = fs.readFileSync(nodesPath);
@@ -254,6 +253,10 @@ app.post("/filter", (req, res) => {
     defaults.walkSurfaceFactor = sanitizeFactors(b.walkSurfaceFactor);
   console.log("✔ Defaults updated:", defaults);
   return res.status(204).send();
+});
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/dist", "index.html"));
 });
 
 const PORT = Number(process.env.PORT || 3000);
