@@ -7,7 +7,8 @@
         "<!@(node -p \"require('node-addon-api').include\")",
         "/opt/homebrew/include",
         "../../data",
-        "../../injest"
+        "../../injest",
+        
       ],
       'dependencies': [
         "<!(node -p \"require('node-addon-api').targets\"):node_addon_api_except_all",

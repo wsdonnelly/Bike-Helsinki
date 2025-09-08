@@ -255,9 +255,14 @@ app.post("/filter", (req, res) => {
   return res.status(204).send();
 });
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/dist", "index.html"));
-});
+// const distDir = path.resolve(__dirname, "../frontend/dist");
+// app.use(express.static(distDir, { index: false }));
+
+// app.get("/:path*", (req, res) => {
+//   res.sendFile(path.join(distDir, "index.html"));
+// });
+
+
 
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));

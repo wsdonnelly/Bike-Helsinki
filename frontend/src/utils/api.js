@@ -1,8 +1,6 @@
 // frontend/src/utils/api.js
 import axios from "axios";
 
-import axios from "axios";
-
 // For single-service deployment: API and frontend served from same origin
 // In development: use localhost:3000
 // In production: use relative URLs (same origin as frontend)

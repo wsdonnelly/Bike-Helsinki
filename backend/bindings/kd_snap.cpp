@@ -1,206 +1,351 @@
-// kd_snap.cpp — loads graph_nodes.bin
-// builds a Boost.Geometry R-tree for nearest-node snapping.
-//
+// kd_snap.cpp — loads graph_nodes.bin (fixed layout) and builds a packed 2D KD-tree.
 // Exports:
 //   findNearest(lat, lon) -> idx
 //   getNode(idx) -> { idx, lat, lon }
+//   getLatArray() / getLonArray() -> zero-copy Float32Array views
 
 #include <napi.h>
 
-#include <boost/geometry.hpp>
-#include <boost/geometry/index/rtree.hpp>
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
+#include <utility>
 #include <vector>
+#include <cmath>
 
-#include "binHeaders.hpp"
+// ---------------- graph_nodes.bin layout ---------------------------
+// Header (16 bytes total):
+//   magic[8]   : "MMAPNODE"
+//   numNodes   : uint32_t (N)
+//   reserved   : uint32_t (padding)
+struct NodesHeader {
+  char     magic[8];
+  uint32_t numNodes;
+  uint32_t reserved;
+};
+static_assert(sizeof(NodesHeader) == 16, "NodesHeader must be 16 bytes");
 
-namespace bg = boost::geometry;
-namespace bgi = boost::geometry::index;
+// ---------------- Raw in-memory storage ----------------------------
+static std::vector<uint64_t> gOsmNodeIds;     // ids[N] (not exposed, but loaded)
+static std::vector<float>    gLatitudeDegrees;  // lat[N] in degrees
+static std::vector<float>    gLongitudeDegrees; // lon[N] in degrees
 
-// ---------------- Binary headers (must match buildGraph.cpp) ----------------
+// ---------------- Packed KD-tree for 2D lat/lon --------------------
+namespace kd2d {
 
-namespace geo
-{
-// Geographic point dimensionality (lat, lon)
-static constexpr std::size_t kLatLonDims{2};
+enum class SplitAxis : uint8_t { Latitude = 0, Longitude = 1 };
 
-// Max number of values per R-tree node (tune for perf/memory)
-static constexpr std::size_t kRtreeMaxValuesPerNode{16};
+struct KDNode {
+  uint32_t pointIndex;  // index into gLatitudeDegrees/gLongitudeDegrees
+  int32_t  leftChild;   // -1 if none
+  int32_t  rightChild;  // -1 if none
+  SplitAxis splitAxis;  // which coordinate this node splits on
+};
 
-using Point =
-    bg::model::point<double, kLatLonDims, bg::cs::geographic<bg::degree>>;
-using RTreeParams = bgi::quadratic<kRtreeMaxValuesPerNode>;
-// If you prefer R*-tree: using RTreeParams =
-// bgi::rstar<kRtreeMaxValuesPerNode>;
-}  // namespace geo
+class PackedKDTree {
+ public:
+  void build(const std::vector<float>& latitudeDegrees,
+             const std::vector<float>& longitudeDegrees) {
+    clear();
+    const uint32_t totalPoints = static_cast<uint32_t>(latitudeDegrees.size());
+    if (totalPoints == 0) return;
 
-using Value = std::pair<geo::Point, uint32_t>;
+    pointIndexScratch.resize(totalPoints);
+    for (uint32_t i = 0; i < totalPoints; ++i) pointIndexScratch[i] = i;
 
-// ---------------- In-memory storage ----------------
-static bgi::rtree<Value, geo::RTreeParams> gTree;
-static std::vector<float> gLat;  // degrees
-static std::vector<float> gLon;  // degrees
-
-// ---------------- Load helpers ----------------
-
-static void buildTreeFromLatLon()
-{
-  // Build a temporary packed set of Values, then construct the R-tree.
-  std::vector<Value> values;
-  values.reserve(gLat.size());
-  for (uint32_t i{0}; i < gLat.size(); ++i)
-  {
-    values.emplace_back(
-        geo::Point{static_cast<double>(gLat[i]), static_cast<double>(gLon[i])},
-        i);
+    rootNodeIndex = static_cast<int32_t>(
+        buildRecursive(0, totalPoints, /*depth=*/0, latitudeDegrees, longitudeDegrees));
   }
-  gTree = bgi::rtree<Value, bgi::quadratic<16>>(values.begin(), values.end());
-  // 'values' goes out of scope; the rtree keeps its own storage.
-}
 
-// graph_nodes.bin (MMAPNODE v1)
-// Layout:
-//   NodesHeader
-//   uint64 ids[N]        (we skip)
-//   if coordType==0: float lat[N], float lon[N]
-//   if coordType==1: int32 lat_u[N], int32 lon_u[N] (microdegrees)
-static bool loadFromGraphNodes(const std::string& path)
+  bool empty() const { return kdNodes.empty(); }
+
+  // Returns original point index, or UINT32_MAX if empty.
+  uint32_t nearestNeighbor(float queryLatitudeDegrees,
+                           float queryLongitudeDegrees,
+                           const std::vector<float>& latitudeDegrees,
+                           const std::vector<float>& longitudeDegrees) const {
+    if (empty()) return UINT32_MAX;
+
+    const double kDegToRad = 3.14159265358979323846 / 180.0;
+    const double cosQueryLatitude = std::cos(queryLatitudeDegrees * kDegToRad);
+
+    uint32_t bestPointIndex = UINT32_MAX;
+    double bestDistanceSquared = std::numeric_limits<double>::infinity();
+
+    nearestRecursive(rootNodeIndex,
+                     queryLatitudeDegrees,
+                     queryLongitudeDegrees,
+                     cosQueryLatitude,
+                     latitudeDegrees,
+                     longitudeDegrees,
+                     bestPointIndex,
+                     bestDistanceSquared);
+    return bestPointIndex;
+  }
+
+ private:
+  std::vector<KDNode>    kdNodes;
+  std::vector<uint32_t>  pointIndexScratch; // used during build partitioning
+  int32_t                rootNodeIndex = -1;
+
+  void clear() {
+    kdNodes.clear();
+    pointIndexScratch.clear();
+    rootNodeIndex = -1;
+  }
+
+  static inline double equirectangularDistanceSquared(double latA, double lonA,
+                                                      double latB, double lonB,
+                                                      double cosLatA) {
+    const double deltaLat = latB - latA;
+    const double deltaLonScaled = (lonB - lonA) * cosLatA;
+    return deltaLat * deltaLat + deltaLonScaled * deltaLonScaled;
+  }
+
+  uint32_t buildRecursive(uint32_t startInclusive,
+                          uint32_t endExclusive,
+                          uint32_t treeDepth,
+                          const std::vector<float>& latitudeDegrees,
+                          const std::vector<float>& longitudeDegrees) {
+    if (startInclusive >= endExclusive) return UINT32_MAX;
+
+    const SplitAxis chosenAxis =
+        (treeDepth & 1) ? SplitAxis::Longitude : SplitAxis::Latitude;
+
+    const uint32_t medianIndex = (startInclusive + endExclusive) / 2;
+
+    // Partition around median along the chosen axis.
+    auto lessOnAxis = [&](uint32_t a, uint32_t b) {
+      if (chosenAxis == SplitAxis::Latitude)
+        return latitudeDegrees[a] < latitudeDegrees[b];
+      else
+        return longitudeDegrees[a] < longitudeDegrees[b];
+    };
+    std::nth_element(pointIndexScratch.begin() + startInclusive,
+                     pointIndexScratch.begin() + medianIndex,
+                     pointIndexScratch.begin() + endExclusive,
+                     lessOnAxis);
+
+    const uint32_t pointIndexAtNode = pointIndexScratch[medianIndex];
+
+    // Build children first so their indices are known.
+    int32_t leftChildIndex  = -1;
+    int32_t rightChildIndex = -1;
+
+    if (medianIndex > startInclusive) {
+      leftChildIndex = static_cast<int32_t>(
+          buildRecursive(startInclusive, medianIndex, treeDepth + 1,
+                         latitudeDegrees, longitudeDegrees));
+    }
+    if (medianIndex + 1 < endExclusive) {
+      rightChildIndex = static_cast<int32_t>(
+          buildRecursive(medianIndex + 1, endExclusive, treeDepth + 1,
+                         latitudeDegrees, longitudeDegrees));
+    }
+
+    const int32_t myNodeIndex = static_cast<int32_t>(kdNodes.size());
+    kdNodes.push_back(KDNode{
+        pointIndexAtNode,
+        leftChildIndex,
+        rightChildIndex,
+        chosenAxis
+    });
+    return static_cast<uint32_t>(myNodeIndex);
+  }
+
+  void nearestRecursive(int32_t nodeIndex,
+                        float queryLatitudeDegrees,
+                        float queryLongitudeDegrees,
+                        double cosQueryLatitude,
+                        const std::vector<float>& latitudeDegrees,
+                        const std::vector<float>& longitudeDegrees,
+                        uint32_t& bestPointIndex,
+                        double& bestDistanceSquared) const {
+    if (nodeIndex < 0) return;
+
+    const KDNode& node = kdNodes[static_cast<size_t>(nodeIndex)];
+    const uint32_t nodePointIndex = node.pointIndex;
+
+    // 1) Check the point at this node
+    const double distanceSquared = equirectangularDistanceSquared(
+        queryLatitudeDegrees, queryLongitudeDegrees,
+        latitudeDegrees[nodePointIndex], longitudeDegrees[nodePointIndex],
+        cosQueryLatitude);
+
+    if (distanceSquared < bestDistanceSquared) {
+      bestDistanceSquared = distanceSquared;
+      bestPointIndex = nodePointIndex;
+    }
+
+    // 2) Decide which child to explore first (near side) and compute split delta^2
+    int32_t nearChildIndex = node.leftChild;
+    int32_t farChildIndex  = node.rightChild;
+    double splitDeltaSquared;
+
+    if (node.splitAxis == SplitAxis::Latitude) {
+      const float splitLatitude = latitudeDegrees[nodePointIndex];
+      const bool goLeftFirst = (queryLatitudeDegrees < splitLatitude);
+      nearChildIndex = goLeftFirst ? node.leftChild : node.rightChild;
+      farChildIndex  = goLeftFirst ? node.rightChild : node.leftChild;
+      const double deltaLat = queryLatitudeDegrees - splitLatitude;
+      splitDeltaSquared = deltaLat * deltaLat; // degrees^2
+    } else {
+      const float splitLongitude = longitudeDegrees[nodePointIndex];
+      const bool goLeftFirst = (queryLongitudeDegrees < splitLongitude);
+      nearChildIndex = goLeftFirst ? node.leftChild : node.rightChild;
+      farChildIndex  = goLeftFirst ? node.rightChild : node.leftChild;
+      const double deltaLonScaled = (queryLongitudeDegrees - splitLongitude) * cosQueryLatitude;
+      splitDeltaSquared = deltaLonScaled * deltaLonScaled; // scaled degrees^2
+    }
+
+    // 3) Explore near side
+    if (nearChildIndex >= 0) {
+      nearestRecursive(nearChildIndex, queryLatitudeDegrees, queryLongitudeDegrees,
+                       cosQueryLatitude, latitudeDegrees, longitudeDegrees,
+                       bestPointIndex, bestDistanceSquared);
+    }
+
+    // 4) Explore far side only if it can contain a closer point
+    if (farChildIndex >= 0 && splitDeltaSquared < bestDistanceSquared) {
+      nearestRecursive(farChildIndex, queryLatitudeDegrees, queryLongitudeDegrees,
+                       cosQueryLatitude, latitudeDegrees, longitudeDegrees,
+                       bestPointIndex, bestDistanceSquared);
+    }
+  }
+};
+
+} // namespace kd2d
+
+// Single global KD-tree instance
+static kd2d::PackedKDTree gKdTree;
+
+// ---------------- Loader for the exact binary layout ----------------
+static bool loadFromGraphNodes(const std::string& filePath)
 {
-  std::ifstream in(path, std::ios::binary);
-  if (!in) return false;
+  std::ifstream input(filePath, std::ios::binary);
+  if (!input) return false;
 
-  injest::NodesHeader hdr{};
-  in.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
-  if (!in) throw std::runtime_error("graph_nodes.bin: failed to read header");
-  if (std::memcmp(hdr.magic, "MMAPNODE", 8) != 0)
-    throw std::runtime_error(
-        "graph_nodes.bin: bad magic or unsupported version");
+  NodesHeader header{};
+  input.read(reinterpret_cast<char*>(&header), sizeof(header));
+  if (!input) throw std::runtime_error("graph_nodes.bin: failed to read 16-byte header");
 
-  const uint32_t N = hdr.numNodes;
+  if (std::memcmp(header.magic, "MMAPNODE", 8) != 0) {
+    throw std::runtime_error("graph_nodes.bin: bad magic (expected \"MMAPNODE\")");
+  }
+  const uint32_t nodeCount = header.numNodes;
 
-  // Skip ids[N]
-  in.seekg(static_cast<std::streamoff>(sizeof(uint64_t)) * N, std::ios::cur);
-  if (!in) throw std::runtime_error("graph_nodes.bin: truncated ids");
+  // Read NodeIDs (N * uint64)
+  gOsmNodeIds.resize(nodeCount);
+  input.read(reinterpret_cast<char*>(gOsmNodeIds.data()),
+             static_cast<std::streamsize>(sizeof(uint64_t)) * nodeCount);
+  if (!input) throw std::runtime_error("graph_nodes.bin: truncated NodeIDs[]");
 
-  gLat.resize(N);
-  gLon.resize(N);
+  // Read Latitudes (N * float)
+  gLatitudeDegrees.resize(nodeCount);
+  input.read(reinterpret_cast<char*>(gLatitudeDegrees.data()),
+             static_cast<std::streamsize>(sizeof(float)) * nodeCount);
+  if (!input) throw std::runtime_error("graph_nodes.bin: truncated lat[]");
 
-  // float32 degrees coords
-  in.read(reinterpret_cast<char*>(gLat.data()), sizeof(float) * N);
-  if (!in) throw std::runtime_error("graph_nodes.bin: truncated lat[]");
-  in.read(reinterpret_cast<char*>(gLon.data()), sizeof(float) * N);
-  if (!in) throw std::runtime_error("graph_nodes.bin: truncated lon[]");
+  // Read Longitudes (N * float)
+  gLongitudeDegrees.resize(nodeCount);
+  input.read(reinterpret_cast<char*>(gLongitudeDegrees.data()),
+             static_cast<std::streamsize>(sizeof(float)) * nodeCount);
+  if (!input) throw std::runtime_error("graph_nodes.bin: truncated lon[]");
 
-  buildTreeFromLatLon();
+  // Build KD-tree
+  gKdTree.build(gLatitudeDegrees, gLongitudeDegrees);
   return true;
 }
 
-// ---------------- N-API bindings ----------------
-
+// ---------------- N-API bindings -----------------------------------
 Napi::Value findNearest(const Napi::CallbackInfo& info)
 {
   Napi::Env env = info.Env();
-  if (info.Length() != 2 || !info[0].IsNumber() || !info[1].IsNumber())
-  {
+  if (info.Length() != 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
     Napi::TypeError::New(env, "Expected (lat:number, lon:number)")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-
-  const double lat = info[0].As<Napi::Number>().DoubleValue();
-  const double lon = info[1].As<Napi::Number>().DoubleValue();
-
-  if (gLat.empty())
-  {
-    Napi::Error::New(env, "R-tree not loaded").ThrowAsJavaScriptException();
+  if (gLatitudeDegrees.empty()) {
+    Napi::Error::New(env, "KD-tree not loaded").ThrowAsJavaScriptException();
     return env.Null();
   }
 
-  geo::Point q(lat, lon);
-  std::vector<Value> out;
-  gTree.query(bgi::nearest(q, 1), std::back_inserter(out));
-  if (out.empty())
-  {
-    Napi::Error::New(env, "R-tree is empty").ThrowAsJavaScriptException();
+  const float queryLatitudeDegrees  = static_cast<float>(info[0].As<Napi::Number>().DoubleValue());
+  const float queryLongitudeDegrees = static_cast<float>(info[1].As<Napi::Number>().DoubleValue());
+
+  const uint32_t nearestIndex = gKdTree.nearestNeighbor(
+      queryLatitudeDegrees, queryLongitudeDegrees,
+      gLatitudeDegrees, gLongitudeDegrees);
+
+  if (nearestIndex == UINT32_MAX) {
+    Napi::Error::New(env, "KD-tree is empty").ThrowAsJavaScriptException();
     return env.Null();
   }
-  const uint32_t idx = out.front().second;
-  return Napi::Number::New(env, idx);
+  return Napi::Number::New(env, nearestIndex);
 }
 
 Napi::Value getNode(const Napi::CallbackInfo& info)
 {
   Napi::Env env = info.Env();
-  if (info.Length() != 1 || !info[0].IsNumber())
-  {
-    Napi::TypeError::New(env, "Expected (idx:number)")
-        .ThrowAsJavaScriptException();
+  if (info.Length() != 1 || !info[0].IsNumber()) {
+    Napi::TypeError::New(env, "Expected (idx:number)").ThrowAsJavaScriptException();
     return env.Null();
   }
-  const uint32_t idx = info[0].As<Napi::Number>().Uint32Value();
-  if (idx >= gLat.size())
-  {
-    Napi::RangeError::New(env, "Index out of range")
-        .ThrowAsJavaScriptException();
+  const uint32_t pointIndex = info[0].As<Napi::Number>().Uint32Value();
+  if (pointIndex >= gLatitudeDegrees.size()) {
+    Napi::RangeError::New(env, "Index out of range").ThrowAsJavaScriptException();
     return env.Null();
   }
 
-  Napi::Object obj = Napi::Object::New(env);
-  obj.Set("idx", Napi::Number::New(env, idx));
-  obj.Set("lat", Napi::Number::New(env, gLat[idx]));
-  obj.Set("lon", Napi::Number::New(env, gLon[idx]));
-  return obj;
+  Napi::Object nodeObj = Napi::Object::New(env);
+  nodeObj.Set("idx", Napi::Number::New(env, pointIndex));
+  nodeObj.Set("lat", Napi::Number::New(env, gLatitudeDegrees[pointIndex]));
+  nodeObj.Set("lon", Napi::Number::New(env, gLongitudeDegrees[pointIndex]));
+  // If you want to expose OSM id too:
+  // nodeObj.Set("id", Napi::BigInt::New(env, gOsmNodeIds[pointIndex]));
+  return nodeObj;
 }
 
-// kd_snap.cpp (add near your other exports)
 Napi::Value GetLatArray(const Napi::CallbackInfo& info)
 {
   Napi::Env env = info.Env();
-  if (gLat.empty())
-  {
-    // Return an empty typed array rather than an ArrayBuffer to nullptr
-    return Napi::Float32Array::New(env, 0);
-  }
+  if (gLatitudeDegrees.empty()) return Napi::Float32Array::New(env, 0);
 
-  // Create an external ArrayBuffer that wraps the vector's storage.
-  // We pass a no-op finalizer so Node won't free memory we own.
-  Napi::ArrayBuffer buf = Napi::ArrayBuffer::New(
-      env, static_cast<void*>(gLat.data()), gLat.size() * sizeof(float),
-      [](Napi::Env /*env*/, void* /*data*/) {});
+  Napi::ArrayBuffer backingBuffer = Napi::ArrayBuffer::New(
+      env,
+      static_cast<void*>(gLatitudeDegrees.data()),
+      gLatitudeDegrees.size() * sizeof(float),
+      [](Napi::Env, void*) {}); // no-op finalizer: we keep ownership
 
-  // Create the typed array view on that buffer (no copy)
-  return Napi::Float32Array::New(env, gLat.size(), buf, /*byteOffset=*/0);
+  return Napi::Float32Array::New(env, gLatitudeDegrees.size(), backingBuffer, 0);
 }
 
 Napi::Value GetLonArray(const Napi::CallbackInfo& info)
 {
   Napi::Env env = info.Env();
-  if (gLon.empty())
-  {
-    return Napi::Float32Array::New(env, 0);
-  }
+  if (gLongitudeDegrees.empty()) return Napi::Float32Array::New(env, 0);
 
-  Napi::ArrayBuffer buf = Napi::ArrayBuffer::New(
-      env, static_cast<void*>(gLon.data()), gLon.size() * sizeof(float),
-      [](Napi::Env /*env*/, void* /*data*/) {});
+  Napi::ArrayBuffer backingBuffer = Napi::ArrayBuffer::New(
+      env,
+      static_cast<void*>(gLongitudeDegrees.data()),
+      gLongitudeDegrees.size() * sizeof(float),
+      [](Napi::Env, void*) {});
 
-  return Napi::Float32Array::New(env, gLon.size(), buf, 0);
+  return Napi::Float32Array::New(env, gLongitudeDegrees.size(), backingBuffer, 0);
 }
 
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
-  try
-  {
-    if (!loadFromGraphNodes("../data/graph_nodes.bin"))
-    {
+  try {
+    if (!loadFromGraphNodes("../data/graph_nodes.bin")) {
       std::cerr << "[kd_snap] graph_nodes.bin missing\n";
     }
-  } catch (const std::exception& e)
-  {
+  } catch (const std::exception& e) {
     Napi::Error::New(env, std::string("[kd_snap] load failed: ") + e.what())
         .ThrowAsJavaScriptException();
     return exports;
