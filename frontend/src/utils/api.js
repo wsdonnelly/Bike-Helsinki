@@ -57,15 +57,6 @@ export async function getRoute({ startIdx, endIdx, options = {} }) {
   return data; // { path, coords, modes, distanceM, durationS, distanceBike, distanceWalk, startCoord, endCoord }
 }
 
-/** Update server-side routing defaults. */
-export async function setRoutingDefaults(defaultsPatch) {
-  await API.post("/filter", defaultsPatch);
-}
-
-export async function setBikeSurfaceMask(mask) {
-  await API.post("/filter", { bikeSurfaceMask: mask });
-}
-
 /**
  * Get meta/health info.
  * - If /meta exists on your server, we'll use it.

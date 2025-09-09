@@ -21,7 +21,6 @@ export const SurfaceBits = {
   SURF_UNKNOWN: 1 << 15,
 };
 
-// Stable order + friendlier labels
 const GROUPS = [
   {
     title: "Paved surfaces",
@@ -31,11 +30,7 @@ const GROUPS = [
       ["CONCRETE", SurfaceBits.SURF_CONCRETE, "Concrete"],
       ["PAVING_STONES", SurfaceBits.SURF_PAVING_STONES, "Paving stones"],
       ["SETT", SurfaceBits.SURF_SETT, "Sett"],
-      [
-        "UNHEWN_COBBLESTONES",
-        SurfaceBits.SURF_UNHEWN_COBBLESTONES,
-        "Unhewn cobblestones",
-      ],
+      ["UNHEWN_COBBLESTONES", SurfaceBits.SURF_UNHEWN_COBBLESTONES, "Unhewn cobblestones"],
       ["COBBLESTONES", SurfaceBits.SURF_COBBLESTONES, "Cobblestones"],
       ["BRICKS", SurfaceBits.SURF_BRICKS, "Bricks"],
     ],
@@ -53,165 +48,60 @@ const GROUPS = [
     ],
   },
 ];
-// {
-//   title: 'Generic & unknown',
-//   items: [
-//     ['PAVED',   SurfaceBits.SURF_PAVED,   'Any paved'],
-//     ['UNPAVED', SurfaceBits.SURF_UNPAVED, 'Any unpaved'],
-//     ['UNKNOWN', SurfaceBits.SURF_UNKNOWN, 'Unknown'],
-//   ]
-// }
 
-// Utility to compute masks from GROUPS
-
-// Helper to OR all bits in a named group
 const groupMask = (title) =>
-  (GROUPS.find((g) => g.title === title)?.items ?? []).reduce(
-    (m, [, bit]) => m | bit,
-    0
-  );
+  (GROUPS.find((g) => g.title === title)?.items ?? [])
+    .reduce((m, [, bit]) => m | bit, 0);
 
-// Masks
-// const PAVED_BITS_MASK =
-//   groupMask('Paved surfaces') | (SurfaceBits.SURF_PAVED || 0);
-
-// const UNPAVED_BITS_MASK =
-//   groupMask('Unpaved surfaces') | (SurfaceBits.SURF_UNPAVED || 0);
-const PAVED_BITS_MASK = groupMask("Paved surfaces");
-
+const PAVED_BITS_MASK   = groupMask("Paved surfaces");
 const UNPAVED_BITS_MASK = groupMask("Unpaved surfaces");
-
-// (You already have)
-const ALL_BITS_MASK = GROUPS.reduce(
+const ALL_BITS_MASK     = GROUPS.reduce(
   (acc, g) => acc | g.items.reduce((m, [, bit]) => m | bit, 0),
   0
 );
 
 const ControlPanel = ({
-  surfaceMask,
-  onToggleSurface, // (bit) => void
-  onSetSurfaceMask, // (newMask) => void  (optional)
+  surfaceMask,          // draft mask being edited
+  onToggleSurface,      // (bit) => void
+  onSetSurfaceMask,     // (newMask) => void (bulk)
+  onApply,              // (newMask) => void
+  onOpen,
+  onClose,
   panelOpen,
-  onTogglePanel,
 }) => {
-  // Bulk actions
   const applyBulk = (newMask) => {
-    //add this here? unknow is added to all masks for the time being
-    newMask |= SurfaceBits.SURF_UNKNOWN;
-    if (typeof onSetSurfaceMask === "function") {
-      onSetSurfaceMask(newMask);
-      return;
-    }
-    // console.log("IN HERE YO")
-    // fallback: reach target by toggling bits
-    for (const [, bit] of Object.entries(SurfaceBits)) {
-      const want = (newMask & bit) !== 0;
-      const have = (surfaceMask & bit) !== 0;
-      if (want !== have) onToggleSurface(bit);
-    }
+    newMask |= SurfaceBits.SURF_UNKNOWN; // keep UNKNOWN included for now
+    onSetSurfaceMask?.(newMask);
   };
 
-  const selectAll = () => applyBulk(ALL_BITS_MASK);
-  const selectNone = () => applyBulk(0);
-  const selectPaved = () => applyBulk(PAVED_BITS_MASK);
+  const selectAll     = () => applyBulk(ALL_BITS_MASK);
+  const selectNone    = () => applyBulk(0);
+  const selectPaved   = () => applyBulk(PAVED_BITS_MASK);
   const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        height: "100%",
-        zIndex: 9999,
-        pointerEvents: "none",
-      }}
-    >
-      {/* ☰ is visible only when panel is CLOSED */}
+    <div style={{ position: "fixed", top: 0, left: 0, height: "100%", zIndex: 9999, pointerEvents: "none" }}>
       {!panelOpen && (
-        <button
-          type="button"
-          aria-label="Open surface filters"
-          onClick={onTogglePanel}
-          style={{
-            position: "absolute",
-            top: 80,
-            left: 10,
-            padding: "6px 10px",
-            zIndex: 10000,
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            backgroundColor: "#fff",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-            cursor: "pointer",
-            pointerEvents: "auto",
-          }}
-        >
+        <button type="button" aria-label="Open surface filters" onClick={onOpen} style={toggleBtn}>
           ☰
         </button>
       )}
 
-      {/* Panel is COMPLETELY HIDDEN (not rendered) when closed */}
       {panelOpen && (
-        <div
-          role="dialog"
-          aria-modal="false"
-          aria-label="Surface filters"
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: 300,
-            height: "100%",
-            backgroundColor: "#fff",
-            boxShadow: "2px 0 5px rgba(0,0,0,0.2)",
-            overflowY: "auto",
-            padding: 16,
-            pointerEvents: "auto",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 12,
-            }}
-          >
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
-              Surface Types
-            </h2>
-            {/* “Apply” instead of “Close” */}
-            <button
-              type="button"
-              aria-label="Apply"
-              onClick={onTogglePanel}
-              style={{
-                border: "1px solid #ddd",
-                background: "#fafafa",
-                borderRadius: 6,
-                padding: "4px 10px",
-                cursor: "pointer",
-              }}
-            >
+        <div role="dialog" aria-modal="false" aria-label="Surface filters" style={panel}>
+          <div style={hdr}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>Surface Types</h2>
+            <button type="button" onClick={onClose} style={btnSm}>Cancel</button>
+            <button type="button" aria-label="Apply" onClick={() => onApply(surfaceMask)} style={{ ...btnSm, marginLeft: 6 }}>
               Apply
             </button>
           </div>
 
-          {/* Bulk actions */}
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button type="button" onClick={selectAll} style={btnSm}>
-              All
-            </button>
-            <button type="button" onClick={selectNone} style={btnSm}>
-              None
-            </button>
-            <button type="button" onClick={selectPaved} style={btnSm}>
-              Paved
-            </button>
-            <button type="button" onClick={selectUnpaved} style={btnSm}>
-              Unpaved
-            </button>
+            <button type="button" onClick={selectAll} style={btnSm}>All</button>
+            <button type="button" onClick={selectNone} style={btnSm}>None</button>
+            <button type="button" onClick={selectPaved} style={btnSm}>Paved</button>
+            <button type="button" onClick={selectUnpaved} style={btnSm}>Unpaved</button>
           </div>
 
           {GROUPS.map((group) => (
@@ -219,13 +109,11 @@ const ControlPanel = ({
               <legend style={legend}>{group.title}</legend>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {group.items.map(([key, bit, label]) => {
-                  const id = `surf-${key.toLowerCase()}`;
+                  const id = `surf-${key.toLowerCase()}`; // <-- fix: add backticks
                   const checked = (surfaceMask & bit) !== 0;
                   return (
                     <li key={key} style={row}>
-                      <label htmlFor={id} style={{ fontSize: 14 }}>
-                        {label}
-                      </label>
+                      <label htmlFor={id} style={{ fontSize: 14 }}>{label}</label>
                       <input
                         id={id}
                         type="checkbox"
@@ -239,10 +127,6 @@ const ControlPanel = ({
               </ul>
             </fieldset>
           ))}
-
-          {/* <p style={{ color: '#666', fontSize: 12, marginTop: 8 }}>
-            Tip: Changes are applied when you press <b>Apply</b>.
-          </p> */}
         </div>
       )}
     </div>
@@ -250,6 +134,19 @@ const ControlPanel = ({
 };
 
 // tiny style helpers
+const toggleBtn = {
+  position: "absolute",
+  top: 80,
+  left: 10,
+  padding: "6px 10px",
+  zIndex: 10000,
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  backgroundColor: "#fff",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  cursor: "pointer",
+  pointerEvents: "auto",
+};
 const btnSm = {
   border: "1px solid #ddd",
   background: "#fff",
@@ -258,12 +155,20 @@ const btnSm = {
   fontSize: 12,
   cursor: "pointer",
 };
-const fs = {
-  border: "1px solid #eee",
-  borderRadius: 6,
-  padding: 12,
-  marginBottom: 12,
+const panel = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: 300,
+  height: "100%",
+  backgroundColor: "#fff",
+  boxShadow: "2px 0 5px rgba(0,0,0,0.2)",
+  overflowY: "auto",
+  padding: 16,
+  pointerEvents: "auto",
 };
+const hdr = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 };
+const fs = { border: "1px solid #eee", borderRadius: 6, padding: 12, marginBottom: 12 };
 const legend = { fontWeight: 600, fontSize: 13, padding: "0 6px" };
 const row = {
   display: "flex",
