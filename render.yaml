@@ -15,7 +15,7 @@ services:
 
   # Frontend (served from Render's static CDN)
 - type: web
-  name: bikeHelsinki-frontend
+  name: bikeHelsinki
   runtime: static
   rootDir: frontend
   buildCommand: npm ci && npm run build
