@@ -845,8 +845,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try
   {
-    glNodes = loadNodes("../data/graph_nodes.bin");
-    glEdges = loadEdges("../data/graph_edges.bin");
+    glNodes = loadNodes("data/graph_nodes.bin");
+    glEdges = loadEdges("data/graph_edges.bin");
     std::cerr << "[route.cpp] loaded numNodes =" << glNodes.numNodes
               << " numEdges =" << glEdges.numEdges << std::endl;
 

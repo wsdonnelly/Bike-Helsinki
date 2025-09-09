@@ -15,7 +15,7 @@ void writeGraphNodesBin(
   std::memcpy(hdr.magic, "MMAPNODE", 8);
   hdr.numNodes = static_cast<uint32_t>(allNodeIds.size());
 
-  std::ofstream out("../../data/graph_nodes.bin", std::ios::binary);
+  std::ofstream out("../../backend/data/graph_nodes.bin", std::ios::binary);
   if (!out) throw std::runtime_error("Cannot open graph_nodes.bin for write");
 
   out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
@@ -58,7 +58,7 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
   hdr.hasModeMask = 1;
   hdr.lengthType = 0;
 
-  std::ofstream out("../../data/graph_edges.bin", std::ios::binary);
+  std::ofstream out("../../backend/data/graph_edges.bin", std::ios::binary);
   if (!out) throw std::runtime_error("Cannot open graph_edges.bin for write");
 
   out.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));

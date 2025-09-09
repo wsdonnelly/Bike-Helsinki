@@ -3,12 +3,19 @@ set -euo pipefail
 
 # ────────────────────────────── Config ──────────────────────────────
 # Resolve paths relative to this script (assumes script lives in ingest/)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 INGEST_DIR="${SCRIPT_DIR}"
-ROOT_DIR="$(cd "${INGEST_DIR}/.." && pwd)"
+ROOT_DIR="$(cd -- "${INGEST_DIR}/.." && pwd -P)"
+
 BUILD_DIR="${INGEST_DIR}/build"
 RAW_DIR="${ROOT_DIR}/raw_data"
-DATA_DIR="${ROOT_DIR}/data"
+
+# New layout: write outputs to backend/data
+BACKEND_DIR="${ROOT_DIR}/backend"
+DATA_DIR="${DATA_DIR_OVERRIDE:-${BACKEND_DIR}/data}"
+
+# Ensure dirs exist
+mkdir -p "${BUILD_DIR}" "${RAW_DIR}" "${DATA_DIR}"
 
 # AOI polygon/geojson (default expects a helsinki.geojson next to this script)
 AOI_POLY="${AOI_POLY:-${INGEST_DIR}/helsinki.geojson}"

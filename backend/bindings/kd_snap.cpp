@@ -342,7 +342,7 @@ Napi::Value GetLonArray(const Napi::CallbackInfo& info)
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try {
-    if (!loadFromGraphNodes("../data/graph_nodes.bin")) {
+    if (!loadFromGraphNodes("data/graph_nodes.bin")) {
       std::cerr << "[kd_snap] graph_nodes.bin missing\n";
     }
   } catch (const std::exception& e) {
