@@ -7,9 +7,10 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node-gyp rebuild",
+    "build:native": "cd bindings && npm ci && node-gyp rebuild --release",
     "clean": "node-gyp clean"
   },
+  "engines": { "node": ">=20 <21" },
   "author": "william donnelly",
   "license": "MIT",
   "description": "",

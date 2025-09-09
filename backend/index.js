@@ -2,90 +2,98 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-// Optional: const compression = require('compression'); const helmet = require('helmet');
+// Optional hardening (costs a tiny bit of CPU):
+// const helmet = require("helmet"); const compression = require("compression");
 
-let kdSnap = null;
-let router = null;
+const app = express();
+app.disable("x-powered-by");
+// app.use(helmet());
+app.use(express.json({ limit: "256kb" }));
+app.use(cors());
+
+// --- Native addons
+let kdSnap = null, router = null;
 try {
   kdSnap = require("./bindings/build/Release/kd_snap.node");
   router = require("./bindings/build/Release/route.node");
-  // console.log('Native addons loaded:', process.memoryUsage());
-  console.log("Native addons loaded:");
-  for (const [key, value] of Object.entries(process.memoryUsage())) {
-    console.log(`Memory usage by ${key}, ${value / 1000000} MB `);
-  }
+  console.log("Native addons loaded");
 } catch (err) {
-  console.warn("Native addons not found:", err);
+  console.warn("Native addons not found:", err?.message || err);
 }
 
-let LAT = null,
-  LON = null;
+// --- Typed arrays (if addon is present)
+let LAT = null, LON = null;
 if (kdSnap) {
-  // Float32Arrays (no copy)
   LAT = kdSnap.getLatArray();
   LON = kdSnap.getLonArray();
+  console.log("LAT/LON typed arrays:", LAT?.constructor?.name, LAT?.length, LON?.length);
 }
-console.log(
-  "LAT/LON typed arrays:",
-  LAT?.constructor?.name,
-  LAT?.length,
-  LON?.length
-);
 
-const app = express();
-app.use(express.json({ limit: "256kb" }));
-app.use(cors());
-app.use(express.static(path.join(__dirname, "../frontend/dist")));
-// ---------- read num_nodes from graph_nodes.bin (new header + legacy fallback)
-const nodesPath = path.join("../data/graph_nodes.bin");
-const nodesBin = fs.readFileSync(nodesPath);
+// --- Graph file (Render: keep under backend/ or copy in build/preDeploy)
+const DEFAULT_GRAPH = path.resolve(__dirname, "./data/graph_nodes.bin");
+const nodesPath = process.env.GRAPH_NODES ? path.resolve(process.env.GRAPH_NODES) : DEFAULT_GRAPH;
 
+let TOTAL_NODES = 0;
 function readTotalNodes(buf) {
   if (buf.length >= 20 && buf.subarray(0, 8).toString("ascii") === "MMAPNODE") {
-    return buf.readUInt32LE(8); // num_nodes
+    return buf.readUInt32LE(8);
   }
+  return undefined;
 }
-const TOTAL_NODES = readTotalNodes(nodesBin);
-console.log("TOTAL_NODES =", TOTAL_NODES);
+try {
+  if (!fs.existsSync(nodesPath)) {
+    console.warn(`Graph file not found at ${nodesPath}`);
+  } else {
+    const nodesBin = fs.readFileSync(nodesPath);
+    TOTAL_NODES = readTotalNodes(nodesBin) ?? 0;
+    console.log("TOTAL_NODES =", TOTAL_NODES);
+  }
+} catch (e) {
+  console.error("Failed to read graph file:", e?.message || e);
+}
 
-// ---------- helpers
-const toIndex = (v) => {
-  // accept numbers and numeric strings
-  if (Number.isInteger(v)) return v;
-  const n = Number(v);
-  return Number.isInteger(n) ? n : NaN;
-};
+// --- Local dev only: static frontend (disable on Render)
+if (process.env.SERVE_STATIC === "1") {
+  const distDir = path.resolve(__dirname, "../frontend/dist");
+  app.use(express.static(distDir, { index: false }));
+  app.get("/:path*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+}
 
-const clampU16 = (v, fallback) => (Number.isInteger(v) ? v & 0xffff : fallback);
-const finiteOr = (v, fallback) => (Number.isFinite(v) ? v : fallback);
+// --- Helpers & defaults
+const toIndex = (v) => Number.isInteger(v) ? v : (Number.isInteger(Number(v)) ? Number(v) : NaN);
+const clampU16 = (v, fb) => (Number.isInteger(v) ? (v & 0xffff) : fb);
+const finiteOr = (v, fb) => (Number.isFinite(v) ? v : fb);
 const sanitizeFactors = (arr) =>
-  Array.isArray(arr)
-    ? arr.map((x) => {
-        const n = Number(x);
-        return Number.isFinite(n) ? n : 1;
-      })
-    : undefined;
+  Array.isArray(arr) ? arr.map((x) => (Number.isFinite(Number(x)) ? Number(x) : 1)) : undefined;
+
 const defaults = {
   bikeSurfaceMask: 0xffff,
-  bikeSpeedMps: 6.0, // ~21.6 km/h
-  walkSpeedMps: 1.5, // ~5.4 km/h
+  bikeSpeedMps: 6.0,
+  walkSpeedMps: 1.5,
   rideToWalkPenaltyS: 5.0,
   walkToRidePenaltyS: 3.0,
   bikeSurfaceFactor: [],
   walkSurfaceFactor: [],
 };
 
-// ---------- /snap (nearest node)
-app.get("/snap", (req, res) => {
-  if (!kdSnap)
-    return res.status(503).json({ error: "kdSnap addon not loaded" });
+// --- Healthcheck
+app.get("/healthz", (_req, res) => {
+  const ok = !!router && !!kdSnap && TOTAL_NODES > 0;
+  res.status(ok ? 200 : 503).json({
+    ok,
+    addons: { kdSnap: !!kdSnap, router: !!router },
+    totalNodes: TOTAL_NODES,
+  });
+});
 
+// --- /snap
+app.get("/snap", (req, res) => {
+  if (!kdSnap) return res.status(503).json({ error: "kdSnap addon not loaded" });
   const lat = Number(req.query.lat);
   const lon = Number(req.query.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return res.status(400).json({ error: "Invalid lat/lon" });
   }
-
   try {
     const idx = kdSnap.findNearest(lat, lon);
     const coord = kdSnap.getNode(idx); // { idx, lat, lon }
@@ -96,34 +104,26 @@ app.get("/snap", (req, res) => {
   }
 });
 
-// ---------- /route (POST)
+// --- /route
 app.post("/route", (req, res) => {
   if (!router) return res.status(503).json({ error: "route addon not loaded" });
+  if (!Number.isInteger(TOTAL_NODES) || TOTAL_NODES <= 0)
+    return res.status(503).json({ error: "graph not loaded" });
 
   const {
-    startIdx,
-    endIdx,
-    bikeSurfaceMask,
-    bikeSpeedMps,
-    walkSpeedMps,
-    rideToWalkPenaltyS,
-    walkToRidePenaltyS,
-    bikeSurfaceFactor,
-    walkSurfaceFactor,
+    startIdx, endIdx,
+    bikeSurfaceMask, bikeSpeedMps, walkSpeedMps,
+    rideToWalkPenaltyS, walkToRidePenaltyS,
+    bikeSurfaceFactor, walkSurfaceFactor,
   } = req.body || {};
 
   const s = toIndex(startIdx);
   const e = toIndex(endIdx);
-
   if (!Number.isInteger(s) || !Number.isInteger(e)) {
-    return res
-      .status(400)
-      .json({ error: "startIdx and endIdx must be integers" });
+    return res.status(400).json({ error: "startIdx and endIdx must be integers" });
   }
   if (s < 0 || e < 0 || s >= TOTAL_NODES || e >= TOTAL_NODES) {
-    return res
-      .status(400)
-      .json({ error: `startIdx/endIdx out of range (0..${TOTAL_NODES - 1})` });
+    return res.status(400).json({ error: `startIdx/endIdx out of range (0..${TOTAL_NODES - 1})` });
   }
 
   const opts = {
@@ -132,31 +132,21 @@ app.post("/route", (req, res) => {
     bikeSurfaceMask: clampU16(bikeSurfaceMask, defaults.bikeSurfaceMask),
     bikeSpeedMps: finiteOr(bikeSpeedMps, defaults.bikeSpeedMps),
     walkSpeedMps: finiteOr(walkSpeedMps, defaults.walkSpeedMps),
-    rideToWalkPenaltyS: finiteOr(
-      rideToWalkPenaltyS,
-      defaults.rideToWalkPenaltyS
-    ),
-    walkToRidePenaltyS: finiteOr(
-      walkToRidePenaltyS,
-      defaults.walkToRidePenaltyS
-    ),
+    rideToWalkPenaltyS: finiteOr(rideToWalkPenaltyS, defaults.rideToWalkPenaltyS),
+    walkToRidePenaltyS: finiteOr(walkToRidePenaltyS, defaults.walkToRidePenaltyS),
   };
   const bs = sanitizeFactors(bikeSurfaceFactor);
   const ws = sanitizeFactors(walkSurfaceFactor);
   if (bs) opts.bikeSurfaceFactor = bs;
   if (ws) opts.walkSurfaceFactor = ws;
+
   router.findPath(opts, (err, result) => {
     if (err) {
       console.error("findPath error:", err);
       if (String(err).includes("no route")) {
         return res.json({
-          path: [],
-          coords: [],
-          modes: [],
-          distanceM: 0,
-          durationS: 0,
-          distanceBike: 0,
-          distanceWalk: 0,
+          path: [], coords: [], modes: [],
+          distanceM: 0, durationS: 0, distanceBike: 0, distanceWalk: 0,
         });
       }
       return res.status(500).json({ error: String(err) });
@@ -164,29 +154,21 @@ app.post("/route", (req, res) => {
 
     const pathIdx = Array.isArray(result.path) ? result.path : [];
     const modes = Array.isArray(result.modes) ? result.modes : [];
-    const distanceM = result.distanceM;
-    const durationS = result.durationS;
-    const distanceBike = result.distanceBike;
-    const distanceWalk = result.distanceWalk;
+    const { distanceM, durationS, distanceBike, distanceWalk } = result;
 
-    // Build coords from typed arrays; fall back to kdSnap.getNode if needed
     let coords = [];
     if (LAT && LON && pathIdx.length) {
       coords = new Array(pathIdx.length);
       for (let i = 0; i < pathIdx.length; ++i) {
-        // coerce to uint
         const idx = pathIdx[i] >>> 0;
-        if (idx >= TOTAL_NODES) {
-          coords = []; // invalidate and fall back below
-          break;
-        }
+        if (idx >= TOTAL_NODES) { coords = []; break; }
         coords[i] = [LAT[idx], LON[idx]];
       }
     }
     if (!coords.length && kdSnap && pathIdx.length) {
       try {
         coords = pathIdx.map((idx) => {
-          const n = kdSnap.getNode(idx); // { idx, lat, lon }
+          const n = kdSnap.getNode(idx);
           return [n.lat, n.lon];
         });
       } catch (e2) {
@@ -195,74 +177,36 @@ app.post("/route", (req, res) => {
       }
     }
 
-    // Optional convenience: include start/end coords
     const startCoord = LAT && LON ? [LAT[s], LON[s]] : undefined;
-    const endCoord = LAT && LON ? [LAT[e], LON[e]] : undefined;
-    console.log("distanceBike", distanceBike);
-    console.log("distanceWalk", distanceWalk);
-    //remove path: pathIdx? not currently used, but potential future use
-
-    //DEBUG
-    // const asJSON = JSON.stringify(
-    //   result,
-    //   (_k, v) => {
-    //     if (ArrayBuffer.isView(v)) {
-    //       return `[${v.constructor.name}(${v.length})]`;
-    //     }
-    //     if (Array.isArray(v)) {
-    //       return `[Array(${v.length})]`;
-    //     }
-    //     if (typeof v === 'bigint') return v.toString();    // or Number(v)
-    //     return v;
-    //   },
-    //   2
-    // );
-    // console.log(asJSON);
+    const endCoord   = LAT && LON ? [LAT[e], LON[e]] : undefined;
 
     return res.json({
-      path: pathIdx,
-      coords, // [[lat, lon], ...] aligned with path indices
-      modes, // [1|2 per segment]
-      distanceM,
-      durationS,
-      distanceBike,
-      distanceWalk,
-      startCoord,
-      endCoord,
+      path: pathIdx, coords, modes,
+      distanceM, durationS, distanceBike, distanceWalk,
+      startCoord, endCoord,
     });
   });
 });
 
-// ---------- /filter — update server defaults
+// --- Defaults mutator
 app.post("/filter", (req, res) => {
   const b = req.body || {};
-
-  if (Number.isInteger(b.bikeSurfaceMask))
-    defaults.bikeSurfaceMask = b.bikeSurfaceMask & 0xffff;
-
-  if (Number.isFinite(b.bikeSpeedMps)) defaults.bikeSpeedMps = b.bikeSpeedMps;
-  if (Number.isFinite(b.walkSpeedMps)) defaults.walkSpeedMps = b.walkSpeedMps;
-
-  if (Number.isFinite(b.rideToWalkPenaltyS))
-    defaults.rideToWalkPenaltyS = b.rideToWalkPenaltyS;
-  if (Number.isFinite(b.walkToRidePenaltyS))
-    defaults.walkToRidePenaltyS = b.walkToRidePenaltyS;
-  if (Array.isArray(b.bikeSurfaceFactor))
-    defaults.bikeSurfaceFactor = sanitizeFactors(b.bikeSurfaceFactor);
-  if (Array.isArray(b.walkSurfaceFactor))
-    defaults.walkSurfaceFactor = sanitizeFactors(b.walkSurfaceFactor);
-  console.log("✔ Defaults updated:", defaults);
+  if (Number.isInteger(b.bikeSurfaceMask)) defaults.bikeSurfaceMask = b.bikeSurfaceMask & 0xffff;
+  if (Number.isFinite(b.bikeSpeedMps))     defaults.bikeSpeedMps = b.bikeSpeedMps;
+  if (Number.isFinite(b.walkSpeedMps))     defaults.walkSpeedMps = b.walkSpeedMps;
+  if (Number.isFinite(b.rideToWalkPenaltyS)) defaults.rideToWalkPenaltyS = b.rideToWalkPenaltyS;
+  if (Number.isFinite(b.walkToRidePenaltyS)) defaults.walkToRidePenaltyS = b.walkToRidePenaltyS;
+  if (Array.isArray(b.bikeSurfaceFactor))  defaults.bikeSurfaceFactor = sanitizeFactors(b.bikeSurfaceFactor);
+  if (Array.isArray(b.walkSurfaceFactor))  defaults.walkSurfaceFactor = sanitizeFactors(b.walkSurfaceFactor);
+  console.log("✔ Defaults updated");
   return res.status(204).send();
 });
 
-// const distDir = path.resolve(__dirname, "../frontend/dist");
-// app.use(express.static(distDir, { index: false }));
-
-// app.get("/:path*", (req, res) => {
-//   res.sendFile(path.join(distDir, "index.html"));
-// });
-
-
-
-const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));
+// --- Shutdown signals (Render uses SIGTERM on redeploy)
+const server = app.listen(Number(process.env.PORT || 3000), () => {
+  console.log(`Server on http://localhost:${server.address().port}`);
+});
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, closing server…");
+  server.close(() => process.exit(0));
+});

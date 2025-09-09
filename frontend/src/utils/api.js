@@ -1,101 +1,98 @@
 // frontend/src/utils/api.js
 import axios from "axios";
 
-// For single-service deployment: API and frontend served from same origin
-// In development: use localhost:3000
-// In production: use relative URLs (same origin as frontend)
-const BASE_URL = import.meta.env.DEV
-  ? 'http://localhost:3000'  // Development
-  : '';                      // Production (relative URLs)
-
-export const API = axios.create({ baseURL: BASE_URL });
-
-export const ALL_SURFACES = 0xffff; //needed?
-
 /**
- * Snap a lat/lon to the nearest graph node.
- * @param {number} lat
- * @param {number} lon
- * @returns {Promise<{ idx:number, lat:number, lon:number }>}
+ * Resolve API base URL:
+ * - Dev: http://localhost:3000
+ * - Prod: use VITE_API_URL if set (Render Static Site → Environment tab)
+ * - (Optional) If you configure a static-site rewrite proxy to your API,
+ *   you can set VITE_API_URL to "/api" and keep everything same-origin.
  */
+function resolveBaseURL() {
+  const envUrl = (import.meta.env.VITE_API_URL || "").trim();
+  if (envUrl) return envUrl; // absolute like "https://<api>.onrender.com" or relative like "/api"
+  if (import.meta.env.DEV) return "http://localhost:3000";
+  // Fallback: relative origin (only works if you added a rewrite proxy)
+  return "";
+}
+
+export const API = axios.create({
+  baseURL: resolveBaseURL(),
+  timeout: 15000,
+});
+
+// Optional: small error normalizer
+API.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err?.response?.status;
+    if (status === 503) {
+      err.userMessage =
+        "Service temporarily unavailable (warming up or building). Try again in a moment.";
+    } else if (status === 400) {
+      err.userMessage = "Invalid request. Please check your inputs.";
+    } else {
+      err.userMessage =
+        "Request failed. Please try again. If this persists, check your connection.";
+    }
+    throw err;
+  }
+);
+
+export const ALL_SURFACES = 0xffff; // keep if you pass masks from the UI
+
+/** Snap a lat/lon to the nearest graph node. */
 export async function snapToGraph(lat, lon) {
   const { data } = await API.get("/snap", { params: { lat, lon } });
   return data; // { idx, lat, lon }
 }
 
-/**
- * Request a route (two-mode A*) between node indices.
- * Server returns indices AND coords so you don’t have to map on the client.
- *
- * @param {object} params
- * @param {number} params.startIdx - start node index
- * @param {number} params.endIdx   - end node index
- * @param {object} [params.options] - optional routing options to override server defaults
- *   {
- *     bikeSurfaceMask?: number,
- *     bikeSpeedMps?: number,   walkSpeedMps?: number,
- *     rideToWalkPenaltyS?: number, walkToRidePenaltyS?: number,
- *     bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
- *   }
- * @returns {Promise<{
- *   path:number[],                      // node indices (kept for debugging/future)
- *   coords:[number,number][],           // [[lat,lon], ...] aligned with path
- *   modes:number[],                     // [1|2] per segment
- *   distanceM:number,
- *   durationS:number,
- *   distanceBike,
- *   distanceWalk,
- *   startCoord?:[number,number],
- *   endCoord?:[number,number]
- * }>}
- */
+/** Request a route between node indices. */
 export async function getRoute({ startIdx, endIdx, options = {} }) {
   const { data } = await API.post("/route", {
     startIdx,
     endIdx,
-    // optional per-request overrides (masks/speeds)
-    ...options,
+    ...options, // { bikeSurfaceMask, speeds, penalties, factors... }
   });
-  // data: { path, coords, modes, distanceM, durationS, distanceBike, distanceWalk, startCoord, endCoord }
-  return data;
+  return data; // { path, coords, modes, distanceM, durationS, distanceBike, distanceWalk, startCoord, endCoord }
 }
 
-/**
- * Update server-side routing defaults.
- * Useful for toggling masks/speeds globally without passing options every time.
- *
- * Pass any subset of:
- * {
- *   bikeSurfaceMask?: number,
- *   bikeSpeedMps?: number,    walkSpeedMps?: number,
- *   rideToWalkPenaltyS?: number, walkToRidePenaltyS?: number,
- *   bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
- * }
- *
- * @param {object} defaultsPatch
- * @returns {Promise<void>}
- */
+/** Update server-side routing defaults. */
 export async function setRoutingDefaults(defaultsPatch) {
   await API.post("/filter", defaultsPatch);
 }
 
-// /**
-//  * Convenience helper to set the same mask for both bike & walk.
-//  * @param {number} mask
-//  * @returns {Promise<void>}
-//  */
-// export async function setSurfaceMaskBoth(mask) {
-//   // Example server expects { bikeSurfaceMask }
-//   await API.post('/filter', { bikeSurfaceMask: mask });
-// }
 export async function setBikeSurfaceMask(mask) {
   await API.post("/filter", { bikeSurfaceMask: mask });
 }
 
 /**
- * Get meta info (e.g., totalNodes, server defaults).
- * @returns {Promise<{ totalNodes:number, defaults:object }>}
+ * Get meta/health info.
+ * - If /meta exists on your server, we'll use it.
+ * - Otherwise we fall back to /healthz (which you already added).
  */
 export async function getMeta() {
-  return API.get("/meta").then((res) => res.data);
+  try {
+    const { data } = await API.get("/meta");
+    return data;
+  } catch (e) {
+    // Fall back to health endpoint
+    const { data } = await API.get("/healthz");
+    return {
+      ok: data.ok,
+      totalNodes: data.totalNodes,
+      defaults: undefined, // not provided by /healthz
+      addons: data.addons,
+    };
+  }
+}
+
+/** Simple “is the API alive?” ping you can call on app load. */
+export async function ping() {
+  try {
+    const { data } = await API.get("/healthz");
+    return !!data?.ok;
+  } catch {
+    return false;
+  }
 }

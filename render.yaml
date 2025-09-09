@@ -1,0 +1,26 @@
+services:
+  # Backend API
+- type: web
+  name: bikeHelsinki-api
+  runtime: node
+  plan: free
+  region: frankfurt
+  rootDir: backend
+  buildCommand: npm ci && npm run build:native
+  startCommand: node index.js
+  healthCheckPath: /healthz
+  envVars:
+    - key: NODE_ENV
+      value: production
+
+  # Frontend (served from Render's static CDN)
+- type: web
+  name: bikeHelsinki-frontend
+  runtime: static
+  plan: free
+  rootDir: frontend
+  buildCommand: npm ci && npm run build
+  staticPublishPath: ./frontend/dist
+  envVars:
+    - key: VITE_API_URL
+      value: https://bikehelsinki-api.onrender.com
