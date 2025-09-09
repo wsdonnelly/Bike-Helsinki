@@ -3,7 +3,7 @@ services:
 - type: web
   name: bikeHelsinki-api
   runtime: node
-  plan: free
+  # plan: free
   region: frankfurt
   rootDir: backend
   buildCommand: npm ci && npm run build:native
@@ -17,7 +17,7 @@ services:
 - type: web
   name: bikeHelsinki-frontend
   runtime: static
-  plan: free
+  # plan: free
   rootDir: frontend
   buildCommand: npm ci && npm run build
   staticPublishPath: ./frontend/dist
