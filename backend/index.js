@@ -188,20 +188,6 @@ app.post("/route", (req, res) => {
   });
 });
 
-// // --- Defaults mutator
-// app.post("/filter", (req, res) => {
-//   const b = req.body || {};
-//   if (Number.isInteger(b.bikeSurfaceMask)) defaults.bikeSurfaceMask = b.bikeSurfaceMask & 0xffff;
-//   if (Number.isFinite(b.bikeSpeedMps))     defaults.bikeSpeedMps = b.bikeSpeedMps;
-//   if (Number.isFinite(b.walkSpeedMps))     defaults.walkSpeedMps = b.walkSpeedMps;
-//   if (Number.isFinite(b.rideToWalkPenaltyS)) defaults.rideToWalkPenaltyS = b.rideToWalkPenaltyS;
-//   if (Number.isFinite(b.walkToRidePenaltyS)) defaults.walkToRidePenaltyS = b.walkToRidePenaltyS;
-//   if (Array.isArray(b.bikeSurfaceFactor))  defaults.bikeSurfaceFactor = sanitizeFactors(b.bikeSurfaceFactor);
-//   if (Array.isArray(b.walkSurfaceFactor))  defaults.walkSurfaceFactor = sanitizeFactors(b.walkSurfaceFactor);
-//   console.log("✔ Defaults updated");
-//   return res.status(204).send();
-// });
-
 // --- Shutdown signals (Render uses SIGTERM on redeploy)
 const server = app.listen(Number(process.env.PORT || 3000), () => {
   console.log(`Server on http://localhost:${server.address().port}`);
