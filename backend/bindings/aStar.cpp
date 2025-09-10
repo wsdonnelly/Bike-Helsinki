@@ -1,0 +1,255 @@
+#include "aStar.hpp"
+
+#include <algorithm>
+#include <cstdint>
+#include <iostream>
+#include <limits>
+#include <queue>
+#include <stdexcept>
+
+#include "utils.hpp"
+
+AStarResult aStarTwoLayer(const EdgesView& edgesView,
+                          const NodesView& nodesView, uint32_t sourceIdx,
+                          uint32_t targetIdx, const AStarParams& params)
+{
+  const uint32_t numNodes = edgesView.numNodes;
+  if (sourceIdx >= numNodes || targetIdx >= numNodes)
+  {
+    throw std::runtime_error("source/target out of range");
+  }
+
+  // Validate speeds
+  if (!(std::isfinite(params.bikeSpeedMps) && params.bikeSpeedMps > 0.0) ||
+      !(std::isfinite(params.walkSpeedMps) && params.walkSpeedMps > 0.0))
+  {
+    throw std::invalid_argument(
+        "bikeSpeedMps and walkSpeedMps must be finite and > 0");
+  }
+  const double invBike = 1.0 / params.bikeSpeedMps;
+  const double invWalk = 1.0 / params.walkSpeedMps;
+
+  // Heuristic uses the *fastest* mode speed to remain admissible across layers.
+  double targetLat, targetLon;
+  nodeDeg(nodesView, targetIdx, targetLat, targetLon);
+  const double vmax = std::max(params.bikeSpeedMps, params.walkSpeedMps);
+
+  auto heuristic = [&](uint32_t currentIdx) -> double {
+    double currentLat, currentLon;
+    nodeDeg(nodesView, currentIdx, currentLat, currentLon);
+    return utils::haversineMeters(currentLat, currentLon, targetLat,
+                                  targetLon) /
+           vmax;
+  };
+
+  const double INF = std::numeric_limits<double>::infinity();
+  const uint32_t S_ride = StateKey::idx(sourceIdx, Layer::Ride);
+  const uint32_t S_walk = StateKey::idx(sourceIdx, Layer::Walk);
+
+  // States
+  std::vector<double> gScore(2 * numNodes, INF);
+  std::vector<uint32_t> parent(2 * numNodes, UINT32_MAX);
+  std::vector<uint8_t> parentMode(2 * numNodes, 0);
+  std::vector<uint32_t> parentEdge(
+      2 * numNodes, UINT32_MAX);  // NEW: -1 edge means mode switch
+  std::vector<uint8_t> closed(2 * numNodes, 0);
+
+  gScore[S_ride] = 0.0;
+  gScore[S_walk] = 0.0;
+
+  std::priority_queue<PQItem> openPQ;
+  openPQ.push(
+      PQItem{gScore[S_ride] + heuristic(sourceIdx), sourceIdx, Layer::Ride});
+  openPQ.push(
+      PQItem{gScore[S_walk] + heuristic(sourceIdx), sourceIdx, Layer::Walk});
+
+  auto surfAllowedBike = [&](uint8_t primary) -> bool {
+    if (!edgesView.surfacePrimary) return true;
+    // Guard 16-bit mask width and avoid UB shift
+    if (primary >= 16) return false;
+    return (params.bikeSurfaceMask & (uint16_t(1) << primary)) != 0;
+  };
+
+  auto relaxEdge = [&](uint32_t u, Layer layerU, uint32_t v, uint32_t edgeIdx,
+                       double edgeTimeSec, uint8_t edgeModeBit) {
+    const uint32_t curIdx = StateKey::idx(u, layerU);
+    const uint32_t nextIdx = StateKey::idx(v, layerU);
+    const double tentative = gScore[curIdx] + edgeTimeSec;
+    if (tentative < gScore[nextIdx])
+    {
+      gScore[nextIdx] = tentative;
+      parent[nextIdx] = curIdx;
+      parentMode[nextIdx] = edgeModeBit;
+      parentEdge[nextIdx] = edgeIdx;  // NEW
+      openPQ.push(PQItem{tentative + heuristic(v), v, layerU});
+    }
+  };
+
+  auto relaxSwitch = [&](uint32_t u, Layer from, Layer to, double penaltySec) {
+    const uint32_t fromIdx = StateKey::idx(u, from);
+    const uint32_t toIdx = StateKey::idx(u, to);
+    const double tentative = gScore[fromIdx] + penaltySec;
+    if (tentative < gScore[toIdx])
+    {
+      gScore[toIdx] = tentative;
+      parent[toIdx] = fromIdx;
+      parentMode[toIdx] = 0;           // mode switch marker
+      parentEdge[toIdx] = UINT32_MAX;  // NEW: no edge for switch
+      openPQ.push(PQItem{tentative + heuristic(u), u, to});
+    }
+  };
+
+  uint32_t goalState = UINT32_MAX;
+
+  while (!openPQ.empty())
+  {
+    PQItem it = openPQ.top();
+    openPQ.pop();
+
+    const uint32_t u = it.nodeIdx;
+    const Layer layer = it.layer;
+    const uint32_t uIdx = StateKey::idx(u, layer);
+    if (closed[uIdx]) continue;
+    closed[uIdx] = 1;
+
+    if (u == targetIdx)
+    {
+      goalState = uIdx;
+      break;
+    }
+
+    const uint32_t begin = edgesView.offsets[u];
+    const uint32_t end = edgesView.offsets[u + 1];
+
+    if (layer == Layer::Ride)
+    {
+      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
+      {
+        if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
+        if (edgesView.surfacePrimary &&
+            !surfAllowedBike(edgesView.surfacePrimary[edgeIdx]))
+          continue;
+
+        const uint32_t v = edgesView.neighbors[edgeIdx];
+        const double len =
+            static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
+        const double factor =
+            edgesView.surfacePrimary
+                ? surfaceFactor(params.bikeSurfaceFactor,
+                                edgesView.surfacePrimary[edgeIdx])
+                : 1.0;
+        const double edgeTimeSec = len * invBike * factor;
+        relaxEdge(u, layer, v, edgeIdx, edgeTimeSec, MODE_BIKE);
+      }
+      if (params.rideToWalkPenaltyS >= 0.0)
+      {
+        relaxSwitch(u, Layer::Ride, Layer::Walk, params.rideToWalkPenaltyS);
+      }
+    }
+    else
+    {
+      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
+      {
+        if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
+
+        const uint32_t v = edgesView.neighbors[edgeIdx];
+        const double len =
+            static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
+        const double factor =
+            edgesView.surfacePrimary
+                ? surfaceFactor(params.walkSurfaceFactor,
+                                edgesView.surfacePrimary[edgeIdx])
+                : 1.0;
+        const double edgeTimeSec = len * invWalk * factor;
+        relaxEdge(u, layer, v, edgeIdx, edgeTimeSec, MODE_FOOT);
+      }
+      if (params.walkToRidePenaltyS >= 0.0)
+      {
+        relaxSwitch(u, Layer::Walk, Layer::Ride, params.walkToRidePenaltyS);
+      }
+    }
+  }
+
+  AStarResult result;
+  if (goalState == UINT32_MAX)
+  {
+    result.success = false;
+    return result;
+  }
+
+  // Reconstruct states (state index, not just node/layer)
+  std::vector<uint32_t> stateChain;
+  for (uint32_t cur = goalState; cur != UINT32_MAX;)
+  {
+    stateChain.push_back(cur);
+    uint32_t p = parent[cur];
+    if (p == UINT32_MAX) break;
+    cur = p;
+  }
+  std::reverse(stateChain.begin(), stateChain.end());
+
+  // Outputs
+  result.pathNodes.clear();
+  result.pathModes.clear();
+  result.pathNodes.reserve(stateChain.size());
+  result.pathNodes.push_back(stateChain.front() / 2u);
+
+  double totalMeters = 0.0;
+
+  for (size_t i = 1; i < stateChain.size(); ++i)
+  {
+    const uint32_t cur = stateChain[i];
+    const uint32_t prev = stateChain[i - 1];
+
+    if (parentEdge[cur] == UINT32_MAX)
+    {
+      // Mode switch at same node
+      const Layer prevL = static_cast<Layer>(prev % 2u);
+      const Layer curL = static_cast<Layer>(cur % 2u);
+      if (prevL == Layer::Ride && curL == Layer::Walk)
+      {
+        // already counted in gScore; we only need distances per mode
+        // (no distance added for switch)
+      }
+      else if (prevL == Layer::Walk && curL == Layer::Ride)
+      {
+        // same as above
+      }
+      continue;
+    }
+
+    const uint32_t edgeIdx = parentEdge[cur];
+    const uint32_t u = prev / 2u;
+    const uint32_t v = cur / 2u;
+
+    // Sanity: the stored edge should be u->v
+    // (If input graph can have parallel edges, this is exactly the one we
+    // relaxed.)
+    (void)u;
+    (void)v;
+
+    const double len = static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
+    totalMeters += len;
+
+    if (parentMode[cur] == MODE_BIKE)
+    {
+      result.distanceBike += len;
+      result.pathModes.push_back(MODE_BIKE);
+    }
+    else
+    {
+      result.distanceWalk += len;
+      result.pathModes.push_back(MODE_FOOT);
+    }
+    result.pathNodes.push_back(v);
+  }
+
+  result.distanceM = totalMeters;
+  result.durationS = gScore[goalState];  // exact from search
+  result.success = true;
+
+  // (optional) debug
+  // std::cout << "distanceBike: " << result.distanceBike << " distanceWalk: "
+  // << result.distanceWalk << '\n';
+  return result;
+}

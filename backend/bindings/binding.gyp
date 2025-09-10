@@ -27,7 +27,7 @@
     },
     {
       "target_name": "route",
-      "sources": [ "route.cpp" ],
+      "sources": [ "route.cpp", "aStar.cpp" ],
             "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
         "/opt/homebrew/include",
