@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 // ---------------- mmap helpers ----------------
 // 1) Make the mapping handle move-only
