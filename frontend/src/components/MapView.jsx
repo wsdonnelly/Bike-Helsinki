@@ -106,7 +106,8 @@ export function MapView({
     [routeCoords, routeModes]
   );
 
-  const color = "#007AFF";
+  const colorWalk = "#FF7F0E";
+  const colorBike = "#007AFF";
 
   return (
     <MapContainer
@@ -157,7 +158,7 @@ export function MapView({
         <Polyline
           key={`b${i}`}
           positions={pts}
-          pathOptions={{ color, weight: 4 }}
+          pathOptions={{ color : colorBike, weight: 4 }}
         />
       ))}
 
@@ -166,13 +167,16 @@ export function MapView({
         <Polyline
           key={`f${i}`}
           positions={pts}
-          pathOptions={{ color, weight: 4, dashArray: "6 6" }}
+          pathOptions={{ color : colorWalk, weight: 4, dashArray: "6 6" }}
         />
       ))}
 
       {/* Fallback: if no modes provided, draw a single solid line */}
       {(!routeModes || routeModes.length === 0) && routeCoords?.length > 1 && (
-        <Polyline positions={routeCoords} pathOptions={{ color, weight: 4 }} />
+        <Polyline
+          positions={routeCoords}
+          pathOptions={{ color : colorBike, weight: 4 }}
+        />
       )}
     </MapContainer>
   );

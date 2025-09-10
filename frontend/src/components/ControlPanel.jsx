@@ -30,7 +30,11 @@ const GROUPS = [
       ["CONCRETE", SurfaceBits.SURF_CONCRETE, "Concrete"],
       ["PAVING_STONES", SurfaceBits.SURF_PAVING_STONES, "Paving stones"],
       ["SETT", SurfaceBits.SURF_SETT, "Sett"],
-      ["UNHEWN_COBBLESTONES", SurfaceBits.SURF_UNHEWN_COBBLESTONES, "Unhewn cobblestones"],
+      [
+        "UNHEWN_COBBLESTONES",
+        SurfaceBits.SURF_UNHEWN_COBBLESTONES,
+        "Unhewn cobblestones",
+      ],
       ["COBBLESTONES", SurfaceBits.SURF_COBBLESTONES, "Cobblestones"],
       ["BRICKS", SurfaceBits.SURF_BRICKS, "Bricks"],
     ],
@@ -50,58 +54,125 @@ const GROUPS = [
 ];
 
 const groupMask = (title) =>
-  (GROUPS.find((g) => g.title === title)?.items ?? [])
-    .reduce((m, [, bit]) => m | bit, 0);
+  (GROUPS.find((g) => g.title === title)?.items ?? []).reduce(
+    (m, [, bit]) => m | bit,
+    0
+  );
 
-const PAVED_BITS_MASK   = groupMask("Paved surfaces");
+const PAVED_BITS_MASK = groupMask("Paved surfaces");
 const UNPAVED_BITS_MASK = groupMask("Unpaved surfaces");
-const ALL_BITS_MASK     = GROUPS.reduce(
+const ALL_BITS_MASK = GROUPS.reduce(
   (acc, g) => acc | g.items.reduce((m, [, bit]) => m | bit, 0),
   0
 );
 
+// ---- helpers for formatting ----
+const formatKm = (m) => {
+  const km = (m || 0) / 1000;
+  if (km === 0) return "0.0 km";
+  return `${km < 10 ? km.toFixed(2) : km.toFixed(1)} km`;
+};
+const formatDuration = (t) => {
+  const total = Math.max(0, Math.floor(t ?? 0)); // clamp & int seconds
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+
+  if (h > 0)
+    return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(
+      2,
+      "0"
+    )}s`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${s}s`;
+};
+
 const ControlPanel = ({
-  surfaceMask,          // draft mask being edited
-  onToggleSurface,      // (bit) => void
-  onSetSurfaceMask,     // (newMask) => void (bulk)
-  onApply,              // (newMask) => void
+  surfaceMask, // draft mask being edited
+  onToggleSurface, // (bit) => void
+  onSetSurfaceMask, // (newMask) => void (bulk)
+  onApply, // (newMask) => void
   onOpen,
   onClose,
   panelOpen,
+
+  // NEW: stats props (raw units)
+  totalDistanceM = 0,
+  totalDurationS = 0,
+  distanceBike = 0,
+  distanceWalk = 0,
+  hasSelection = false,
+  hasRoute = false,
 }) => {
   const applyBulk = (newMask) => {
     newMask |= SurfaceBits.SURF_UNKNOWN; // keep UNKNOWN included for now
     onSetSurfaceMask?.(newMask);
   };
 
-  const selectAll     = () => applyBulk(ALL_BITS_MASK);
-  const selectNone    = () => applyBulk(0);
-  const selectPaved   = () => applyBulk(PAVED_BITS_MASK);
+  const selectAll = () => applyBulk(ALL_BITS_MASK);
+  const selectNone = () => applyBulk(0);
+  const selectPaved = () => applyBulk(PAVED_BITS_MASK);
   const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, height: "100%", zIndex: 9999, pointerEvents: "none" }}>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        height: "100%",
+        zIndex: 9999,
+        pointerEvents: "none",
+      }}
+    >
       {!panelOpen && (
-        <button type="button" aria-label="Open surface filters" onClick={onOpen} style={toggleBtn}>
+        <button
+          type="button"
+          aria-label="Open surface filters"
+          onClick={onOpen}
+          style={toggleBtn}
+        >
           ☰
         </button>
       )}
 
       {panelOpen && (
-        <div role="dialog" aria-modal="false" aria-label="Surface filters" style={panel}>
+        <div
+          role="dialog"
+          aria-modal="false"
+          aria-label="Surface filters"
+          style={panel}
+        >
           <div style={hdr}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>Surface Types</h2>
-            <button type="button" onClick={onClose} style={btnSm}>Cancel</button>
-            <button type="button" aria-label="Apply" onClick={() => onApply(surfaceMask)} style={{ ...btnSm, marginLeft: 6 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
+              Surface Types
+            </h2>
+            <button type="button" onClick={onClose} style={btnSm}>
+              Close
+            </button>
+            <button
+              type="button"
+              aria-label="Apply"
+              onClick={() => onApply(surfaceMask)}
+              style={{ ...btnSm, marginLeft: 6 }}
+            >
               Apply
             </button>
           </div>
 
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button type="button" onClick={selectAll} style={btnSm}>All</button>
-            <button type="button" onClick={selectNone} style={btnSm}>None</button>
-            <button type="button" onClick={selectPaved} style={btnSm}>Paved</button>
-            <button type="button" onClick={selectUnpaved} style={btnSm}>Unpaved</button>
+            <button type="button" onClick={selectAll} style={btnSm}>
+              All
+            </button>
+            <button type="button" onClick={selectNone} style={btnSm}>
+              None
+            </button>
+            <button type="button" onClick={selectPaved} style={btnSm}>
+              Paved
+            </button>
+            <button type="button" onClick={selectUnpaved} style={btnSm}>
+              Unpaved
+            </button>
           </div>
 
           {GROUPS.map((group) => (
@@ -109,11 +180,13 @@ const ControlPanel = ({
               <legend style={legend}>{group.title}</legend>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {group.items.map(([key, bit, label]) => {
-                  const id = `surf-${key.toLowerCase()}`; // <-- fix: add backticks
+                  const id = `surf-${key.toLowerCase()}`;
                   const checked = (surfaceMask & bit) !== 0;
                   return (
                     <li key={key} style={row}>
-                      <label htmlFor={id} style={{ fontSize: 14 }}>{label}</label>
+                      <label htmlFor={id} style={{ fontSize: 14 }}>
+                        {label}
+                      </label>
                       <input
                         id={id}
                         type="checkbox"
@@ -127,6 +200,37 @@ const ControlPanel = ({
               </ul>
             </fieldset>
           ))}
+
+          {/* ---- sticky bottom stats ---- */}
+  <div style={statsBox}>
+    {!hasSelection ? (
+      <div style={{ fontSize: 12, color: "#666" }}>
+        Pick two points on the map to compute a route.
+      </div>
+    ) : !hasRoute ? (
+      // show only after two pins are dropped and routing returned empty
+      <div style={noRouteBox} role="status" aria-live="polite">
+        <strong>No route found</strong>
+        <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+          Try adjusting surface filters or picking closer points.
+        </div>
+      </div>
+    ) : (
+      <>
+        <div style={statsHeader}>Ride stats</div>
+        <div style={statsGrid}>
+          <div>Duration</div>
+          <div style={statVal}>{formatDuration(totalDurationS)}</div>
+          <div>Distance</div>
+          <div style={statVal}>{formatKm(totalDistanceM)}</div>
+          <div>Bike</div>
+          <div style={statVal}>{formatKm(distanceBike)}</div>
+          <div>Walk</div>
+          <div style={statVal}>{formatKm(distanceWalk)}</div>
+        </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -168,7 +272,12 @@ const panel = {
   pointerEvents: "auto",
 };
 const hdr = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 };
-const fs = { border: "1px solid #eee", borderRadius: 6, padding: 12, marginBottom: 12 };
+const fs = {
+  border: "1px solid #eee",
+  borderRadius: 6,
+  padding: 12,
+  marginBottom: 12,
+};
 const legend = { fontWeight: 600, fontSize: 13, padding: "0 6px" };
 const row = {
   display: "flex",
@@ -176,6 +285,38 @@ const row = {
   alignItems: "center",
   padding: "6px 0",
   borderBottom: "1px dashed #f1f1f1",
+};
+
+/* stats styles */
+const statsBox = {
+  position: "sticky",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  background: "#fff",
+  borderTop: "1px solid #eee",
+  paddingTop: 10,
+  paddingBottom: 12,
+};
+const statsHeader = {
+  fontWeight: 700,
+  fontSize: 13,
+  marginBottom: 6,
+};
+const statsGrid = {
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  rowGap: 6,
+  columnGap: 12,
+  fontSize: 13,
+};
+const statVal = { fontWeight: 600 };
+const noRouteBox = {
+  padding: 8,
+  borderRadius: 6,
+  background: "#fafafa",
+  border: "1px solid #eee",
+  fontSize: 13,
 };
 
 export default ControlPanel;
