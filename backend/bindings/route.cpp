@@ -277,6 +277,11 @@ static AStarParams parseParams(Napi::Env env, const Napi::Object& obj)
   if (params.bikeSpeedMps <= 0.01 || params.walkSpeedMps <= 0.01)
     throw std::runtime_error("speeds must be positive");
 
+  if (auto s = getNum("surfacePenaltySPerKm")) params.surfacePenaltySPerKm = *s;
+
+  if (params.surfacePenaltySPerKm < 0)
+    throw std::runtime_error("surfacePenaltySPerKm must be positive");
+
   return params;
 }
 
@@ -351,11 +356,11 @@ class FindPathWorker : public Napi::AsyncWorker
 //   bikeSurfaceMask?: u16,
 //   bikeSpeedMps?: number, walkSpeedMps?: number,
 //   rideToWalkPenaltyS?: number, walkToRidePenaltyS?: number,
-//   bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[]
+//   bikeSurfaceFactor?: number[], walkSurfaceFactor?: number[],
+//   surfacePenaltySPerKm?: number
 // }
 Napi::Value FindPath(const Napi::CallbackInfo& info)
 {
-  std::cerr << "started findPath" << std::endl;
   Napi::Env env = info.Env();
   if (info.Length() < 2 || !info[0].IsObject() || !info[1].IsFunction())
   {

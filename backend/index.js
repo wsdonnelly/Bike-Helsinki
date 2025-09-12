@@ -12,7 +12,8 @@ app.use(express.json({ limit: "256kb" }));
 app.use(cors());
 
 // --- Native addons
-let kdSnap = null, router = null;
+let kdSnap = null,
+  router = null;
 try {
   kdSnap = require("./bindings/build/Release/kd_snap.node");
   router = require("./bindings/build/Release/route.node");
@@ -22,16 +23,24 @@ try {
 }
 
 // --- Typed arrays (if addon is present)
-let LAT = null, LON = null;
+let LAT = null,
+  LON = null;
 if (kdSnap) {
   LAT = kdSnap.getLatArray();
   LON = kdSnap.getLonArray();
-  console.log("LAT/LON typed arrays:", LAT?.constructor?.name, LAT?.length, LON?.length);
+  console.log(
+    "LAT/LON typed arrays:",
+    LAT?.constructor?.name,
+    LAT?.length,
+    LON?.length
+  );
 }
 
 // --- Graph file (Render: keep under backend/ or copy in build/preDeploy)
 const DEFAULT_GRAPH = path.resolve(__dirname, "./data/graph_nodes.bin");
-const nodesPath = process.env.GRAPH_NODES ? path.resolve(process.env.GRAPH_NODES) : DEFAULT_GRAPH;
+const nodesPath = process.env.GRAPH_NODES
+  ? path.resolve(process.env.GRAPH_NODES)
+  : DEFAULT_GRAPH;
 
 let TOTAL_NODES = 0;
 function readTotalNodes(buf) {
@@ -56,15 +65,20 @@ try {
 if (process.env.SERVE_STATIC === "1") {
   const distDir = path.resolve(__dirname, "../frontend/dist");
   app.use(express.static(distDir, { index: false }));
-  app.get("/:path*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+  app.get("/:path*", (_req, res) =>
+    res.sendFile(path.join(distDir, "index.html"))
+  );
 }
 
 // --- Helpers & defaults
-const toIndex = (v) => Number.isInteger(v) ? v : (Number.isInteger(Number(v)) ? Number(v) : NaN);
-const clampU16 = (v, fb) => (Number.isInteger(v) ? (v & 0xffff) : fb);
+const toIndex = (v) =>
+  Number.isInteger(v) ? v : Number.isInteger(Number(v)) ? Number(v) : NaN;
+const clampU16 = (v, fb) => (Number.isInteger(v) ? v & 0xffff : fb);
 const finiteOr = (v, fb) => (Number.isFinite(v) ? v : fb);
 const sanitizeFactors = (arr) =>
-  Array.isArray(arr) ? arr.map((x) => (Number.isFinite(Number(x)) ? Number(x) : 1)) : undefined;
+  Array.isArray(arr)
+    ? arr.map((x) => (Number.isFinite(Number(x)) ? Number(x) : 1))
+    : undefined;
 
 const defaults = {
   bikeSurfaceMask: 0xffff,
@@ -74,6 +88,7 @@ const defaults = {
   walkToRidePenaltyS: 3.0,
   bikeSurfaceFactor: [],
   walkSurfaceFactor: [],
+  surfacePenaltySPerKm: 0.0,
 };
 
 // --- Healthcheck
@@ -88,7 +103,8 @@ app.get("/healthz", (_req, res) => {
 
 // --- /snap
 app.get("/snap", (req, res) => {
-  if (!kdSnap) return res.status(503).json({ error: "kdSnap addon not loaded" });
+  if (!kdSnap)
+    return res.status(503).json({ error: "kdSnap addon not loaded" });
   const lat = Number(req.query.lat);
   const lon = Number(req.query.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -111,19 +127,29 @@ app.post("/route", (req, res) => {
     return res.status(503).json({ error: "graph not loaded" });
 
   const {
-    startIdx, endIdx,
-    bikeSurfaceMask, bikeSpeedMps, walkSpeedMps,
-    rideToWalkPenaltyS, walkToRidePenaltyS,
-    bikeSurfaceFactor, walkSurfaceFactor,
+    startIdx,
+    endIdx,
+    bikeSurfaceMask,
+    bikeSpeedMps,
+    walkSpeedMps,
+    rideToWalkPenaltyS,
+    walkToRidePenaltyS,
+    bikeSurfaceFactor,
+    walkSurfaceFactor,
+    surfacePenaltySPerKm,
   } = req.body || {};
 
   const s = toIndex(startIdx);
   const e = toIndex(endIdx);
   if (!Number.isInteger(s) || !Number.isInteger(e)) {
-    return res.status(400).json({ error: "startIdx and endIdx must be integers" });
+    return res
+      .status(400)
+      .json({ error: "startIdx and endIdx must be integers" });
   }
   if (s < 0 || e < 0 || s >= TOTAL_NODES || e >= TOTAL_NODES) {
-    return res.status(400).json({ error: `startIdx/endIdx out of range (0..${TOTAL_NODES - 1})` });
+    return res
+      .status(400)
+      .json({ error: `startIdx/endIdx out of range (0..${TOTAL_NODES - 1})` });
   }
 
   const opts = {
@@ -132,8 +158,18 @@ app.post("/route", (req, res) => {
     bikeSurfaceMask: clampU16(bikeSurfaceMask, defaults.bikeSurfaceMask),
     bikeSpeedMps: finiteOr(bikeSpeedMps, defaults.bikeSpeedMps),
     walkSpeedMps: finiteOr(walkSpeedMps, defaults.walkSpeedMps),
-    rideToWalkPenaltyS: finiteOr(rideToWalkPenaltyS, defaults.rideToWalkPenaltyS),
-    walkToRidePenaltyS: finiteOr(walkToRidePenaltyS, defaults.walkToRidePenaltyS),
+    rideToWalkPenaltyS: finiteOr(
+      rideToWalkPenaltyS,
+      defaults.rideToWalkPenaltyS
+    ),
+    walkToRidePenaltyS: finiteOr(
+      walkToRidePenaltyS,
+      defaults.walkToRidePenaltyS
+    ),
+    surfacePenaltySPerKm: finiteOr(
+      surfacePenaltySPerKm,
+      defaults.surfacePenaltySPerKm
+    ),
   };
   const bs = sanitizeFactors(bikeSurfaceFactor);
   const ws = sanitizeFactors(walkSurfaceFactor);
@@ -145,8 +181,13 @@ app.post("/route", (req, res) => {
       console.error("findPath error:", err);
       if (String(err).includes("no route")) {
         return res.json({
-          path: [], coords: [], modes: [],
-          distanceM: 0, durationS: 0, distanceBike: 0, distanceWalk: 0,
+          path: [],
+          coords: [],
+          modes: [],
+          distanceM: 0,
+          durationS: 0,
+          distanceBike: 0,
+          distanceWalk: 0,
         });
       }
       return res.status(500).json({ error: String(err) });
@@ -161,7 +202,10 @@ app.post("/route", (req, res) => {
       coords = new Array(pathIdx.length);
       for (let i = 0; i < pathIdx.length; ++i) {
         const idx = pathIdx[i] >>> 0;
-        if (idx >= TOTAL_NODES) { coords = []; break; }
+        if (idx >= TOTAL_NODES) {
+          coords = [];
+          break;
+        }
         coords[i] = [LAT[idx], LON[idx]];
       }
     }
@@ -178,12 +222,18 @@ app.post("/route", (req, res) => {
     }
 
     const startCoord = LAT && LON ? [LAT[s], LON[s]] : undefined;
-    const endCoord   = LAT && LON ? [LAT[e], LON[e]] : undefined;
+    const endCoord = LAT && LON ? [LAT[e], LON[e]] : undefined;
 
     return res.json({
-      path: pathIdx, coords, modes,
-      distanceM, durationS, distanceBike, distanceWalk,
-      startCoord, endCoord,
+      path: pathIdx,
+      coords,
+      modes,
+      distanceM,
+      durationS,
+      distanceBike,
+      distanceWalk,
+      startCoord,
+      endCoord,
     });
   });
 });

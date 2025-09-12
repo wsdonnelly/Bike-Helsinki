@@ -1,6 +1,7 @@
 #include "aStar.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -9,27 +10,41 @@
 
 #include "utils.hpp"
 
+// NOTE: Keep edge-access bits separate from the path step labels.
+// Edges use bitmasks (bike=0x1, foot=0x2). Your new enum values are for OUTPUT
+// labeling.
+namespace
+{
+constexpr std::uint8_t EDGE_MASK_BIKE = 0x1;
+constexpr std::uint8_t EDGE_MASK_FOOT = 0x2;
+}  // namespace
+
+inline bool isPreferredBike(std::uint8_t primary, std::uint16_t mask) noexcept
+{
+  if (primary >= 16) return true;  // unknown → neutral (no penalty)
+  return (mask & (std::uint16_t(1) << primary)) != 0;
+}
+
 AStarResult aStarTwoLayer(const EdgesView& edgesView,
                           const NodesView& nodesView, uint32_t sourceIdx,
                           uint32_t targetIdx, const AStarParams& params)
 {
   const uint32_t numNodes = edgesView.numNodes;
   if (sourceIdx >= numNodes || targetIdx >= numNodes)
-  {
     throw std::runtime_error("source/target out of range");
-  }
 
   // Validate speeds
   if (!(std::isfinite(params.bikeSpeedMps) && params.bikeSpeedMps > 0.0) ||
       !(std::isfinite(params.walkSpeedMps) && params.walkSpeedMps > 0.0))
-  {
     throw std::invalid_argument(
         "bikeSpeedMps and walkSpeedMps must be finite and > 0");
-  }
+
   const double invBike = 1.0 / params.bikeSpeedMps;
   const double invWalk = 1.0 / params.walkSpeedMps;
+  const double wSurfPerM =
+      std::max(0.0, params.surfacePenaltySPerKm) * 0.001;  // s per meter
 
-  // Heuristic uses the *fastest* mode speed to remain admissible across layers.
+  // Heuristic = optimistic straight-line time with vmax (no penalties)
   double targetLat, targetLon;
   nodeDeg(nodesView, targetIdx, targetLat, targetLon);
   const double vmax = std::max(params.bikeSpeedMps, params.walkSpeedMps);
@@ -49,9 +64,9 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
   // States
   std::vector<double> gScore(2 * numNodes, INF);
   std::vector<uint32_t> parent(2 * numNodes, UINT32_MAX);
-  std::vector<uint8_t> parentMode(2 * numNodes, 0);
-  std::vector<uint32_t> parentEdge(
-      2 * numNodes, UINT32_MAX);  // NEW: -1 edge means mode switch
+  std::vector<uint8_t> parentMode(2 * numNodes, 0);  // stores OUTPUT step label
+  std::vector<uint32_t> parentEdge(2 * numNodes,
+                                   UINT32_MAX);  // UINT32_MAX => mode switch
   std::vector<uint8_t> closed(2 * numNodes, 0);
 
   gScore[S_ride] = 0.0;
@@ -63,15 +78,8 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
   openPQ.push(
       PQItem{gScore[S_walk] + heuristic(sourceIdx), sourceIdx, Layer::Walk});
 
-  auto surfAllowedBike = [&](uint8_t primary) -> bool {
-    if (!edgesView.surfacePrimary) return true;
-    // Guard 16-bit mask width and avoid UB shift
-    if (primary >= 16) return false;
-    return (params.bikeSurfaceMask & (uint16_t(1) << primary)) != 0;
-  };
-
   auto relaxEdge = [&](uint32_t u, Layer layerU, uint32_t v, uint32_t edgeIdx,
-                       double edgeTimeSec, uint8_t edgeModeBit) {
+                       double edgeTimeSec, uint8_t stepLabel) {
     const uint32_t curIdx = StateKey::idx(u, layerU);
     const uint32_t nextIdx = StateKey::idx(v, layerU);
     const double tentative = gScore[curIdx] + edgeTimeSec;
@@ -79,8 +87,8 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
     {
       gScore[nextIdx] = tentative;
       parent[nextIdx] = curIdx;
-      parentMode[nextIdx] = edgeModeBit;
-      parentEdge[nextIdx] = edgeIdx;  // NEW
+      parentMode[nextIdx] = stepLabel;  // label this step for coloring
+      parentEdge[nextIdx] = edgeIdx;
       openPQ.push(PQItem{tentative + heuristic(v), v, layerU});
     }
   };
@@ -93,8 +101,8 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
     {
       gScore[toIdx] = tentative;
       parent[toIdx] = fromIdx;
-      parentMode[toIdx] = 0;           // mode switch marker
-      parentEdge[toIdx] = UINT32_MAX;  // NEW: no edge for switch
+      parentMode[toIdx] = 0;  // special: switch (no edge)
+      parentEdge[toIdx] = UINT32_MAX;
       openPQ.push(PQItem{tentative + heuristic(u), u, to});
     }
   };
@@ -125,44 +133,53 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
     {
       for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
       {
-        if ((edgesView.modeMask[edgeIdx] & MODE_BIKE) == 0) continue;
-        if (edgesView.surfacePrimary &&
-            !surfAllowedBike(edgesView.surfacePrimary[edgeIdx]))
-          continue;
+        if ((edgesView.modeMask[edgeIdx] & EDGE_MASK_BIKE) == 0) continue;
 
         const uint32_t v = edgesView.neighbors[edgeIdx];
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
-        const double factor =
-            edgesView.surfacePrimary
-                ? surfaceFactor(params.bikeSurfaceFactor,
-                                edgesView.surfacePrimary[edgeIdx])
-                : 1.0;
-        const double edgeTimeSec = len * invBike * factor;
-        relaxEdge(u, layer, v, edgeIdx, edgeTimeSec, MODE_BIKE);
+        const uint8_t s =
+            edgesView.surfacePrimary ? edgesView.surfacePrimary[edgeIdx] : 0xFF;
+
+        const double factor = edgesView.surfacePrimary
+                                  ? surfaceFactor(params.bikeSurfaceFactor, s)
+                                  : 1.0;
+        const double time_s = len * invBike * factor;
+
+        // Bike-only soft preference penalty + label
+        const bool preferred = isPreferredBike(s, params.bikeSurfaceMask);
+        const double surfPenalty = preferred ? 0.0 : (wSurfPerM * len);
+        const uint8_t stepLabel =
+            preferred ? MODE_BIKE_PREFFERED : MODE_BIKE_NON_PREFFERED;
+
+        relaxEdge(u, layer, v, edgeIdx, time_s + surfPenalty, stepLabel);
       }
+
       if (params.rideToWalkPenaltyS >= 0.0)
       {
         relaxSwitch(u, Layer::Ride, Layer::Walk, params.rideToWalkPenaltyS);
       }
     }
     else
-    {
+    {  // Walk layer
       for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
       {
-        if ((edgesView.modeMask[edgeIdx] & MODE_FOOT) == 0) continue;
+        if ((edgesView.modeMask[edgeIdx] & EDGE_MASK_FOOT) == 0) continue;
 
         const uint32_t v = edgesView.neighbors[edgeIdx];
         const double len =
             static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
-        const double factor =
-            edgesView.surfacePrimary
-                ? surfaceFactor(params.walkSurfaceFactor,
-                                edgesView.surfacePrimary[edgeIdx])
-                : 1.0;
-        const double edgeTimeSec = len * invWalk * factor;
-        relaxEdge(u, layer, v, edgeIdx, edgeTimeSec, MODE_FOOT);
+        const uint8_t s =
+            edgesView.surfacePrimary ? edgesView.surfacePrimary[edgeIdx] : 0xFF;
+
+        const double factor = edgesView.surfacePrimary
+                                  ? surfaceFactor(params.walkSurfaceFactor, s)
+                                  : 1.0;
+        const double time_s = len * invWalk * factor;
+
+        relaxEdge(u, layer, v, edgeIdx, time_s, MODE_FOOT);
       }
+
       if (params.walkToRidePenaltyS >= 0.0)
       {
         relaxSwitch(u, Layer::Walk, Layer::Ride, params.walkToRidePenaltyS);
@@ -177,7 +194,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
     return result;
   }
 
-  // Reconstruct states (state index, not just node/layer)
+  // Reconstruct states
   std::vector<uint32_t> stateChain;
   for (uint32_t cur = goalState; cur != UINT32_MAX;)
   {
@@ -199,57 +216,36 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
   for (size_t i = 1; i < stateChain.size(); ++i)
   {
     const uint32_t cur = stateChain[i];
-    const uint32_t prev = stateChain[i - 1];
 
     if (parentEdge[cur] == UINT32_MAX)
     {
-      // Mode switch at same node
-      const Layer prevL = static_cast<Layer>(prev % 2u);
-      const Layer curL = static_cast<Layer>(cur % 2u);
-      if (prevL == Layer::Ride && curL == Layer::Walk)
-      {
-        // already counted in gScore; we only need distances per mode
-        // (no distance added for switch)
-      }
-      else if (prevL == Layer::Walk && curL == Layer::Ride)
-      {
-        // same as above
-      }
+      // Mode switch at same node (no distance)
       continue;
     }
 
     const uint32_t edgeIdx = parentEdge[cur];
-    const uint32_t u = prev / 2u;
     const uint32_t v = cur / 2u;
-
-    // Sanity: the stored edge should be u->v
-    // (If input graph can have parallel edges, this is exactly the one we
-    // relaxed.)
-    (void)u;
-    (void)v;
-
     const double len = static_cast<double>(edgesView.lengthsMeters[edgeIdx]);
+
     totalMeters += len;
 
-    if (parentMode[cur] == MODE_BIKE)
+    // Accumulate by coarse mode; label for coloring stays exact
+    if (parentMode[cur] == MODE_FOOT)
     {
-      result.distanceBike += len;
-      result.pathModes.push_back(MODE_BIKE);
+      result.distanceWalk += len;
     }
     else
     {
-      result.distanceWalk += len;
-      result.pathModes.push_back(MODE_FOOT);
+      result.distanceBike += len;
     }
+
+    result.pathModes.push_back(parentMode[cur]);  // keep exact label (preferred
+                                                  // / non-preferred / walk)
     result.pathNodes.push_back(v);
   }
 
   result.distanceM = totalMeters;
-  result.durationS = gScore[goalState];  // exact from search
+  result.durationS = gScore[goalState];
   result.success = true;
-
-  // (optional) debug
-  // std::cout << "distanceBike: " << result.distanceBike << " distanceWalk: "
-  // << result.distanceWalk << '\n';
   return result;
 }

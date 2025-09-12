@@ -77,7 +77,6 @@ const formatDuration = (t) => {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-
   if (h > 0)
     return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(
       2,
@@ -87,16 +86,22 @@ const formatDuration = (t) => {
   return `${s}s`;
 };
 
+const clamp = (n, lo = 0, hi = 1000) => Math.min(hi, Math.max(lo, n));
+
 const ControlPanel = ({
-  surfaceMask, // draft mask being edited
-  onToggleSurface, // (bit) => void
-  onSetSurfaceMask, // (newMask) => void (bulk)
-  onApply, // (newMask) => void
+  surfaceMask,
+  onToggleSurface,
+  onSetSurfaceMask,
+  onApply,
   onOpen,
   onClose,
   panelOpen,
 
-  // NEW: stats props (raw units)
+  // slider props
+  surfacePenaltyDraft = 0,
+  onSetSurfacePenalty,
+
+  // stats/flags
   totalDistanceM = 0,
   totalDurationS = 0,
   distanceBike = 0,
@@ -105,7 +110,7 @@ const ControlPanel = ({
   hasRoute = false,
 }) => {
   const applyBulk = (newMask) => {
-    newMask |= SurfaceBits.SURF_UNKNOWN; // keep UNKNOWN included for now
+    newMask |= SurfaceBits.SURF_UNKNOWN; // keep UNKNOWN for now
     onSetSurfaceMask?.(newMask);
   };
 
@@ -113,6 +118,17 @@ const ControlPanel = ({
   const selectNone = () => applyBulk(0);
   const selectPaved = () => applyBulk(PAVED_BITS_MASK);
   const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
+
+  const handleRange = (e) => {
+    const v = clamp(+e.target.value);
+    onSetSurfacePenalty?.(v);
+  };
+  const handleNumber = (e) => {
+    const raw = e.target.value;
+    // Guard NaN while editing; allow empty -> 0
+    const v = clamp(Number.isFinite(+raw) ? +raw : 0);
+    onSetSurfacePenalty?.(v);
+  };
 
   return (
     <div
@@ -153,13 +169,19 @@ const ControlPanel = ({
             <button
               type="button"
               aria-label="Apply"
-              onClick={() => onApply(surfaceMask)}
+              onClick={() =>
+                onApply({
+                  mask: surfaceMask,
+                  surfacePenaltySPerKm: surfacePenaltyDraft,
+                })
+              }
               style={{ ...btnSm, marginLeft: 6 }}
             >
               Apply
             </button>
           </div>
 
+          {/* bulk buttons */}
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <button type="button" onClick={selectAll} style={btnSm}>
               All
@@ -175,6 +197,7 @@ const ControlPanel = ({
             </button>
           </div>
 
+          {/* surface checkboxes */}
           {GROUPS.map((group) => (
             <fieldset key={group.title} style={fs}>
               <legend style={legend}>{group.title}</legend>
@@ -201,33 +224,101 @@ const ControlPanel = ({
             </fieldset>
           ))}
 
+          {/* Surface penalty slider (0–1000 s/km) */}
+          <div style={section}>
+            <label htmlFor="penalty-range" style={sectionLabel}>
+              Surface penalty <span style={{ color: "#666" }}>(s/km)</span>
+            </label>
+
+            <input
+              id="penalty-range"
+              type="range"
+              min={0}
+              max={1000}
+              step={1}
+              value={surfacePenaltyDraft}
+              onChange={handleRange}
+              style={{ width: "100%" }}
+              aria-valuemin={0}
+              aria-valuemax={1000}
+              aria-valuenow={surfacePenaltyDraft}
+              aria-label="Surface penalty in seconds per kilometer"
+              list="penalty-ticks"
+            />
+            <datalist id="penalty-ticks">
+              <option value="0" />
+              <option value="250" />
+              <option value="500" />
+              <option value="750" />
+              <option value="1000" />
+            </datalist>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                marginTop: 8,
+              }}
+            >
+              <div>
+                <input
+                  type="number"
+                  min={0}
+                  max={1000}
+                  step={1}
+                  value={surfacePenaltyDraft}
+                  onChange={handleNumber}
+                  style={{
+                    width: 100,
+                    padding: "4px 6px",
+                    border: "1px solid #ddd",
+                    borderRadius: 6,
+                  }}
+                  aria-label="Surface penalty numeric input"
+                />
+              </div>
+              <output
+                htmlFor="penalty-range"
+                style={{
+                  fontSize: 12,
+                  color: "#333",
+                  minWidth: 60,
+                  textAlign: "right",
+                }}
+              >
+                {surfacePenaltyDraft} s/km
+              </output>
+            </div>
+          </div>
+
           {/* ---- sticky bottom stats ---- */}
-  <div style={statsBox}>
-    {!hasSelection ? (
-      <div style={{ fontSize: 12, color: "#666" }}>
-        Pick two points on the map to compute a route.
-      </div>
-    ) : !hasRoute ? (
-      // show only after two pins are dropped and routing returned empty
-      <div style={noRouteBox} role="status" aria-live="polite">
-        <strong>No route found</strong>
-        <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-          Try adjusting surface filters or picking closer points.
-        </div>
-      </div>
-    ) : (
-      <>
-        <div style={statsHeader}>Ride stats</div>
-        <div style={statsGrid}>
-          <div>Duration</div>
-          <div style={statVal}>{formatDuration(totalDurationS)}</div>
-          <div>Distance</div>
-          <div style={statVal}>{formatKm(totalDistanceM)}</div>
-          <div>Bike</div>
-          <div style={statVal}>{formatKm(distanceBike)}</div>
-          <div>Walk</div>
-          <div style={statVal}>{formatKm(distanceWalk)}</div>
-        </div>
+          <div style={statsBox}>
+            {!hasSelection ? (
+              <div style={{ fontSize: 12, color: "#666" }}>
+                Pick two points on the map to compute a route.
+              </div>
+            ) : !hasRoute ? (
+              <div style={noRouteBox} role="status" aria-live="polite">
+                <strong>No route found</strong>
+                <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+                  Try adjusting surface filters or picking closer points.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={statsHeader}>Ride stats</div>
+                <div style={statsGrid}>
+                  <div>Duration</div>
+                  <div style={statVal}>{formatDuration(totalDurationS)}</div>
+                  <div>Distance</div>
+                  <div style={statVal}>{formatKm(totalDistanceM)}</div>
+                  <div>Bike</div>
+                  <div style={statVal}>{formatKm(distanceBike)}</div>
+                  <div>Walk</div>
+                  <div style={statVal}>{formatKm(distanceWalk)}</div>
+                </div>
               </>
             )}
           </div>
@@ -298,11 +389,7 @@ const statsBox = {
   paddingTop: 10,
   paddingBottom: 12,
 };
-const statsHeader = {
-  fontWeight: 700,
-  fontSize: 13,
-  marginBottom: 6,
-};
+const statsHeader = { fontWeight: 700, fontSize: 13, marginBottom: 6 };
 const statsGrid = {
   display: "grid",
   gridTemplateColumns: "1fr auto",
@@ -317,6 +404,20 @@ const noRouteBox = {
   background: "#fafafa",
   border: "1px solid #eee",
   fontSize: 13,
+};
+
+// small section styles
+const section = {
+  border: "1px solid #eee",
+  borderRadius: 6,
+  padding: 12,
+  marginBottom: 12,
+};
+const sectionLabel = {
+  display: "block",
+  fontWeight: 600,
+  fontSize: 13,
+  marginBottom: 8,
 };
 
 export default ControlPanel;

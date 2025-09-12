@@ -13,8 +13,9 @@
 // strong-typed flags enum.
 enum : std::uint8_t
 {
-  MODE_BIKE = 0x1,
-  MODE_FOOT = 0x2
+  MODE_BIKE_PREFFERED = 0x1,
+  MODE_BIKE_NON_PREFFERED = 0x2,
+  MODE_FOOT = 0x4
 };
 
 enum class Layer : std::uint8_t
@@ -49,21 +50,25 @@ inline double surfaceFactor(const std::vector<double>& factors,
 
 struct AStarParams
 {
-  // Filtering
+  // Bike “preferred” surfaces (used for soft bias; not filtering)
   std::uint16_t bikeSurfaceMask = 0xFFFF;
 
   // Speeds (meters/sec)
-  double bikeSpeedMps = 6.0;  // ~21.6 km/h
-  double walkSpeedMps = 1.5;  // ~5.4 km/h
+  double bikeSpeedMps = 6.0;
+  double walkSpeedMps = 1.5;
 
-  // Penalties (seconds) to switch modes at a node
-  double rideToWalkPenaltyS = 5.0;  // dismount
-  double walkToRidePenaltyS = 3.0;  // remount
+  // Mode switch penalties (seconds)
+  double rideToWalkPenaltyS = 5.0;
+  double walkToRidePenaltyS = 3.0;
 
-  // Per-surface primary multipliers (index by uint8 surfacePrimary)
-  // If empty, all factors default to 1.0
+  // Physical per-surface multipliers (>= 0, default 1.0)
   std::vector<double> bikeSurfaceFactor;
   std::vector<double> walkSurfaceFactor;
+
+  // User preference strength: seconds of penalty per km on non-preferred BIKE
+  // surfaces 0 disables the bias. Typical: 120..300 (gentle..strong)
+  // NON-NEGATIVE
+  double surfacePenaltySPerKm = 0.0;
 };
 
 struct AStarResult

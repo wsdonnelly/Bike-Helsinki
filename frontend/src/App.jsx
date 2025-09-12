@@ -3,6 +3,8 @@ import { MapView } from "./components/MapView";
 import ControlPanel from "./components/ControlPanel";
 import { snapToGraph, getRoute } from "./utils/api";
 
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
 const App = () => {
   // Points
   const [snappedStart, setSnappedStart] = useState(null); // { idx, lat, lon }
@@ -17,11 +19,15 @@ const App = () => {
   const [appliedMask, setAppliedMask] = useState(0xffff); // effective
   const [draftMask, setDraftMask] = useState(0xffff); // edits
 
+  // Surface penalty (seconds per km)
+  const [appliedPenalty, setAppliedPenalty] = useState(0); // effective
+  const [draftPenalty, setDraftPenalty] = useState(0); // UI edits
+
   // Stats (meters / seconds)
   const [totalDistanceM, setTotalDistanceM] = useState(0);
   const [totalDurationS, setTotalDurationS] = useState(0);
   const [distanceBike, setDistanceBike] = useState(0);
-  const [totalDistanceWalk, setDistanceWalk] = useState(0); // note: name mismatch is OK but a bit confusing
+  const [totalDistanceWalk, setDistanceWalk] = useState(0); // (name mismatch ok)
 
   const resetStats = () => {
     setTotalDistanceM(0);
@@ -32,58 +38,63 @@ const App = () => {
 
   // ---- Routing ----
   const fetchRoute = useCallback(
-    async (maskOverride) => {
+    async (maskOverride, penaltyOverride) => {
       if (!snappedStart || !snappedEnd) return;
-      const mask = maskOverride ?? appliedMask;
+
+      // use current applied values unless overridden
+      const mask = (maskOverride ?? appliedMask) & 0xffff;
+      const penalty = clamp(penaltyOverride ?? appliedPenalty, 0, 1000);
+
       try {
-        const result = await getRoute({
+        // build payload once so logs match exactly what we send
+        const payload = {
           startIdx: snappedStart.idx,
           endIdx: snappedEnd.idx,
-          options: { bikeSurfaceMask: mask },
+          options: {
+            bikeSurfaceMask: mask,
+            surfacePenaltySPerKm: penalty,
+          },
+        };
+
+        // helpful, compact param log
+        console.log("[fetchRoute] → getRoute payload", {
+          startIdx: payload.startIdx,
+          endIdx: payload.endIdx,
+          bikeSurfaceMask: payload.options.bikeSurfaceMask,
+          bikeSurfaceMask_hex:
+            "0x" + mask.toString(16).toUpperCase().padStart(4, "0"),
+          surfacePenaltySPerKm: payload.options.surfacePenaltySPerKm,
         });
 
-        console.log("ROUTE RESULT", result);
-        console.log("ROUTE TIME", (result?.durationS ?? 0) / 60, "mins");
-        console.log("ROUTE LENGTH", (result?.distanceM ?? 0) / 1000, "KM");
-        console.log(
-          "ROUTE distanceBike",
-          (result?.distanceBike ?? 0) / 1000,
-          "KM"
-        );
-        console.log(
-          "ROUTE distanceWalk",
-          (result?.distanceWalk ?? 0) / 1000,
-          "KM"
-        );
+        const result = await getRoute(payload);
 
-        // Update geometry
         const coords = result?.coords ?? [];
         const modes = result?.modes ?? [];
         setRouteCoords(coords);
         setRouteModes(modes);
 
-        // ✅ Update stats (meters/seconds)
         setTotalDistanceM(result?.distanceM ?? 0);
         setTotalDurationS(result?.durationS ?? 0);
         setDistanceBike(result?.distanceBike ?? 0);
         setDistanceWalk(result?.distanceWalk ?? 0);
 
-        // If no route returned, reset stats as well
         if (coords.length < 2) resetStats();
       } catch (err) {
         console.error("Error fetching route:", err);
         setRouteCoords([]);
         setRouteModes([]);
-        resetStats(); // ✅ clear stats on error
+        resetStats();
       }
     },
-    [snappedStart, snappedEnd, appliedMask]
+    [snappedStart, snappedEnd]
   );
 
   // Re-fetch when endpoints change
   useEffect(() => {
-    fetchRoute();
-  }, [snappedStart, snappedEnd, fetchRoute]);
+    if (snappedStart && snappedEnd) {
+      fetchRoute(appliedMask, appliedPenalty);
+    }
+  }, [snappedStart, snappedEnd]); // ← endpoints only
 
   // ---- Map interactions ----
   const handleMapClick = async ({ lat, lng }) => {
@@ -98,7 +109,7 @@ const App = () => {
         setSnappedEnd(null);
         setRouteCoords([]);
         setRouteModes([]);
-        resetStats(); // ✅ clear stats when starting a new selection
+        resetStats();
       }
     } catch (err) {
       console.error("Snap error:", err);
@@ -108,6 +119,7 @@ const App = () => {
   // ---- Panel + mask flow ----
   const openPanel = () => {
     setDraftMask(appliedMask);
+    setDraftPenalty(appliedPenalty);
     setPanelOpen(true);
   };
   const closePanel = () => setPanelOpen(false);
@@ -116,11 +128,22 @@ const App = () => {
     setDraftMask((prev) => (prev & bit ? prev & ~bit : prev | bit));
   };
 
-  const applyMask = async (newMask) => {
-    if (newMask === appliedMask) return;
-    setAppliedMask(newMask);
-    await fetchRoute(newMask); // ✅ fetch immediately with this mask
-    console.log("✔ Applied new surface mask", newMask);
+  // APPLY both settings at once
+  const applySettings = async ({ mask, surfacePenaltySPerKm }) => {
+    const nextMask = (mask ?? appliedMask) & 0xffff;
+    const nextPenalty = clamp(surfacePenaltySPerKm ?? appliedPenalty, 0, 1000);
+
+    const changed = nextMask !== appliedMask || nextPenalty !== appliedPenalty;
+    setAppliedMask(nextMask);
+    setAppliedPenalty(nextPenalty);
+
+    if (changed) {
+      await fetchRoute(nextMask, nextPenalty);
+      console.log("✔ Applied", {
+        bikeSurfaceMask: nextMask,
+        surfacePenaltySPerKm: nextPenalty,
+      });
+    }
   };
 
   return (
@@ -140,14 +163,15 @@ const App = () => {
         surfaceMask={draftMask}
         onToggleSurface={toggleDraftBit}
         onSetSurfaceMask={setDraftMask}
-        onApply={applyMask}
+        surfacePenaltyDraft={draftPenalty}
+        onSetSurfacePenalty={setDraftPenalty}
+        onApply={applySettings}
         totalDistanceM={totalDistanceM}
         totalDurationS={totalDurationS}
         distanceBike={distanceBike}
         distanceWalk={totalDistanceWalk}
-
         hasSelection={Boolean(snappedStart && snappedEnd)}
-        hasRoute={routeCoords.length > 0}
+        hasRoute={routeCoords.length > 1}
       />
     </>
   );
