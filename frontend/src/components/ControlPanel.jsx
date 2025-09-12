@@ -324,7 +324,7 @@ const ControlPanel = ({
                     {formatKm(distanceBikePreferred)}
                   </div>
 
-                  <div style={{ color: colorBikePreferred }}>
+                  <div style={{ color: colorBikeNonPreferred }}>
                     Bike Non-Preferred Surface
                   </div>
                   <div style={{ ...statVal, color: colorBikeNonPreferred }}>
