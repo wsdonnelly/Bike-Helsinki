@@ -131,7 +131,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
 
     if (layer == Layer::Ride)
     {
-      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
+      for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & EDGE_MASK_BIKE) == 0) continue;
 
@@ -150,7 +150,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
         const bool preferred = isPreferredBike(s, params.bikeSurfaceMask);
         const double surfPenalty = preferred ? 0.0 : (wSurfPerM * len);
         const uint8_t stepLabel =
-            preferred ? MODE_BIKE_PREFFERED : MODE_BIKE_NON_PREFFERED;
+            preferred ? MODE_BIKE_PREFERRED : MODE_BIKE_NON_PREFERRED;
 
         relaxEdge(u, layer, v, edgeIdx, time_s + surfPenalty, stepLabel);
       }
@@ -162,7 +162,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
     }
     else
     {  // Walk layer
-      for (uint32_t edgeIdx = begin; edgeIdx < end; ++edgeIdx)
+      for (uint32_t edgeIdx{begin}; edgeIdx < end; ++edgeIdx)
       {
         if ((edgesView.modeMask[edgeIdx] & EDGE_MASK_FOOT) == 0) continue;
 
@@ -196,7 +196,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
 
   // Reconstruct states
   std::vector<uint32_t> stateChain;
-  for (uint32_t cur = goalState; cur != UINT32_MAX;)
+  for (uint32_t cur{goalState}; cur != UINT32_MAX;)
   {
     stateChain.push_back(cur);
     uint32_t p = parent[cur];
@@ -213,7 +213,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
 
   double totalMeters = 0.0;
 
-  for (size_t i = 1; i < stateChain.size(); ++i)
+  for (size_t i{1}; i < stateChain.size(); ++i)
   {
     const uint32_t cur = stateChain[i];
 
@@ -229,14 +229,17 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
 
     totalMeters += len;
 
-    // Accumulate by coarse mode; label for coloring stays exact
-    if (parentMode[cur] == MODE_FOOT)
+    switch (parentMode[cur])
     {
-      result.distanceWalk += len;
-    }
-    else
-    {
-      result.distanceBike += len;
+      case MODE_FOOT:
+        result.distanceWalk += len;
+        break;
+      case MODE_BIKE_PREFERRED:
+        result.distanceBikePreferred += len;
+        break;
+      case MODE_BIKE_NON_PREFERRED:
+        result.distanceBikeNonPreferred += len;
+        break;
     }
 
     result.pathModes.push_back(parentMode[cur]);  // keep exact label (preferred

@@ -186,7 +186,8 @@ app.post("/route", (req, res) => {
           modes: [],
           distanceM: 0,
           durationS: 0,
-          distanceBike: 0,
+          distanceBikePreferred: 0,
+          distanceBikeNonPreferred: 0,
           distanceWalk: 0,
         });
       }
@@ -195,7 +196,7 @@ app.post("/route", (req, res) => {
 
     const pathIdx = Array.isArray(result.path) ? result.path : [];
     const modes = Array.isArray(result.modes) ? result.modes : [];
-    const { distanceM, durationS, distanceBike, distanceWalk } = result;
+    const { distanceM, durationS, distanceBikePreferred, distanceBikeNonPreferred, distanceWalk } = result;
 
     let coords = [];
     if (LAT && LON && pathIdx.length) {
@@ -230,7 +231,8 @@ app.post("/route", (req, res) => {
       modes,
       distanceM,
       durationS,
-      distanceBike,
+      distanceBikePreferred,
+      distanceBikeNonPreferred,
       distanceWalk,
       startCoord,
       endCoord,

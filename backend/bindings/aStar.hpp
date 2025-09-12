@@ -13,8 +13,8 @@
 // strong-typed flags enum.
 enum : std::uint8_t
 {
-  MODE_BIKE_PREFFERED = 0x1,
-  MODE_BIKE_NON_PREFFERED = 0x2,
+  MODE_BIKE_PREFERRED = 0x1,
+  MODE_BIKE_NON_PREFERRED = 0x2,
   MODE_FOOT = 0x4
 };
 
@@ -85,7 +85,8 @@ struct AStarResult
   double durationS{0.0};
 
   // Distances per mode (aggregates)
-  double distanceBike{0.0};
+  double distanceBikePreferred{0.0};
+  double distanceBikeNonPreferred{0.0};
   double distanceWalk{0.0};
 };
 

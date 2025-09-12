@@ -327,7 +327,7 @@ class FindPathWorker : public Napi::AsyncWorker
     Napi::Array modes = Napi::Array::New(env, res.pathModes.size());
     for (uint32_t i{0}; i < res.pathModes.size(); ++i)
     {
-      // 1=BIKE, 2=FOOT
+      // 1=BIKE_PREFERRED, 2=BIKE_NON_PREFERRED, 4=FOOT
       modes.Set(i, Napi::Number::New(env, res.pathModes[i]));
     }
     out.Set("modes", modes);
@@ -336,7 +336,8 @@ class FindPathWorker : public Napi::AsyncWorker
     out.Set("durationS", Napi::Number::New(env, res.durationS));
 
     // newStuff
-    out.Set("distanceBike", Napi::Number::New(env, res.distanceBike));
+    out.Set("distanceBikePreferred", Napi::Number::New(env, res.distanceBikePreferred));
+    out.Set("distanceBikeNonPreferred", Napi::Number::New(env, res.distanceBikeNonPreferred));
     out.Set("distanceWalk", Napi::Number::New(env, res.distanceWalk));
 
     Callback().Call({env.Null(), out});

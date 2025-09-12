@@ -104,10 +104,15 @@ const ControlPanel = ({
   // stats/flags
   totalDistanceM = 0,
   totalDurationS = 0,
-  distanceBike = 0,
+  distanceBikePreferred = 0,
+  distanceBikeNonPreferred = 0,
   distanceWalk = 0,
   hasSelection = false,
   hasRoute = false,
+  // colors
+  colorBikePreferred,
+  colorBikeNonPreferred,
+  colorWalk,
 }) => {
   const applyBulk = (newMask) => {
     newMask |= SurfaceBits.SURF_UNKNOWN; // keep UNKNOWN for now
@@ -129,6 +134,11 @@ const ControlPanel = ({
     const v = clamp(Number.isFinite(+raw) ? +raw : 0);
     onSetSurfacePenalty?.(v);
   };
+  const commitApply = () =>
+    onApply?.({
+      mask: surfaceMask,
+      surfacePenaltySPerKm: Number(surfacePenaltyDraft),
+    });
 
   return (
     <div
@@ -237,21 +247,14 @@ const ControlPanel = ({
               max={1000}
               step={1}
               value={surfacePenaltyDraft}
-              onChange={handleRange}
+              onChange={handleRange} // update draft as the thumb moves
+              onPointerUp={commitApply} // ← apply on mouseup/touchend/pen up
               style={{ width: "100%" }}
               aria-valuemin={0}
               aria-valuemax={1000}
               aria-valuenow={surfacePenaltyDraft}
               aria-label="Surface penalty in seconds per kilometer"
-              list="penalty-ticks"
             />
-            <datalist id="penalty-ticks">
-              <option value="0" />
-              <option value="250" />
-              <option value="500" />
-              <option value="750" />
-              <option value="1000" />
-            </datalist>
 
             <div
               style={{
@@ -262,23 +265,22 @@ const ControlPanel = ({
                 marginTop: 8,
               }}
             >
-              <div>
-                <input
-                  type="number"
-                  min={0}
-                  max={1000}
-                  step={1}
-                  value={surfacePenaltyDraft}
-                  onChange={handleNumber}
-                  style={{
-                    width: 100,
-                    padding: "4px 6px",
-                    border: "1px solid #ddd",
-                    borderRadius: 6,
-                  }}
-                  aria-label="Surface penalty numeric input"
-                />
-              </div>
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                step={1}
+                value={surfacePenaltyDraft}
+                onChange={handleNumber}
+                onBlur={commitApply} // optional: apply when leaving the field
+                style={{
+                  width: 100,
+                  padding: "4px 6px",
+                  border: "1px solid #ddd",
+                  borderRadius: 6,
+                }}
+                aria-label="Surface penalty numeric input"
+              />
               <output
                 htmlFor="penalty-range"
                 style={{
@@ -312,12 +314,27 @@ const ControlPanel = ({
                 <div style={statsGrid}>
                   <div>Duration</div>
                   <div style={statVal}>{formatDuration(totalDurationS)}</div>
-                  <div>Distance</div>
+                  <div>Total Distance</div>
                   <div style={statVal}>{formatKm(totalDistanceM)}</div>
-                  <div>Bike</div>
-                  <div style={statVal}>{formatKm(distanceBike)}</div>
-                  <div>Walk</div>
-                  <div style={statVal}>{formatKm(distanceWalk)}</div>
+
+                  <div style={{ color: colorBikePreferred }}>
+                    Bike Preferred Surface
+                  </div>
+                  <div style={{ ...statVal, color: colorBikePreferred }}>
+                    {formatKm(distanceBikePreferred)}
+                  </div>
+
+                  <div style={{ color: colorBikePreferred }}>
+                    Bike Non-Preferred Surface
+                  </div>
+                  <div style={{ ...statVal, color: colorBikeNonPreferred }}>
+                    {formatKm(distanceBikeNonPreferred)}
+                  </div>
+
+                  <div style={{ color: colorWalk }}>Walk</div>
+                  <div style={{ ...statVal, color: colorWalk }}>
+                    {formatKm(distanceWalk)}
+                  </div>
                 </div>
               </>
             )}

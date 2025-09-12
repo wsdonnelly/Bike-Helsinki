@@ -26,15 +26,22 @@ const App = () => {
   // Stats (meters / seconds)
   const [totalDistanceM, setTotalDistanceM] = useState(0);
   const [totalDurationS, setTotalDurationS] = useState(0);
-  const [distanceBike, setDistanceBike] = useState(0);
+  const [distanceBikePreferred, setDistanceBikePreferred] = useState(0);
+  const [distanceBikeNonPreferred, setDistanceBikeNonPreferred] = useState(0);
   const [totalDistanceWalk, setDistanceWalk] = useState(0); // (name mismatch ok)
 
   const resetStats = () => {
     setTotalDistanceM(0);
     setTotalDurationS(0);
-    setDistanceBike(0);
+    setDistanceBikePreferred(0);
+    setDistanceBikeNonPreferred(0);
     setDistanceWalk(0);
   };
+
+  // Colors
+  const colorBikePreferred = "#007AFF"; // blue solid
+  const colorBikeNonPreferred = "#FF7F0E"; // orange solid
+  const colorWalk = "#7C3AED"; // black dotted
 
   // ---- Routing ----
   const fetchRoute = useCallback(
@@ -73,9 +80,14 @@ const App = () => {
         setRouteCoords(coords);
         setRouteModes(modes);
 
+        console.log(
+          "distanceBikePreferred here:",
+          result?.distanceBikePreferred
+        );
         setTotalDistanceM(result?.distanceM ?? 0);
         setTotalDurationS(result?.durationS ?? 0);
-        setDistanceBike(result?.distanceBike ?? 0);
+        setDistanceBikePreferred(result?.distanceBikePreferred ?? 0);
+        setDistanceBikeNonPreferred(result?.distanceBikeNonPreferred ?? 0);
         setDistanceWalk(result?.distanceWalk ?? 0);
 
         if (coords.length < 2) resetStats();
@@ -154,6 +166,9 @@ const App = () => {
         routeCoords={routeCoords}
         routeModes={routeModes}
         onMapClick={handleMapClick}
+        colorBikePreferred={colorBikePreferred}
+        colorBikeNonPreferred={colorBikeNonPreferred}
+        colorWalk={colorWalk}
       />
 
       <ControlPanel
@@ -168,10 +183,14 @@ const App = () => {
         onApply={applySettings}
         totalDistanceM={totalDistanceM}
         totalDurationS={totalDurationS}
-        distanceBike={distanceBike}
+        distanceBikePreferred={distanceBikePreferred}
+        distanceBikeNonPreferred={distanceBikeNonPreferred}
         distanceWalk={totalDistanceWalk}
         hasSelection={Boolean(snappedStart && snappedEnd)}
         hasRoute={routeCoords.length > 1}
+        colorBikePreferred={colorBikePreferred}
+        colorBikeNonPreferred={colorBikeNonPreferred}
+        colorWalk={colorWalk}
       />
     </>
   );

@@ -77,6 +77,9 @@ export function MapView({
   snappedEnd,
   routeCoords,
   routeModes,
+  colorBikePreferred,
+  colorBikeNonPreferred,
+  colorWalk
 }) {
   const startIcon = useMemo(() => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }), []);
   const endIcon   = useMemo(() => makePinIcon({ color: "#e74c3c", label: "T", anchorY: 42 }), []);
@@ -94,11 +97,6 @@ export function MapView({
     () => splitRuns(routeCoords, routeModes, MODE_FOOT),
     [routeCoords, routeModes]
   );
-
-  // Colors
-  const colorBikePreferred   = "#007AFF"; // blue solid
-  const colorBikeNonPreferred= "#FF7F0E"; // orange solid
-  const colorWalk            = "#000000"; // black dotted
 
   return (
     <MapContainer
