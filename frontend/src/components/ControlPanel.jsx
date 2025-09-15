@@ -1,4 +1,6 @@
 import React from "react";
+import SurfacePenaltyControl from "./SurfacePenaltyControl";
+import RideStats from "./RideStats";
 
 // Bit flags must match injest/surfaceTypes.hpp
 export const SurfaceBits = {
@@ -66,38 +68,20 @@ const ALL_BITS_MASK = GROUPS.reduce(
   0
 );
 
-// ---- helpers for formatting ----
-const formatKm = (m) => {
-  const km = (m || 0) / 1000;
-  if (km === 0) return "0.0 km";
-  return `${km < 10 ? km.toFixed(2) : km.toFixed(1)} km`;
-};
-const formatDuration = (t) => {
-  const total = Math.max(0, Math.floor(t ?? 0)); // clamp & int seconds
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h > 0)
-    return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(
-      2,
-      "0"
-    )}s`;
-  if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
-  return `${s}s`;
-};
-
-const clamp = (n, lo = 0, hi = 1000) => Math.min(hi, Math.max(lo, n));
-
 const ControlPanel = ({
   surfaceMask,
   onToggleSurface,
   onSetSurfaceMask,
+
+  // Apply captured by this component (calls App.applySettings)
   onApply,
+
+  // open/close
   onOpen,
   onClose,
   panelOpen,
 
-  // slider props
+  // slider (draft stored in App)
   surfacePenaltyDraft = 0,
   onSetSurfacePenalty,
 
@@ -109,13 +93,14 @@ const ControlPanel = ({
   distanceWalk = 0,
   hasSelection = false,
   hasRoute = false,
-  // colors
+
+  // colors (match map)
   colorBikePreferred,
   colorBikeNonPreferred,
   colorWalk,
 }) => {
   const applyBulk = (newMask) => {
-    newMask |= SurfaceBits.SURF_UNKNOWN; // keep UNKNOWN for now
+    newMask |= SurfaceBits.SURF_UNKNOWN;
     onSetSurfaceMask?.(newMask);
   };
 
@@ -124,225 +109,138 @@ const ControlPanel = ({
   const selectPaved = () => applyBulk(PAVED_BITS_MASK);
   const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
 
-  const handleRange = (e) => {
-    const v = clamp(+e.target.value);
-    onSetSurfacePenalty?.(v);
-  };
-  const handleNumber = (e) => {
-    const raw = e.target.value;
-    // Guard NaN while editing; allow empty -> 0
-    const v = clamp(Number.isFinite(+raw) ? +raw : 0);
-    onSetSurfacePenalty?.(v);
-  };
+  // call App.applySettings with the latest draft values
   const commitApply = () =>
     onApply?.({
       mask: surfaceMask,
       surfacePenaltySPerKm: Number(surfacePenaltyDraft),
     });
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        height: "100%",
-        zIndex: 9999,
-        pointerEvents: "none",
-      }}
-    >
-      {!panelOpen && (
-        <button
-          type="button"
-          aria-label="Open surface filters"
-          onClick={onOpen}
-          style={toggleBtn}
-        >
-          ☰
-        </button>
-      )}
+  const stickyTray = {
+    position: "sticky",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    background: "#fff",
+    borderTop: "1px solid #eee",
+    /* give it a tiny elevation so it feels like a footer */
+    boxShadow: "0 -2px 6px rgba(0,0,0,0.05)",
+  };
 
-      {panelOpen && (
-        <div
-          role="dialog"
-          aria-modal="false"
-          aria-label="Surface filters"
-          style={panel}
-        >
-          <div style={hdr}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
-              Surface Types
-            </h2>
-            <button type="button" onClick={onClose} style={btnSm}>
-              Close
-            </button>
-            <button
-              type="button"
-              aria-label="Apply"
-              onClick={() =>
-                onApply({
-                  mask: surfaceMask,
-                  surfacePenaltySPerKm: surfacePenaltyDraft,
-                })
-              }
-              style={{ ...btnSm, marginLeft: 6 }}
-            >
-              Apply
-            </button>
-          </div>
+return (
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      height: "100%",
+      zIndex: 9999,
+      pointerEvents: "none",
+    }}
+  >
+    {!panelOpen && (
+      <button
+        type="button"
+        aria-label="Open surface filters"
+        onClick={onOpen}
+        style={toggleBtn}
+      >
+        ☰
+      </button>
+    )}
 
-          {/* bulk buttons */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button type="button" onClick={selectAll} style={btnSm}>
-              All
-            </button>
-            <button type="button" onClick={selectNone} style={btnSm}>
-              None
-            </button>
-            <button type="button" onClick={selectPaved} style={btnSm}>
-              Paved
-            </button>
-            <button type="button" onClick={selectUnpaved} style={btnSm}>
-              Unpaved
-            </button>
-          </div>
-
-          {/* surface checkboxes */}
-          {GROUPS.map((group) => (
-            <fieldset key={group.title} style={fs}>
-              <legend style={legend}>{group.title}</legend>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {group.items.map(([key, bit, label]) => {
-                  const id = `surf-${key.toLowerCase()}`;
-                  const checked = (surfaceMask & bit) !== 0;
-                  return (
-                    <li key={key} style={row}>
-                      <label htmlFor={id} style={{ fontSize: 14 }}>
-                        {label}
-                      </label>
-                      <input
-                        id={id}
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => onToggleSurface(bit)}
-                        aria-checked={checked}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </fieldset>
-          ))}
-
-          {/* Surface penalty slider (0–1000 s/km) */}
-          <div style={section}>
-            <label htmlFor="penalty-range" style={sectionLabel}>
-              Surface penalty <span style={{ color: "#666" }}>(s/km)</span>
-            </label>
-
-            <input
-              id="penalty-range"
-              type="range"
-              min={0}
-              max={1000}
-              step={1}
-              value={surfacePenaltyDraft}
-              onChange={handleRange} // update draft as the thumb moves
-              onPointerUp={commitApply} // ← apply on mouseup/touchend/pen up
-              style={{ width: "100%" }}
-              aria-valuemin={0}
-              aria-valuemax={1000}
-              aria-valuenow={surfacePenaltyDraft}
-              aria-label="Surface penalty in seconds per kilometer"
-            />
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-                marginTop: 8,
-              }}
-            >
-              <input
-                type="number"
-                min={0}
-                max={1000}
-                step={1}
-                value={surfacePenaltyDraft}
-                onChange={handleNumber}
-                onBlur={commitApply} // optional: apply when leaving the field
-                style={{
-                  width: 100,
-                  padding: "4px 6px",
-                  border: "1px solid #ddd",
-                  borderRadius: 6,
-                }}
-                aria-label="Surface penalty numeric input"
-              />
-              <output
-                htmlFor="penalty-range"
-                style={{
-                  fontSize: 12,
-                  color: "#333",
-                  minWidth: 60,
-                  textAlign: "right",
-                }}
-              >
-                {surfacePenaltyDraft} s/km
-              </output>
-            </div>
-          </div>
-
-          {/* ---- sticky bottom stats ---- */}
-          <div style={statsBox}>
-            {!hasSelection ? (
-              <div style={{ fontSize: 12, color: "#666" }}>
-                Pick two points on the map to compute a route.
-              </div>
-            ) : !hasRoute ? (
-              <div style={noRouteBox} role="status" aria-live="polite">
-                <strong>No route found</strong>
-                <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-                  Try adjusting surface filters or picking closer points.
-                </div>
-              </div>
-            ) : (
-              <>
-                <div style={statsHeader}>Ride stats</div>
-                <div style={statsGrid}>
-                  <div>Duration</div>
-                  <div style={statVal}>{formatDuration(totalDurationS)}</div>
-                  <div>Total Distance</div>
-                  <div style={statVal}>{formatKm(totalDistanceM)}</div>
-
-                  <div style={{ color: colorBikePreferred }}>
-                    Bike Preferred Surface
-                  </div>
-                  <div style={{ ...statVal, color: colorBikePreferred }}>
-                    {formatKm(distanceBikePreferred)}
-                  </div>
-
-                  <div style={{ color: colorBikeNonPreferred }}>
-                    Bike Non-Preferred Surface
-                  </div>
-                  <div style={{ ...statVal, color: colorBikeNonPreferred }}>
-                    {formatKm(distanceBikeNonPreferred)}
-                  </div>
-
-                  <div style={{ color: colorWalk }}>Walk</div>
-                  <div style={{ ...statVal, color: colorWalk }}>
-                    {formatKm(distanceWalk)}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+    {panelOpen && (
+      <div
+        role="dialog"
+        aria-modal="false"
+        aria-label="Surface filters"
+        style={panel}
+      >
+        <div style={hdr}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
+            Surface Types
+          </h2>
+          <button type="button" onClick={onClose} style={btnSm}>
+            Close
+          </button>
+          <button
+            type="button"
+            aria-label="Apply"
+            onClick={commitApply}
+            style={{ ...btnSm, marginLeft: 6 }}
+          >
+            Apply
+          </button>
         </div>
-      )}
-    </div>
-  );
+
+        {/* bulk buttons */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button type="button" onClick={selectAll} style={btnSm}>
+            All
+          </button>
+          <button type="button" onClick={selectNone} style={btnSm}>
+            None
+          </button>
+          <button type="button" onClick={selectPaved} style={btnSm}>
+            Paved
+          </button>
+          <button type="button" onClick={selectUnpaved} style={btnSm}>
+            Unpaved
+          </button>
+        </div>
+
+        {/* surface checkboxes */}
+        {GROUPS.map((group) => (
+          <fieldset key={group.title} style={fs}>
+            <legend style={legend}>{group.title}</legend>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {group.items.map(([key, bit, label]) => {
+                const id = `surf-${key.toLowerCase()}`;
+                const checked = (surfaceMask & bit) !== 0;
+                return (
+                  <li key={key} style={row}>
+                    <label htmlFor={id} style={{ fontSize: 14 }}>
+                      {label}
+                    </label>
+                    <input
+                      id={id}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggleSurface(bit)}
+                      aria-checked={checked}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </fieldset>
+        ))}
+
+        {/* sticky tray: slider above stats */}
+        <div style={stickyTray}>
+          <SurfacePenaltyControl
+            value={surfacePenaltyDraft}
+            onChange={onSetSurfacePenalty}
+            onApply={commitApply}
+          />
+          <RideStats
+            sticky={false} // tray handles stickiness
+            hasSelection={hasSelection}
+            hasRoute={hasRoute}
+            totalDistanceM={totalDistanceM}
+            totalDurationS={totalDurationS}
+            distanceBikePreferred={distanceBikePreferred}
+            distanceBikeNonPreferred={distanceBikeNonPreferred}
+            distanceWalk={distanceWalk}
+            colorBikePreferred={colorBikePreferred}
+            colorBikeNonPreferred={colorBikeNonPreferred}
+            colorWalk={colorWalk}
+          />
+        </div>
+      </div>
+    )}
+  </div>
+);
 };
 
 // tiny style helpers
@@ -393,48 +291,6 @@ const row = {
   alignItems: "center",
   padding: "6px 0",
   borderBottom: "1px dashed #f1f1f1",
-};
-
-/* stats styles */
-const statsBox = {
-  position: "sticky",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  background: "#fff",
-  borderTop: "1px solid #eee",
-  paddingTop: 10,
-  paddingBottom: 12,
-};
-const statsHeader = { fontWeight: 700, fontSize: 13, marginBottom: 6 };
-const statsGrid = {
-  display: "grid",
-  gridTemplateColumns: "1fr auto",
-  rowGap: 6,
-  columnGap: 12,
-  fontSize: 13,
-};
-const statVal = { fontWeight: 600 };
-const noRouteBox = {
-  padding: 8,
-  borderRadius: 6,
-  background: "#fafafa",
-  border: "1px solid #eee",
-  fontSize: 13,
-};
-
-// small section styles
-const section = {
-  border: "1px solid #eee",
-  borderRadius: 6,
-  padding: 12,
-  marginBottom: 12,
-};
-const sectionLabel = {
-  display: "block",
-  fontWeight: 600,
-  fontSize: 13,
-  marginBottom: 8,
 };
 
 export default ControlPanel;
