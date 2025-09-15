@@ -371,7 +371,7 @@ const panel = {
   position: "absolute",
   top: 0,
   left: 0,
-  width: 300,
+  width: "min(92vw, 320px)",
   height: "100%",
   backgroundColor: "#fff",
   boxShadow: "2px 0 5px rgba(0,0,0,0.2)",

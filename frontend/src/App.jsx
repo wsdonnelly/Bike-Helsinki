@@ -80,10 +80,6 @@ const App = () => {
         setRouteCoords(coords);
         setRouteModes(modes);
 
-        console.log(
-          "distanceBikePreferred here:",
-          result?.distanceBikePreferred
-        );
         setTotalDistanceM(result?.distanceM ?? 0);
         setTotalDurationS(result?.durationS ?? 0);
         setDistanceBikePreferred(result?.distanceBikePreferred ?? 0);

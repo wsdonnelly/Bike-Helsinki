@@ -102,7 +102,7 @@ export function MapView({
     <MapContainer
       center={[60.1699, 24.9384]}
       zoom={15}
-      style={{ height: "100vh", width: "100vw" }}
+      style={{ height: "100dvh", width: "100vw" }}
       zoomControl={false}
       preferCanvas
       maxBounds={[[59.0, 19.0],[62.5, 31.5]]}
