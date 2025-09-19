@@ -179,6 +179,17 @@ app.post("/route", (req, res) => {
   router.findPath(opts, (err, result) => {
     if (err) {
       console.error("findPath error:", err);
+      let sourceId = router.getNodeIdByIdx(opts.sourceIdx);
+      console.error(
+        "source:",
+        `https://api.openstreetmap.org/api/0.6/node/${sourceId}/ways`
+      );
+      let targetId = router.getNodeIdByIdx(opts.targetIdx);
+      console.error(
+        "target:",
+        `https://api.openstreetmap.org/api/0.6/node/${targetId}/ways`
+      );
+
       if (String(err).includes("no route")) {
         return res.json({
           path: [],
@@ -196,7 +207,13 @@ app.post("/route", (req, res) => {
 
     const pathIdx = Array.isArray(result.path) ? result.path : [];
     const modes = Array.isArray(result.modes) ? result.modes : [];
-    const { distanceM, durationS, distanceBikePreferred, distanceBikeNonPreferred, distanceWalk } = result;
+    const {
+      distanceM,
+      durationS,
+      distanceBikePreferred,
+      distanceBikeNonPreferred,
+      distanceWalk,
+    } = result;
 
     let coords = [];
     if (LAT && LON && pathIdx.length) {

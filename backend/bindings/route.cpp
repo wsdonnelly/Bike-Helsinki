@@ -17,7 +17,7 @@
 #include "aStar.hpp"
 #include "binHeaders.hpp"
 
-// 2) Return a shared_ptr directly (no by-value temporary)
+// Return a shared_ptr directly (no by-value temporary)
 static std::shared_ptr<MappedFile> mapReadonlySp(const std::string& filePath)
 {
   auto mapping = std::make_shared<MappedFile>();
@@ -336,8 +336,10 @@ class FindPathWorker : public Napi::AsyncWorker
     out.Set("durationS", Napi::Number::New(env, res.durationS));
 
     // newStuff
-    out.Set("distanceBikePreferred", Napi::Number::New(env, res.distanceBikePreferred));
-    out.Set("distanceBikeNonPreferred", Napi::Number::New(env, res.distanceBikeNonPreferred));
+    out.Set("distanceBikePreferred",
+            Napi::Number::New(env, res.distanceBikePreferred));
+    out.Set("distanceBikeNonPreferred",
+            Napi::Number::New(env, res.distanceBikeNonPreferred));
     out.Set("distanceWalk", Napi::Number::New(env, res.distanceWalk));
 
     Callback().Call({env.Null(), out});
@@ -350,6 +352,57 @@ class FindPathWorker : public Napi::AsyncWorker
   AStarResult res;
   std::string err;
 };
+
+static Napi::Value GetNodeIdByIdx(const Napi::CallbackInfo& info)
+{
+  Napi::Env env = info.Env();
+
+  if (info.Length() != 1 || !(info[0].IsNumber() || info[0].IsBigInt()))
+  {
+    Napi::TypeError::New(
+        env, "getNodeIdByIdx(idx:uint32) expects exactly one argument")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  uint32_t idx = 0;
+  if (info[0].IsNumber())
+  {
+    double d = info[0].As<Napi::Number>().DoubleValue();
+    if (!std::isfinite(d) || d < 0 ||
+        d > static_cast<double>(std::numeric_limits<uint32_t>::max()) ||
+        std::floor(d) != d)
+    {
+      Napi::RangeError::New(env, "idx must be a non-negative 32-bit integer")
+          .ThrowAsJavaScriptException();
+      return env.Undefined();
+    }
+    idx = static_cast<uint32_t>(d);
+  }
+  else
+  {  // BigInt input
+    bool lossless = false;
+    uint64_t v = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+    if (!lossless || v > std::numeric_limits<uint32_t>::max())
+    {
+      Napi::RangeError::New(env, "idx BigInt out of 32-bit range")
+          .ThrowAsJavaScriptException();
+      return env.Undefined();
+    }
+    idx = static_cast<uint32_t>(v);
+  }
+
+  if (glNodes.ids == nullptr || idx >= glNodes.numNodes)
+  {
+    Napi::RangeError::New(env, "idx out of range").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  uint64_t id = glNodes.ids[idx];
+  return Napi::BigInt::New(env, id);  // precise return
+  // If you prefer Number (safe for OSM IDs today), use:
+  // return Napi::Number::New(env, static_cast<double>(id));
+}
 
 // JS: findPath(options, callback)
 // options = {
@@ -430,6 +483,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
         .ThrowAsJavaScriptException();
   }
   exports.Set("findPath", Napi::Function::New(env, FindPath));
+  exports.Set("getNodeIdByIdx", Napi::Function::New(env, GetNodeIdByIdx));
   return exports;
 }
 

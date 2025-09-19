@@ -39,8 +39,6 @@ API.interceptors.response.use(
   }
 );
 
-export const ALL_SURFACES = 0xffff; // keep if you pass masks from the UI
-
 /** Snap a lat/lon to the nearest graph node. */
 export async function snapToGraph(lat, lon) {
   const { data } = await API.get("/snap", { params: { lat, lon } });
