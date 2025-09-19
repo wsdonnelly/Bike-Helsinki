@@ -58,7 +58,7 @@ export async function getRoute({ startIdx, endIdx, options = {} }) {
 /**
  * Get meta/health info.
  * - If /meta exists on your server, we'll use it.
- * - Otherwise we fall back to /healthz (which you already added).
+ * - Otherwise we fall back to /healthz
  */
 export async function getMeta() {
   try {

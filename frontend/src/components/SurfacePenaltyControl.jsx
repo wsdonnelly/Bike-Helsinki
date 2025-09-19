@@ -1,14 +1,14 @@
 import React from "react";
 
-const clamp = (n, lo = 0, hi = 1000) => Math.min(hi, Math.max(lo, n));
-const strengthText = (v) => (v <= 200 ? "Weak" : v <= 700 ? "Moderate" : "Strong");
+const clamp = (n, lo = 0, hi = 300) => Math.min(hi, Math.max(lo, n));
+const strengthText = (v) => (v <= 100 ? "Weak" : v <= 200 ? "Moderate" : "Strong");
 
 export default function SurfacePenaltyControl({
   value = 0,
   onChange,   // (number) => void
   onApply,    // () => void
   min = 0,
-  max = 1000,
+  max = 300,
   step = 1,
 }) {
   const handleRange = (e) => onChange?.(clamp(+e.target.value, min, max));
@@ -65,10 +65,10 @@ export default function SurfacePenaltyControl({
 
       <datalist id="penalty-ticks">
         <option value="0" />
-        <option value="250" />
-        <option value="500" />
-        <option value="750" />
-        <option value="1000" />
+        <option value="75" />
+        <option value="150" />
+        <option value="225" />
+        <option value="300" />
       </datalist>
 
       <div
