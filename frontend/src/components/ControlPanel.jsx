@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import SurfacePenaltyControl from "./SurfacePenaltyControl";
 import RideStats from "./RideStats";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // Bit flags must match injest/surfaceTypes.hpp
 export const SurfaceBits = {
@@ -72,20 +73,12 @@ const ControlPanel = ({
   surfaceMask,
   onToggleSurface,
   onSetSurfaceMask,
-
-  // Apply captured by this component (calls App.applySettings)
   onApply,
-
-  // open/close
   onOpen,
   onClose,
   panelOpen,
-
-  // slider (draft stored in App)
   surfacePenaltyDraft = 0,
   onSetSurfacePenalty,
-
-  // stats/flags
   totalDistanceM = 0,
   totalDurationS = 0,
   distanceBikePreferred = 0,
@@ -93,12 +86,13 @@ const ControlPanel = ({
   distanceWalk = 0,
   hasSelection = false,
   hasRoute = false,
-
-  // colors (match map)
   colorBikePreferred,
   colorBikeNonPreferred,
   colorWalk,
 }) => {
+  const isMobile = useIsMobile("(max-width: 640px)");
+  const [activeTab, setActiveTab] = useState("filters");
+
   const applyBulk = (newMask) => {
     newMask |= SurfaceBits.SURF_UNKNOWN;
     onSetSurfaceMask?.(newMask);
@@ -109,141 +103,316 @@ const ControlPanel = ({
   const selectPaved = () => applyBulk(PAVED_BITS_MASK);
   const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
 
-  // call App.applySettings with the latest draft values
   const commitApply = () =>
     onApply?.({
       mask: surfaceMask,
       surfacePenaltySPerKm: Number(surfacePenaltyDraft),
     });
 
-  const stickyTray = {
-    position: "sticky",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    background: "#fff",
-    borderTop: "1px solid #eee",
-    /* give it a tiny elevation so it feels like a footer */
-    boxShadow: "0 -2px 6px rgba(0,0,0,0.05)",
-  };
-
-return (
-  <div
-    style={{
-      position: "fixed",
-      top: 0,
+  // If NOT mobile, render exactly like the original working version
+  if (!isMobile) {
+    const stickyTray = {
+      position: "sticky",
+      bottom: 0,
       left: 0,
-      height: "100%",
-      zIndex: 9999,
-      pointerEvents: "none",
-    }}
-  >
-    {!panelOpen && (
-      <button
-        type="button"
-        aria-label="Open surface filters"
-        onClick={onOpen}
-        style={toggleBtn}
-      >
-        ☰
-      </button>
-    )}
+      right: 0,
+      background: "#fff",
+      borderTop: "1px solid #eee",
+      boxShadow: "0 -2px 6px rgba(0,0,0,0.05)",
+    };
 
-    {panelOpen && (
+    return (
       <div
-        role="dialog"
-        aria-modal="false"
-        aria-label="Surface filters"
-        style={panel}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          height: "100%",
+          zIndex: 9999,
+          pointerEvents: "none",
+        }}
       >
-        <div style={hdr}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
-            Surface Types
-          </h2>
-          <button type="button" onClick={onClose} style={btnSm}>
-            Close
-          </button>
+        {!panelOpen && (
           <button
             type="button"
-            aria-label="Apply"
-            onClick={commitApply}
-            style={{ ...btnSm, marginLeft: 6 }}
+            aria-label="Open surface filters"
+            onClick={onOpen}
+            style={toggleBtn}
           >
-            Apply
+            ☰
           </button>
-        </div>
+        )}
 
-        {/* bulk buttons */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <button type="button" onClick={selectAll} style={btnSm}>
-            All
-          </button>
-          <button type="button" onClick={selectNone} style={btnSm}>
-            None
-          </button>
-          <button type="button" onClick={selectPaved} style={btnSm}>
-            Paved
-          </button>
-          <button type="button" onClick={selectUnpaved} style={btnSm}>
-            Unpaved
-          </button>
-        </div>
+        {panelOpen && (
+          <div
+            role="dialog"
+            aria-modal="false"
+            aria-label="Surface filters"
+            style={panel}
+          >
+            <div style={hdr}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
+                Surface Types
+              </h2>
+              <button type="button" onClick={onClose} style={btnSm}>
+                Close
+              </button>
+              <button
+                type="button"
+                aria-label="Apply"
+                onClick={commitApply}
+                style={{ ...btnSm, marginLeft: 6 }}
+              >
+                Apply
+              </button>
+            </div>
 
-        {/* surface checkboxes */}
-        {GROUPS.map((group) => (
-          <fieldset key={group.title} style={fs}>
-            <legend style={legend}>{group.title}</legend>
-            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {group.items.map(([key, bit, label]) => {
-                const id = `surf-${key.toLowerCase()}`;
-                const checked = (surfaceMask & bit) !== 0;
-                return (
-                  <li key={key} style={row}>
-                    <label htmlFor={id} style={{ fontSize: 14 }}>
-                      {label}
-                    </label>
-                    <input
-                      id={id}
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onToggleSurface(bit)}
-                      aria-checked={checked}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </fieldset>
-        ))}
+            {/* bulk buttons */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button type="button" onClick={selectAll} style={btnSm}>
+                All
+              </button>
+              <button type="button" onClick={selectNone} style={btnSm}>
+                None
+              </button>
+              <button type="button" onClick={selectPaved} style={btnSm}>
+                Paved
+              </button>
+              <button type="button" onClick={selectUnpaved} style={btnSm}>
+                Unpaved
+              </button>
+            </div>
 
-        {/* sticky tray: slider above stats */}
-        <div style={stickyTray}>
-          <SurfacePenaltyControl
-            value={surfacePenaltyDraft}
-            onChange={onSetSurfacePenalty}
-            onApply={commitApply}
-          />
-          <RideStats
-            sticky={false} // tray handles stickiness
-            hasSelection={hasSelection}
-            hasRoute={hasRoute}
-            totalDistanceM={totalDistanceM}
-            totalDurationS={totalDurationS}
-            distanceBikePreferred={distanceBikePreferred}
-            distanceBikeNonPreferred={distanceBikeNonPreferred}
-            distanceWalk={distanceWalk}
-            colorBikePreferred={colorBikePreferred}
-            colorBikeNonPreferred={colorBikeNonPreferred}
-            colorWalk={colorWalk}
-          />
-        </div>
+            {/* surface checkboxes */}
+            {GROUPS.map((group) => (
+              <fieldset key={group.title} style={fs}>
+                <legend style={legend}>{group.title}</legend>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {group.items.map(([key, bit, label]) => {
+                    const id = `surf-${key.toLowerCase()}`;
+                    const checked = (surfaceMask & bit) !== 0;
+                    return (
+                      <li key={key} style={row}>
+                        <label htmlFor={id} style={{ fontSize: 14 }}>
+                          {label}
+                        </label>
+                        <input
+                          id={id}
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => onToggleSurface(bit)}
+                          aria-checked={checked}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </fieldset>
+            ))}
+
+            {/* sticky tray: slider above stats - EXACTLY like original */}
+            <div style={stickyTray}>
+              <SurfacePenaltyControl
+                value={surfacePenaltyDraft}
+                onChange={onSetSurfacePenalty}
+                onApply={commitApply}
+              />
+              <RideStats
+                sticky={false}
+                hasSelection={hasSelection}
+                hasRoute={hasRoute}
+                totalDistanceM={totalDistanceM}
+                totalDurationS={totalDurationS}
+                distanceBikePreferred={distanceBikePreferred}
+                distanceBikeNonPreferred={distanceBikeNonPreferred}
+                distanceWalk={distanceWalk}
+                colorBikePreferred={colorBikePreferred}
+                colorBikeNonPreferred={colorBikeNonPreferred}
+                colorWalk={colorWalk}
+              />
+            </div>
+          </div>
+        )}
       </div>
-    )}
-  </div>
-);
+    );
+  }
+
+  // Mobile version - separate container structure
+  return (
+    <>
+      {!panelOpen && (
+        <button
+          type="button"
+          aria-label="Open surface filters"
+          onClick={onOpen}
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            padding: "12px 16px",
+            zIndex: 10000,
+            border: "1px solid #ccc",
+            borderRadius: 50,
+            backgroundColor: "#fff",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            cursor: "pointer",
+            pointerEvents: "auto",
+            fontSize: 18,
+          }}
+        >
+          ☰
+        </button>
+      )}
+
+      {panelOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Surface filters"
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            maxHeight: "85vh",
+            backgroundColor: "#fff",
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            boxShadow: "0 -4px 20px rgba(0,0,0,0.15)",
+            overflowY: "auto",
+            padding: 16,
+            pointerEvents: "auto",
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Mobile header */}
+          <div style={hdr}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
+              Route Options
+            </h2>
+            <button type="button" onClick={onClose} style={btnSm}>
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={commitApply}
+              style={{ ...btnSm, marginLeft: 6 }}
+            >
+              Apply
+            </button>
+          </div>
+
+          {/* Mobile tabs */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button
+              onClick={() => setActiveTab("filters")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                border: "1px solid #eee",
+                borderRadius: 8,
+                cursor: "pointer",
+                backgroundColor: activeTab === "filters" ? "#f0f0f0" : "#fff",
+                fontWeight: activeTab === "filters" ? 600 : 400,
+              }}
+            >
+              Filters
+            </button>
+            <button
+              onClick={() => setActiveTab("stats")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                border: "1px solid #eee",
+                borderRadius: 8,
+                cursor: "pointer",
+                backgroundColor: activeTab === "stats" ? "#f0f0f0" : "#fff",
+                fontWeight: activeTab === "stats" ? 600 : 400,
+              }}
+            >
+              Stats
+            </button>
+          </div>
+
+          {/* Content based on active tab */}
+          {activeTab === "filters" && (
+            <>
+              {/* bulk buttons */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <button type="button" onClick={selectAll} style={btnSm}>
+                  All
+                </button>
+                <button type="button" onClick={selectNone} style={btnSm}>
+                  None
+                </button>
+                <button type="button" onClick={selectPaved} style={btnSm}>
+                  Paved
+                </button>
+                <button type="button" onClick={selectUnpaved} style={btnSm}>
+                  Unpaved
+                </button>
+              </div>
+
+              {/* surface checkboxes */}
+              {GROUPS.map((group) => (
+                <fieldset key={group.title} style={fs}>
+                  <legend style={legend}>{group.title}</legend>
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    {group.items.map(([key, bit, label]) => {
+                      const id = `surf-${key.toLowerCase()}`;
+                      const checked = (surfaceMask & bit) !== 0;
+                      return (
+                        <li key={key} style={row}>
+                          <label htmlFor={id} style={{ fontSize: 14 }}>
+                            {label}
+                          </label>
+                          <input
+                            id={id}
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => onToggleSurface(bit)}
+                            aria-checked={checked}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </fieldset>
+              ))}
+            </>
+          )}
+
+          {activeTab === "stats" && (
+            <div>
+              <SurfacePenaltyControl
+                value={surfacePenaltyDraft}
+                onChange={onSetSurfacePenalty}
+                onApply={commitApply}
+              />
+              <RideStats
+                sticky={false}
+                hasSelection={hasSelection}
+                hasRoute={hasRoute}
+                totalDistanceM={totalDistanceM}
+                totalDurationS={totalDurationS}
+                distanceBikePreferred={distanceBikePreferred}
+                distanceBikeNonPreferred={distanceBikeNonPreferred}
+                distanceWalk={distanceWalk}
+                colorBikePreferred={colorBikePreferred}
+                colorBikeNonPreferred={colorBikeNonPreferred}
+                colorWalk={colorWalk}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
 };
 
-// tiny style helpers
+// Exact same styles as original
 const toggleBtn = {
   position: "absolute",
   top: 80,
@@ -257,6 +426,7 @@ const toggleBtn = {
   cursor: "pointer",
   pointerEvents: "auto",
 };
+
 const btnSm = {
   border: "1px solid #ddd",
   background: "#fff",
@@ -265,6 +435,7 @@ const btnSm = {
   fontSize: 12,
   cursor: "pointer",
 };
+
 const panel = {
   position: "absolute",
   top: 0,
@@ -277,14 +448,18 @@ const panel = {
   padding: 16,
   pointerEvents: "auto",
 };
+
 const hdr = { display: "flex", alignItems: "center", gap: 8, marginBottom: 12 };
+
 const fs = {
   border: "1px solid #eee",
   borderRadius: 6,
   padding: 12,
   marginBottom: 12,
 };
+
 const legend = { fontWeight: 600, fontSize: 13, padding: "0 6px" };
+
 const row = {
   display: "flex",
   justifyContent: "space-between",
