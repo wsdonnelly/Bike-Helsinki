@@ -44,11 +44,11 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
   const double wSurfPerM =
       std::max(0.0, params.surfacePenaltySPerKm) * 0.001;  // s per meter
 
-  // Heuristic = optimistic straight-line time with vmax (no penalties)
   double targetLat, targetLon;
   nodeDeg(nodesView, targetIdx, targetLat, targetLon);
   const double vmax = std::max(params.bikeSpeedMps, params.walkSpeedMps);
 
+  // Heuristic = optimistic straight-line time with vmax (no penalties)
   auto heuristic = [&](uint32_t currentIdx) -> double {
     double currentLat, currentLon;
     nodeDeg(nodesView, currentIdx, currentLat, currentLon);
@@ -62,48 +62,66 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
   const uint32_t S_walk = StateKey::idx(sourceIdx, Layer::Walk);
 
   // States
-  std::vector<double> gScore(2 * numNodes, INF);
+  std::vector<double> gCost(2 * numNodes, INF);
+  // keep track of actual time
+  std::vector<double> gTime(2 * numNodes, INF);
   std::vector<uint32_t> parent(2 * numNodes, UINT32_MAX);
-  std::vector<uint8_t> parentMode(2 * numNodes, 0);  // stores OUTPUT step label
-  std::vector<uint32_t> parentEdge(2 * numNodes,
-                                   UINT32_MAX);  // UINT32_MAX => mode switch
+  // stores OUTPUT step label
+  std::vector<uint8_t> parentMode(2 * numNodes, 0);
+  // UINT32_MAX => mode switch
+  std::vector<uint32_t> parentEdge(2 * numNodes, UINT32_MAX);
   std::vector<uint8_t> closed(2 * numNodes, 0);
 
-  gScore[S_ride] = 0.0;
-  gScore[S_walk] = 0.0;
+  gCost[S_ride] = 0.0;
+  gCost[S_walk] = 0.0;
+  gTime[S_ride] = 0.0;  // NEW
+  gTime[S_walk] = 0.0;  // NEW
+
+  // check for queue inclusion
+  std::vector<uint8_t> inQueue(2 * numNodes, 0);
 
   std::priority_queue<PQItem> openPQ;
   openPQ.push(
-      PQItem{gScore[S_ride] + heuristic(sourceIdx), sourceIdx, Layer::Ride});
+      PQItem{gCost[S_ride] + heuristic(sourceIdx), sourceIdx, Layer::Ride});
   openPQ.push(
-      PQItem{gScore[S_walk] + heuristic(sourceIdx), sourceIdx, Layer::Walk});
+      PQItem{gCost[S_walk] + heuristic(sourceIdx), sourceIdx, Layer::Walk});
 
   auto relaxEdge = [&](uint32_t u, Layer layerU, uint32_t v, uint32_t edgeIdx,
-                       double edgeTimeSec, uint8_t stepLabel) {
+                       double edgeTimeSec, double surfPenalty,
+                       uint8_t stepLabel) {
     const uint32_t curIdx = StateKey::idx(u, layerU);
     const uint32_t nextIdx = StateKey::idx(v, layerU);
-    const double tentative = gScore[curIdx] + edgeTimeSec;
-    if (tentative < gScore[nextIdx])
+    const double tentativeCost = gCost[curIdx] + edgeTimeSec + surfPenalty;
+    const double tentativeTime = gTime[curIdx] + edgeTimeSec;
+    if (tentativeCost < gCost[nextIdx])
     {
-      gScore[nextIdx] = tentative;
+      gCost[nextIdx] = tentativeCost;
+      gTime[nextIdx] = tentativeTime;
       parent[nextIdx] = curIdx;
       parentMode[nextIdx] = stepLabel;  // label this step for coloring
       parentEdge[nextIdx] = edgeIdx;
-      openPQ.push(PQItem{tentative + heuristic(v), v, layerU});
+
+      if (!inQueue[nextIdx])
+      {
+        openPQ.push(PQItem{tentativeCost + heuristic(v), v, layerU});
+        inQueue[nextIdx] = 1;
+      }
     }
   };
 
   auto relaxSwitch = [&](uint32_t u, Layer from, Layer to, double penaltySec) {
-    const uint32_t fromIdx = StateKey::idx(u, from);
-    const uint32_t toIdx = StateKey::idx(u, to);
-    const double tentative = gScore[fromIdx] + penaltySec;
-    if (tentative < gScore[toIdx])
+    const uint32_t curIdx = StateKey::idx(u, from);
+    const uint32_t nextIdx = StateKey::idx(u, to);
+    const double tentativeCost = gCost[curIdx] + penaltySec;
+    const double tentativeTime = gTime[curIdx];
+    if (tentativeCost < gCost[nextIdx])
     {
-      gScore[toIdx] = tentative;
-      parent[toIdx] = fromIdx;
-      parentMode[toIdx] = 0;  // special: switch (no edge)
-      parentEdge[toIdx] = UINT32_MAX;
-      openPQ.push(PQItem{tentative + heuristic(u), u, to});
+      gCost[nextIdx] = tentativeCost;
+      gTime[nextIdx] = tentativeTime;
+      parent[nextIdx] = curIdx;
+      parentMode[nextIdx] = 0;  // special: switch (no edge)
+      parentEdge[nextIdx] = UINT32_MAX;
+      openPQ.push(PQItem{tentativeCost + heuristic(u), u, to});
     }
   };
 
@@ -141,6 +159,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
         const uint8_t s =
             edgesView.surfacePrimary ? edgesView.surfacePrimary[edgeIdx] : 0xFF;
 
+        // this will be added later
         const double factor = edgesView.surfacePrimary
                                   ? surfaceFactor(params.bikeSurfaceFactor, s)
                                   : 1.0;
@@ -152,7 +171,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
         const uint8_t stepLabel =
             preferred ? MODE_BIKE_PREFERRED : MODE_BIKE_NON_PREFERRED;
 
-        relaxEdge(u, layer, v, edgeIdx, time_s + surfPenalty, stepLabel);
+        relaxEdge(u, layer, v, edgeIdx, time_s, surfPenalty, stepLabel);
       }
 
       if (params.rideToWalkPenaltyS >= 0.0)
@@ -177,7 +196,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
                                   : 1.0;
         const double time_s = len * invWalk * factor;
 
-        relaxEdge(u, layer, v, edgeIdx, time_s, MODE_FOOT);
+        relaxEdge(u, layer, v, edgeIdx, time_s, 0.0, MODE_FOOT);
       }
 
       if (params.walkToRidePenaltyS >= 0.0)
@@ -248,7 +267,7 @@ AStarResult aStarTwoLayer(const EdgesView& edgesView,
   }
 
   result.distanceM = totalMeters;
-  result.durationS = gScore[goalState];
+  result.durationS = gTime[goalState];
   result.success = true;
   return result;
 }

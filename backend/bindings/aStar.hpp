@@ -24,6 +24,7 @@ enum class Layer : std::uint8_t
   Walk = 1
 };
 
+//casts as double is needed?
 inline void nodeDeg(const NodesView& nodeView, std::uint32_t idx,
                     double& latDeg, double& lonDeg) noexcept
 {
