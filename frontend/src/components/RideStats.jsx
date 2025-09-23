@@ -181,7 +181,8 @@ export default function RideStats({
         >
           <strong>No route found</strong>
           <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            Try adjusting surface filters or picking closer points.
+            Pick different start and end points.
+            This bug has been logged
           </div>
         </div>
       </div>
