@@ -1,0 +1,249 @@
+import React from "react";
+
+const InfoWindow = ({ isVisible, onClose }) => {
+  if (!isVisible) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.4)",
+          zIndex: 10000,
+          pointerEvents: "auto",
+        }}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Info Window */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="info-window-title"
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "min(90vw, 500px)",
+          maxHeight: "80vh",
+          backgroundColor: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+          zIndex: 10001,
+          pointerEvents: "auto",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "24px 24px 16px",
+            borderBottom: "1px solid #f0f0f0",
+            background: "linear-gradient(135deg, #007AFF 0%, #5856D6 100%)",
+            color: "#fff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <h2
+              id="info-window-title"
+              style={{
+                margin: 0,
+                fontSize: 24,
+                fontWeight: 700,
+                textShadow: "0 1px 2px rgba(0,0,0,0.1)",
+              }}
+            >
+            Welcome To Bike-Helsinki
+            </h2>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div
+          style={{
+            padding: 24,
+            overflowY: "auto",
+            flex: 1,
+          }}
+        >
+          <div style={{ marginBottom: 24 }}>
+            <h3
+              style={{
+                margin: "0 0 12px",
+                fontSize: 18,
+                fontWeight: 600,
+                color: "#333",
+              }}
+            >
+              🗺️ How to get started
+            </h3>
+            <ol
+              style={{
+                margin: 0,
+                paddingLeft: 20,
+                lineHeight: 1.6,
+                color: "#555",
+              }}
+            >
+              <li style={{ marginBottom: 8 }}>
+                <strong>Click on the map</strong> to set your starting point
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                <strong>Click again</strong> to set your destination
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Your route will be calculated automatically
+              </li>
+            </ol>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <h3
+              style={{
+                margin: "0 0 12px",
+                fontSize: 18,
+                fontWeight: 600,
+                color: "#333",
+              }}
+            >
+              ⚙️ Customize your route
+            </h3>
+            <ul
+              style={{
+                margin: 0,
+                paddingLeft: 20,
+                lineHeight: 1.6,
+                color: "#555",
+              }}
+            >
+              <li style={{ marginBottom: 8 }}>
+                Use the <strong>control panel</strong> (☰ button) to adjust
+                surface preferences
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Filter by <strong>surface types</strong> (paved, gravel, dirt,
+                etc.)
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Adjust the <strong>surface penalty</strong> to prefer smoother
+                surfaces
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                View detailed <strong>route statistics</strong> and distances
+              </li>
+            </ul>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <h3
+              style={{
+                margin: "0 0 12px",
+                fontSize: 18,
+                fontWeight: 600,
+                color: "#333",
+              }}
+            >
+              🚴 Route colors
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 20,
+                    height: 4,
+                    backgroundColor: "#007AFF",
+                    borderRadius: 2,
+                  }}
+                />
+                <span style={{ fontSize: 14, color: "#555" }}>
+                  <strong>Blue</strong> - Preferred bike surfaces
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 20,
+                    height: 4,
+                    backgroundColor: "#FF7F0E",
+                    borderRadius: 2,
+                  }}
+                />
+                <span style={{ fontSize: 14, color: "#555" }}>
+                  <strong>Orange</strong> - Non-preferred bike surfaces
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 20,
+                    height: 4,
+                    backgroundColor: "#7C3AED",
+                    borderRadius: 2,
+                    backgroundImage:
+                      "repeating-linear-gradient(90deg, transparent, transparent 3px, white 3px, white 6px)",
+                  }}
+                />
+                <span style={{ fontSize: 14, color: "#555" }}>
+                  <strong>Purple</strong> - Walking sections
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "16px 24px",
+            borderTop: "1px solid #f0f0f0",
+            backgroundColor: "#fafafa",
+            textAlign: "center",
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              backgroundColor: "#007AFF",
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              padding: "12px 24px",
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(0, 122, 255, 0.3)",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "#0056CC";
+              e.target.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = "#007AFF";
+              e.target.style.transform = "translateY(0)";
+            }}
+          >
+            Got it, let's start! 🚀
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default InfoWindow;

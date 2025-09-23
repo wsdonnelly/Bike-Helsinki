@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { MapView } from "./components/MapView";
 import ControlPanel from "./components/ControlPanel";
+import InfoWindow from "./components/InfoWindow";
 import { snapToGraph, getRoute } from "./utils/api";
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -23,6 +24,9 @@ const App = () => {
   const [appliedPenalty, setAppliedPenalty] = useState(0); // effective
   const [draftPenalty, setDraftPenalty] = useState(0); // UI edits
 
+  // Info window state
+  const [showInfoWindow, setShowInfoWindow] = useState(true);
+
   // Stats (meters / seconds)
   const [totalDistanceM, setTotalDistanceM] = useState(0);
   const [totalDurationS, setTotalDurationS] = useState(0);
@@ -42,6 +46,11 @@ const App = () => {
   const colorBikePreferred = "#007AFF"; // blue solid
   const colorBikeNonPreferred = "#FF7F0E"; // orange solid
   const colorWalk = "#7C3AED"; // black dotted
+
+  // ---- Info window handlers ----
+  const closeInfoWindow = () => {
+    setShowInfoWindow(false);
+  };
 
   // ---- Routing ----
   const fetchRoute = useCallback(
@@ -106,6 +115,11 @@ const App = () => {
 
   // ---- Map interactions ----
   const handleMapClick = async ({ lat, lng }) => {
+    // Close info window on first map interaction
+    if (showInfoWindow) {
+      setShowInfoWindow(false);
+    }
+
     try {
       const snapped = await snapToGraph(lat, lng);
       if (!snappedStart) {
@@ -126,10 +140,16 @@ const App = () => {
 
   // ---- Panel + mask flow ----
   const openPanel = () => {
+    // Close info window when opening control panel
+    if (showInfoWindow) {
+      setShowInfoWindow(false);
+    }
+
     setDraftMask(appliedMask);
     setDraftPenalty(appliedPenalty);
     setPanelOpen(true);
   };
+
   const closePanel = () => setPanelOpen(false);
 
   const toggleDraftBit = (bit) => {
@@ -187,6 +207,11 @@ const App = () => {
         colorBikePreferred={colorBikePreferred}
         colorBikeNonPreferred={colorBikeNonPreferred}
         colorWalk={colorWalk}
+      />
+
+      <InfoWindow
+        isVisible={showInfoWindow}
+        onClose={closeInfoWindow}
       />
     </>
   );
