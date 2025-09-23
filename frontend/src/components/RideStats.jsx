@@ -181,8 +181,7 @@ export default function RideStats({
         >
           <strong>No route found</strong>
           <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            Pick different start and end points.
-            This bug has been logged
+            Pick different start and end points. This bug has been logged
           </div>
         </div>
       </div>
@@ -242,12 +241,12 @@ export default function RideStats({
         <div style={legend}>
           <div style={legendItem}>
             <span style={dot(colorBikePreferred)} />
-            <span style={legendLabel}>Bike preferred</span>
+            <span style={legendLabel}>Bike preferred surface</span>
             <span style={legendVal}>{formatKm(bp)}</span>
           </div>
           <div style={legendItem}>
             <span style={dot(colorBikeNonPreferred)} />
-            <span style={legendLabel}>Bike non-preferred</span>
+            <span style={legendLabel}>Bike non-preferred surface</span>
             <span style={legendVal}>{formatKm(bn)}</span>
           </div>
           <div style={legendItem}>

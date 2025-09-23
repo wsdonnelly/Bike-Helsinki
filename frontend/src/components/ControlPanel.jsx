@@ -92,7 +92,44 @@ const ControlPanel = ({
 }) => {
   const isMobile = useIsMobile("(max-width: 640px)");
   const [activeTab, setActiveTab] = useState("filters");
+  // --- draggable sheet state (mobile) ---
+  const [sheetOffset, setSheetOffset] = useState(0); // px down from bottom=0
+  const dragStartY = React.useRef(0);
+  const dragStartOffset = React.useRef(0);
+  const draggingRef = React.useRef(false);
+  // how far the sheet can be dragged down (e.g., 60% of viewport height)
+  const MAX_OFFSET = Math.round(window.innerHeight * 0.6);
+  const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
+  const startDrag = (e) => {
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    draggingRef.current = true;
+    dragStartY.current = y;
+    dragStartOffset.current = sheetOffset;
+  };
+
+  const onDragMove = (e) => {
+    if (!draggingRef.current) return;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const dy = y - dragStartY.current;
+    setSheetOffset((prev) =>
+      clamp(dragStartOffset.current + dy, 0, MAX_OFFSET)
+    );
+  };
+
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+
+    // snap behavior: if pulled most of the way, keep it; otherwise snap open
+    const threshold = MAX_OFFSET * 0.8;
+    setSheetOffset((off) => (off > threshold ? onClose() : off));
+  };
+
+  // reset position when opening or switching tabs if you like:
+  React.useEffect(() => {
+    if (panelOpen) setSheetOffset(0);
+  }, [panelOpen]);
   const applyBulk = (newMask) => {
     newMask |= SurfaceBits.SURF_UNKNOWN;
     onSetSurfaceMask?.(newMask);
@@ -285,10 +322,22 @@ const ControlPanel = ({
             zIndex: 9999,
             display: "flex",
             flexDirection: "column",
+            transform: `translateY(${sheetOffset}px)`,
+            transition: draggingRef.current ? "none" : "transform .2s ease",
           }}
+          onPointerMove={onDragMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onTouchMove={onDragMove}
+          onTouchEnd={endDrag}
+          onTouchCancel={endDrag}
         >
           {/* Mobile header */}
-          <div style={hdr}>
+          <div
+            style={{ ...hdr, cursor: "grab", touchAction: "none" }}
+            onPointerDown={startDrag}
+            onTouchStart={startDrag}
+          >
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1 }}>
               Route Options
             </h2>
@@ -298,7 +347,10 @@ const ControlPanel = ({
             {activeTab === "filters" && (
               <button
                 type="button"
-                onClick={commitApply}
+                onClick={() => {
+                  commitApply();
+                  setActiveTab("stats");
+                }}
                 style={{ ...btnSm, marginLeft: 6 }}
               >
                 Apply
