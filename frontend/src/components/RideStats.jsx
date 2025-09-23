@@ -11,7 +11,11 @@ const formatDuration = (t) => {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+  if (h > 0)
+    return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(
+      2,
+      "0"
+    )}s`;
   if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
   return `${s}s`;
 };
@@ -75,18 +79,38 @@ export default function RideStats({
     background: "#f3f4f6", // light gray track
   };
   const legend = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    gap: 8,
-    fontSize: 12,
     marginTop: 8,
+    display: "grid",
+    rowGap: 6,
   };
-  const legendItem = { display: "flex", alignItems: "center", gap: 6, minWidth: 0 };
-  const dot = (bg) => ({
+  const legendItem = {
+    display: "grid",
+    gridTemplateColumns: "auto 1fr auto", // dot | label | value
+    alignItems: "center",
+    columnGap: 8,
+    padding: "2px 0",
+  };
+  const legendLabel = {
+    fontSize: 12, // smaller label
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+
+  const legendVal = {
+    marginLeft: 8,
+    fontWeight: 700, // keep numbers strong
+    fontSize: 12,
+    lineHeight: 1.1,
+    textAlign: "right",
+    fontVariantNumeric: "tabular-nums", // aligns digits neatly
+  };
+  const dot = (color) => ({
     width: 10,
     height: 10,
     borderRadius: 999,
-    background: bg,
+    background: color,
     flex: "0 0 10px",
   });
 
@@ -106,8 +130,14 @@ export default function RideStats({
 
   // Minimal visibility for tiny segments (keeps total near 100%)
   const minPct = 1.5; // %
-  let adjBP = wBP, adjBN = wBN, adjWK = wWK;
-  const boosts = [adjBP < minPct && adjBP > 0, adjBN < minPct && adjBN > 0, adjWK < minPct && adjWK > 0].filter(Boolean).length;
+  let adjBP = wBP,
+    adjBN = wBN,
+    adjWK = wWK;
+  const boosts = [
+    adjBP < minPct && adjBP > 0,
+    adjBN < minPct && adjBN > 0,
+    adjWK < minPct && adjWK > 0,
+  ].filter(Boolean).length;
   if (boosts > 0) {
     const give = minPct * boosts;
     const pool = 100 - (wBP + wBN + wWK);
@@ -141,7 +171,13 @@ export default function RideStats({
         <div
           role="status"
           aria-live="polite"
-          style={{ padding: 8, borderRadius: 6, background: "#fafafa", border: "1px solid #eee", fontSize: 13 }}
+          style={{
+            padding: 8,
+            borderRadius: 6,
+            background: "#fafafa",
+            border: "1px solid #eee",
+            fontSize: 13,
+          }}
         >
           <strong>No route found</strong>
           <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
@@ -170,8 +206,12 @@ export default function RideStats({
         <div
           style={barOuter}
           role="img"
-          aria-label={`Distance breakdown: Bike preferred ${formatKm(bp)}, Bike non-preferred ${formatKm(bn)}, Walk ${formatKm(wk)}`}
-          title={`Bike preferred: ${formatKm(bp)} • Bike non-preferred: ${formatKm(bn)} • Walk: ${formatKm(wk)}`}
+          aria-label={`Distance breakdown: Bike preferred ${formatKm(
+            bp
+          )}, Bike non-preferred ${formatKm(bn)}, Walk ${formatKm(wk)}`}
+          title={`Bike preferred: ${formatKm(
+            bp
+          )} • Bike non-preferred: ${formatKm(bn)} • Walk: ${formatKm(wk)}`}
         >
           {/* Bike Preferred */}
           {adjBP > 0 && (
@@ -190,8 +230,7 @@ export default function RideStats({
             <div
               style={{
                 width: `${adjWK}%`,
-                background:
-                  `repeating-linear-gradient(90deg, ${colorWalk} 0 8px, transparent 8px 14px)`,
+                background: `repeating-linear-gradient(90deg, ${colorWalk} 0 8px, transparent 8px 14px)`,
                 opacity: 0.9,
               }}
             />
@@ -202,18 +241,18 @@ export default function RideStats({
         <div style={legend}>
           <div style={legendItem}>
             <span style={dot(colorBikePreferred)} />
-            <span>Bike preferred</span>
-            <span style={{ marginLeft: "auto", fontWeight: 600 }}>{formatKm(bp)}</span>
+            <span style={legendLabel}>Bike preferred</span>
+            <span style={legendVal}>{formatKm(bp)}</span>
           </div>
           <div style={legendItem}>
             <span style={dot(colorBikeNonPreferred)} />
-            <span>Bike non-preferred</span>
-            <span style={{ marginLeft: "auto", fontWeight: 600 }}>{formatKm(bn)}</span>
+            <span style={legendLabel}>Bike non-preferred</span>
+            <span style={legendVal}>{formatKm(bn)}</span>
           </div>
           <div style={legendItem}>
             <span style={dot(colorWalk)} />
-            <span>Walk</span>
-            <span style={{ marginLeft: "auto", fontWeight: 600 }}>{formatKm(wk)}</span>
+            <span style={legendLabel}>Walk</span>
+            <span style={legendVal}>{formatKm(wk)}</span>
           </div>
         </div>
       </div>

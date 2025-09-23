@@ -109,7 +109,7 @@ const ControlPanel = ({
       surfacePenaltySPerKm: Number(surfacePenaltyDraft),
     });
 
-  // If NOT mobile, render exactly like the original working version
+  // Desktop
   if (!isMobile) {
     const stickyTray = {
       position: "sticky",
@@ -295,13 +295,15 @@ const ControlPanel = ({
             <button type="button" onClick={onClose} style={btnSm}>
               Close
             </button>
-            <button
-              type="button"
-              onClick={commitApply}
-              style={{ ...btnSm, marginLeft: 6 }}
-            >
-              Apply
-            </button>
+            {activeTab === "filters" && (
+              <button
+                type="button"
+                onClick={commitApply}
+                style={{ ...btnSm, marginLeft: 6 }}
+              >
+                Apply
+              </button>
+            )}
           </div>
 
           {/* Mobile tabs */}
