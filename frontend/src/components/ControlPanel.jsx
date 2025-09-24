@@ -275,6 +275,27 @@ const ControlPanel = ({
   }
 
   // Mobile version - separate container structure
+  const handleArea = {
+    position: "sticky",
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: "10px 0 6px", // generous hit area
+    display: "flex",
+    justifyContent: "center",
+    background: "#fff",
+    zIndex: 1,
+    userSelect: "none",
+    touchAction: "none", // let pointer events handle dragging
+    cursor: "grab",
+  };
+
+  const handleBar = {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    background: "#DDD", // light grey
+  };
   return (
     <>
       {!panelOpen && (
@@ -332,6 +353,14 @@ const ControlPanel = ({
           onTouchEnd={endDrag}
           onTouchCancel={endDrag}
         >
+            {/* --- drag handle --- */}
+  <div
+    style={handleArea}
+    onPointerDown={startDrag}
+    onTouchStart={startDrag}
+  >
+    <div style={handleBar} />
+  </div>
           {/* Mobile header */}
           <div
             style={{ ...hdr, cursor: "grab", touchAction: "none" }}

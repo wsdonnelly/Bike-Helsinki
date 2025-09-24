@@ -68,7 +68,7 @@ const InfoWindow = ({ isVisible, onClose }) => {
                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
               }}
             >
-            Welcome To Bike-Helsinki
+              Welcome To Bike-Helsinki Preview
             </h2>
           </div>
         </div>
@@ -136,12 +136,15 @@ const InfoWindow = ({ isVisible, onClose }) => {
                 surface preferences
               </li>
               <li style={{ marginBottom: 8 }}>
-                Filter by <strong>surface types</strong> (paved, gravel, dirt,
-                etc.)
+                Filter by <strong>desired surface types</strong> (paved, gravel,
+                dirt, etc.)
               </li>
               <li style={{ marginBottom: 8 }}>
-                Adjust the <strong>surface penalty</strong> to prefer smoother
-                surfaces
+                Adjust the <strong>surface preference slider</strong> to tell
+                the router how much to avoid non-preferred surfaces by adding a
+                time penalty (seconds per kilometer) to them. Set the slider to
+                0 s/km to treat all surfaces equally; raise it to bias routing
+                toward your selected surface types.
               </li>
               <li style={{ marginBottom: 8 }}>
                 View detailed <strong>route statistics</strong> and distances
