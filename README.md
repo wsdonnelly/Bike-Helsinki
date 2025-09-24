@@ -1,6 +1,11 @@
-# BikeMap Application Architecture
+# Welcome to Bike-Helsinki Preview
+## https://bikehelsinki.onrender.com/
 
-## System Overview
+This hobby project combines my long-time interest in maps, mapping, and graph algorithms with exploring the Helsinki region by bike and foot. Bike-Helsinki uses OpenStreetMap data and custom A* routing to plan bike-friendly routes across the city’s extensive trail and road network. It's very much a work in progress, so expect rough edges—and please share your feedback!
+
+## Bike-Helsinki Application Architecture
+
+### System Overview
 
 ```mermaid
 flowchart TD
@@ -78,7 +83,7 @@ flowchart TD
     class SNAP_EP,ROUTE_EP,FILTER_EP api
     class KDSNAP,ROUTE cpp
 ```
-# binary file formats
+### binary file formats
 ```
 graph_nodes.bin
 
@@ -163,7 +168,7 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 │   mode[E-1]         │   1B   │ uint8_t: bike(1)|foot(2) flags          │
 └─────────────────────┴────────┴─────────────────────────────────────────┘
 ```
-# BikeMap Setup Guide
+# BikeMap Local Setup Guide
 
 ## Prerequisites
 
