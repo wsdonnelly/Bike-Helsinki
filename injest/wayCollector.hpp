@@ -105,5 +105,4 @@ struct WayCollector : public osmium::handler::Handler
   // Main handler method - processes each OSM way
   void way(const osmium::Way& way);
 };
-
 }  // namespace injest
