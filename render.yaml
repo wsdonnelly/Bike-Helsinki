@@ -23,3 +23,5 @@ services:
   envVars:
     - key: VITE_API_URL
       value: https://bikehelsinki-api.onrender.com
+    - key: VITE_NOMINATIM_EMAIL
+      value: wsdonnelly@gmail.com
