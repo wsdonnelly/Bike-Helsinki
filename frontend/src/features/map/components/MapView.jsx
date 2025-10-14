@@ -8,6 +8,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
+import { ROUTE_COLORS } from "@/shared/constants/colors";
 
 // Fix Leaflet default marker icons (CDN assets)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -77,9 +78,6 @@ export function MapView({
   snappedEnd,
   routeCoords,
   routeModes,
-  colorBikePreferred,
-  colorBikeNonPreferred,
-  colorWalk
 }) {
   const startIcon = useMemo(() => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }), []);
   const endIcon   = useMemo(() => makePinIcon({ color: "#e74c3c", label: "T", anchorY: 42 }), []);
@@ -130,22 +128,22 @@ export function MapView({
 
       {/* Bike preferred — solid blue */}
       {bikePrefRuns.map((pts, i) => (
-        <Polyline key={`bp${i}`} positions={pts} pathOptions={{ color: colorBikePreferred, weight: 4 }} />
+        <Polyline key={`bp${i}`} positions={pts} pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }} />
       ))}
 
       {/* Bike non-preferred — solid orange */}
       {bikeNonPrefRuns.map((pts, i) => (
-        <Polyline key={`bn${i}`} positions={pts} pathOptions={{ color: colorBikeNonPreferred, weight: 4 }} />
+        <Polyline key={`bn${i}`} positions={pts} pathOptions={{ color: ROUTE_COLORS.bikeNonPreferred, weight: 4 }} />
       ))}
 
-      {/* Walk — dotted black */}
+      {/* Walk — dotted purple */}
       {footRuns.map((pts, i) => (
-        <Polyline key={`fw${i}`} positions={pts} pathOptions={{ color: colorWalk, weight: 4, dashArray: "6 6", lineCap: "round", opacity: 0.95 }} />
+        <Polyline key={`fw${i}`} positions={pts} pathOptions={{ color: ROUTE_COLORS.walk, weight: 4, dashArray: "6 6", lineCap: "round", opacity: 0.95 }} />
       ))}
 
       {/* Fallback: if no modes provided, draw a single solid preferred line */}
       {(!routeModes || routeModes.length === 0) && routeCoords?.length > 1 && (
-        <Polyline positions={routeCoords} pathOptions={{ color: colorBikePreferred, weight: 4 }} />
+        <Polyline positions={routeCoords} pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }} />
       )}
     </MapContainer>
   );
