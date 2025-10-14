@@ -29,9 +29,7 @@ export function RouteProvider({ children }) {
 
   // Masks / penalties
   const [appliedMask, setAppliedMask] = useState(0xffff);
-  const [draftMask, setDraftMask] = useState(0xffff);
   const [appliedPenalty, setAppliedPenalty] = useState(0);
-  const [draftPenalty, setDraftPenalty] = useState(0); // UI edits
 
   // Stats
   const [totalDistanceM, setTotalDistanceM] = useState(0);
