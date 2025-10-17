@@ -34,9 +34,9 @@ export async function searchNominatim({
   const email = (import.meta.env.VITE_NOMINATIM_EMAIL || "").trim();
   if (email) params.set("email", email);
 
-  const r = await fetch(`${NOMINATIM_BASE}/search?${params.toString()}`);
-  if (!r.ok) throw new Error("Nominatim search failed");
-  return r.json();
+  const res = await fetch(`${NOMINATIM_BASE}/search?${params.toString()}`);
+  if (!res.ok) throw new Error("Nominatim search failed");
+  return res.json();
 }
 
 /**
@@ -58,7 +58,7 @@ export async function reverseNominatim({ lat, lon, zoom = 18, lang = "fi" }) {
   const email = (import.meta.env.VITE_NOMINATIM_EMAIL || "").trim();
   if (email) params.set("email", email);
 
-  const r = await fetch(`${NOMINATIM_BASE}/reverse?${params.toString()}`);
-  if (!r.ok) throw new Error("Nominatim reverse failed");
-  return r.json();
+  const res = await fetch(`${NOMINATIM_BASE}/reverse?${params.toString()}`);
+  if (!res.ok) throw new Error("Nominatim reverse failed");
+  return res.json();
 }

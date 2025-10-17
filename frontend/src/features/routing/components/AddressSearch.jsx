@@ -1,192 +1,286 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRoute } from "../RouteProvider";
 import useNominatimSearch from "../hooks/useNominatimSearch";
-import { formatAddress } from "../utils/formatAddress";
-
 
 export default function AddressSearch() {
   const { cfg, snappedStart, snappedEnd, actions } = useRoute();
-  const { query, setQuery, results, searching } = useNominatimSearch(
-    actions.searchAddress
-  );
-  const [targetPoint, setTargetPoint] = useState("start"); // "start" or "end"
-  const [startAddress, setStartAddress] = useState("");
-  const [endAddress, setEndAddress] = useState("");
-
   const disabled = !cfg;
 
-  const handleAddClick = () => {
-    actions.setPointFromAddress(query, targetPoint);
+  const startSearch = useNominatimSearch(actions.searchAddress);
+  const endSearch = useNominatimSearch(actions.searchAddress);
 
-    // Save the address name
-    if (targetPoint === "start") {
-      setStartAddress(query);
-    } else {
-      setEndAddress(query);
+  const [activeField, setActiveField] = useState(null);
+
+  const containerRef = useRef(null);
+  const blurTimeoutRef = useRef(null); // Track blur timeout
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const stop = (e) => e.stopPropagation();
+    el.addEventListener("pointerdown", stop, true);
+    return () => el.removeEventListener("pointerdown", stop, true);
+  }, []);
+
+  // Sync the input with the snapped point's address
+  useEffect(() => {
+    if (snappedStart?.address) {
+      startSearch.setQuery(snappedStart.address);
     }
+  }, [snappedStart]); // When snappedStart changes, update the input
 
-    console.log(`${targetPoint} address set to:`, query);
-    setQuery(""); // Clear search after adding
+  useEffect(() => {
+    if (snappedEnd?.address) {
+      endSearch.setQuery(snappedEnd.address);
+    }
+  }, [snappedEnd]); // When snappedEnd changes, update the input
+
+  // Improved hide function
+  const hideDropdowns = () => {
+    clearTimeout(blurTimeoutRef.current);
+    setActiveField(null);
   };
 
-  const handleResultClick = (hit) => {
-    actions.setPointFromHit(hit, targetPoint);
-    const formatted = formatAddress(hit.display_name);
+  const hideDropdownsSoon = () => {
+    clearTimeout(blurTimeoutRef.current);
+    blurTimeoutRef.current = setTimeout(() => setActiveField(null), 150);
+  };
 
-    // Save the address name
-    if (targetPoint === "start") {
-      setStartAddress(formatted);
+  // 1) Select by using the current query's top match
+  async function setFromQuery(which) {
+    const q = which === "start" ? startSearch.query : endSearch.query;
+    if (!q.trim()) return;
+
+    const res = await actions.setPointFromAddress(q, which);
+    const hit = res?.hit;
+    if (!hit) return;
+
+    const label = hit.display_name;
+    if (which === "start") {
+      startSearch.setQuery(label);
     } else {
-      setEndAddress(formatted);
+      endSearch.setQuery(label);
+    }
+    hideDropdowns(); // Immediate hide
+  }
+
+  // 2) Select by clicking a result row
+  async function setFromResultList(which, hit) {
+    if (!hit) return;
+
+    clearTimeout(blurTimeoutRef.current); // Cancel any pending hide
+
+    await actions.setPointFromHit(hit, which);
+
+    const label = hit.display_name;
+    if (which === "start") {
+      startSearch.setQuery(label);
+    } else {
+      endSearch.setQuery(label);
     }
 
-    console.log(`${targetPoint} address set to:`, formatted);
-    setQuery(""); // Clear search after selecting
+    hideDropdowns(); // Immediate hide
+  }
+
+  const btnStyle = (color, isDisabled) => ({
+    padding: "8px 14px",
+    border: "none",
+    borderRadius: 6,
+    fontWeight: 600,
+    fontSize: 14,
+    color: "#fff",
+    background: isDisabled ? "#c7c7c7" : color,
+    cursor: isDisabled ? "not-allowed" : "pointer",
+    whiteSpace: "nowrap",
+  });
+
+  const inputWrapStyle = {
+    position: "relative",
+    display: "flex",
+    gap: 8,
+    alignItems: "stretch",
   };
+
+  const inputStyle = {
+    flex: 1,
+    padding: "8px 10px",
+    border: "1px solid #ddd",
+    borderRadius: 6,
+    fontSize: 14,
+  };
+
+  function Results({ which }) {
+    const isStart = which === "start";
+    const { results, searching } = isStart ? startSearch : endSearch;
+
+    console.log(`Results(${which}):`, {
+      activeField,
+      resultsCount: results?.length,
+      searching,
+      shouldShow: activeField === which,
+    });
+
+    if (activeField !== which) return null;
+    if (!results?.length && !searching) return null;
+
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "calc(100% + 6px)",
+          maxHeight: 220,
+          overflow: "auto",
+          border: "1px solid #eee",
+          borderRadius: 6,
+          background: "#fafafa",
+          zIndex: 10,
+        }}
+        // Remove this - it's too broad:
+        // onMouseDown={(e) => e.preventDefault()}
+      >
+        {searching && (
+          <div
+            style={{
+              fontSize: 12,
+              opacity: 0.7,
+              padding: "8px 10px",
+              fontStyle: "italic",
+            }}
+          >
+            Searching…
+          </div>
+        )}
+        {results?.map((hit) => (
+          <div
+            key={hit.place_id}
+            style={{
+              padding: "8px 10px",
+              cursor: "pointer",
+              borderBottom: "1px solid #eee",
+              background: "white",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f0f0")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Only prevent on the result item itself
+            }}
+            onClick={() => setFromResultList(which, hit)}
+            title={hit.display_name}
+          >
+            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>
+              {hit.display_name.split(",")[0]}
+            </div>
+            <div style={{ fontSize: 12, color: "#666" }}>
+              {hit.display_name.split(",").slice(1).join(",")}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: "absolute",
-        zIndex: 1000,
         top: 12,
-        left: 50,
-        right: 12,
-        maxWidth: 520,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "min(92vw, 560px)",
         background: "white",
-        borderRadius: 8,
-        padding: 8,
-        boxShadow: "0 6px 24px rgba(0,0,0,0.15)",
+        borderRadius: 10,
+        padding: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+        zIndex: 1002,
       }}
+      aria-label="Address search"
     >
-      {/* Point selector buttons */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
-        <button
-          onClick={() => setTargetPoint("start")}
-          disabled={disabled}
-          style={{
-            flex: 1,
-            padding: "6px 12px",
-            border: "2px solid",
-            borderColor: targetPoint === "start" ? "#2ecc71" : "#e0e0e0",
-            borderRadius: 6,
-            background: targetPoint === "start" ? "#2ecc7120" : "white",
-            cursor: disabled ? "not-allowed" : "pointer",
-            fontWeight: targetPoint === "start" ? 600 : 400,
-            fontSize: 13,
-          }}
-        >
-          🟢 Start {snappedStart && "✓"}
-        </button>
-        <button
-          onClick={() => setTargetPoint("end")}
-          disabled={disabled}
-          style={{
-            flex: 1,
-            padding: "6px 12px",
-            border: "2px solid",
-            borderColor: targetPoint === "end" ? "#e74c3c" : "#e0e0e0",
-            borderRadius: 6,
-            background: targetPoint === "end" ? "#e74c3c20" : "white",
-            cursor: disabled ? "not-allowed" : "pointer",
-            fontWeight: targetPoint === "end" ? 600 : 400,
-            fontSize: 13,
-          }}
-        >
-          🔴 End {snappedEnd && "✓"}
-        </button>
-      </div>
-
-      {/* Search input */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          placeholder={`Search ${targetPoint} address in Helsinki…`}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && query.trim()) {
-              handleAddClick();
-            }
-          }}
-          style={{
-            flex: 1,
-            padding: "8px 10px",
-            border: "1px solid #ddd",
-            borderRadius: 6,
-            fontSize: 14,
-          }}
-          disabled={disabled}
-        />
-        <button
-          onClick={handleAddClick}
-          disabled={disabled || !query.trim()}
-          style={{
-            padding: "8px 16px",
-            border: "none",
-            borderRadius: 6,
-            background: disabled || !query.trim() ? "#ccc" : "#007AFF",
-            color: "white",
-            cursor: disabled || !query.trim() ? "not-allowed" : "pointer",
-            fontWeight: 600,
-            fontSize: 14,
-          }}
-        >
-          Set {targetPoint === "start" ? "Start" : "End"}
-        </button>
-      </div>
-
-      {/* Results dropdown */}
-      {!!results.length && (
-        <div
-          style={{
-            marginTop: 6,
-            maxHeight: 220,
-            overflow: "auto",
-            border: "1px solid #eee",
-            borderRadius: 6,
-            background: "#fafafa",
-          }}
-        >
-          {searching && (
-            <div
-              style={{
-                fontSize: 12,
-                opacity: 0.7,
-                padding: "8px 10px",
-                fontStyle: "italic",
-              }}
-            >
-              Searching…
-            </div>
-          )}
-          {results.map((hit) => (
-            <div
-              key={hit.place_id}
-              style={{
-                padding: "8px 10px",
-                cursor: "pointer",
-                borderBottom: "1px solid #eee",
-                background: "white",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "#f0f0f0")
+      {/* START field */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={inputWrapStyle}>
+          <input
+            placeholder="Search START address..."
+            value={startSearch.query}
+            onChange={(e) => {
+              clearTimeout(blurTimeoutRef.current);
+              startSearch.setQuery(e.target.value);
+            }}
+            onFocus={() => {
+              clearTimeout(blurTimeoutRef.current);
+              setActiveField("start");
+            }}
+            onBlur={hideDropdownsSoon}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && startSearch.query.trim()) {
+                e.preventDefault();
+                setFromQuery("start");
               }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-              onClick={() => handleResultClick(hit)}
-              title={hit.display_name}
-            >
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>
-                {/* {hit.display_name.split(",")[0]} */}
-                {formatAddress(hit.display_name)}
-              </div>
-              <div style={{ fontSize: 12, color: "#666" }}>
-                {hit.display_name.split(",").slice(1).join(",")}
-              </div>
-            </div>
-          ))}
+              if (e.key === "Escape") hideDropdowns();
+            }}
+            style={inputStyle}
+            disabled={disabled}
+            aria-disabled={disabled}
+          />
+          <button
+            type="button"
+            onClick={() => setFromQuery("start")}
+            disabled={disabled || !startSearch.query.trim()}
+            style={btnStyle("#2ecc71", disabled || !startSearch.query.trim())}
+            title={snappedStart ? "Update Start" : "Set Start"}
+          >
+            {snappedStart ? "Update" : "Set"} Start
+          </button>
+          <Results which="start" />
         </div>
-      )}
+      </div>
+
+      {/* END field */}
+      <div>
+        <div style={inputWrapStyle}>
+          <input
+            placeholder="Search END address..."
+            value={endSearch.query}
+            onChange={(e) => {
+              console.log("END onChange:", e.target.value);
+              clearTimeout(blurTimeoutRef.current);
+              endSearch.setQuery(e.target.value);
+            }}
+            onFocus={() => {
+              console.log("END onFocus triggered");
+              clearTimeout(blurTimeoutRef.current);
+              setActiveField("end");
+            }}
+            onBlur={() => {
+              console.log("END onBlur triggered");
+              hideDropdownsSoon();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && endSearch.query.trim()) {
+                e.preventDefault();
+                setFromQuery("end");
+              }
+              if (e.key === "Escape") hideDropdowns();
+            }}
+            style={inputStyle}
+            disabled={disabled}
+            aria-disabled={disabled}
+          />
+          <button
+            type="button"
+            onClick={() => setFromQuery("end")}
+            disabled={disabled || !endSearch.query.trim()}
+            style={btnStyle("#2ecc71", disabled || !endSearch.query.trim())}
+            title={snappedEnd ? "Update End" : "Set End"}
+          >
+            {snappedEnd ? "Update" : "Set"} End
+          </button>
+          <Results which="end" />
+        </div>
+      </div>
     </div>
   );
 }

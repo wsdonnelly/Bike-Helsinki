@@ -6,11 +6,10 @@ import React, {
   useCallback,
 } from "react";
 import { backend, nominatim } from "@/api";
+import { clamp } from "@/shared";
 
 const Ctx = createContext(null);
 export const useRoute = () => useContext(Ctx);
-
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 export function RouteProvider({ children }) {
   // Config
@@ -90,10 +89,26 @@ export function RouteProvider({ children }) {
   const handleMapClick = async ({ lat, lng }) => {
     try {
       const snapped = await backend.snapToGraph(lat, lng);
-      if (!snappedStart) setSnappedStart(snapped);
-      else if (!snappedEnd) setSnappedEnd(snapped);
-      else {
-        setSnappedStart(snapped);
+      let address = null;
+      try {
+        const reverseResult = await nominatim.reverseNominatim({
+          lat: snapped.lat,
+          lon: snapped.lon,
+        });
+        address = reverseResult?.display_name || null;
+      } catch (e) {
+        console.warn("Reverse geocoding failed:", e);
+      }
+      const snappedWithAddress = {
+        ...snapped,
+        address,
+      };
+      if (!snappedStart) {
+        setSnappedStart(snappedWithAddress);
+      } else if (!snappedEnd) {
+        setSnappedEnd(snappedWithAddress);
+      } else {
+        setSnappedStart(snappedWithAddress);
         setSnappedEnd(null);
         setRouteCoords([]);
         setRouteModes([]);
@@ -142,9 +157,13 @@ export function RouteProvider({ children }) {
           Number(hit.lat),
           Number(hit.lon)
         );
+        const snappedWithAddress = {
+          ...snapped,
+          address: hit.display_name, // Save the address
+        };
         if (endpoint === "start") setSnappedStart(snapped);
         else setSnappedEnd(snapped);
-        return { hit, snapped };
+        return { hit, snapped: snappedWithAddress };
       } catch (e) {
         console.error("Snap from hit failed:", e);
         return null;
