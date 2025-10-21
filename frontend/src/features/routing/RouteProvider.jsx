@@ -44,6 +44,26 @@ export function RouteProvider({ children }) {
     setDistanceBikeNonPreferred(0);
     setDistanceWalk(0);
   };
+  //debug logger
+  useEffect(() => {
+    const fmt = (p) =>
+      p
+        ? { idx: p.idx, lat: +p.lat, lon: +p.lon, address: p.address || "" }
+        : null;
+
+    console.log("[Route] points changed:", {
+      start: fmt(snappedStart),
+      end: fmt(snappedEnd),
+    });
+  }, [snappedStart, snappedEnd]);
+
+  useEffect(() => {
+    if (!snappedStart || !snappedEnd) {
+      setRouteCoords([]);
+      setRouteModes([]);
+      resetStats();
+    }
+  }, [snappedStart, snappedEnd]);
 
   // ---- Routing ----
   const fetchRoute = useCallback(
@@ -161,8 +181,8 @@ export function RouteProvider({ children }) {
           ...snapped,
           address: hit.display_name, // Save the address
         };
-        if (endpoint === "start") setSnappedStart(snapped);
-        else setSnappedEnd(snapped);
+        if (endpoint === "start") setSnappedStart(snappedWithAddress);
+        else setSnappedEnd(snappedWithAddress);
         return { hit, snapped: snappedWithAddress };
       } catch (e) {
         console.error("Snap from hit failed:", e);
@@ -172,6 +192,7 @@ export function RouteProvider({ children }) {
     []
   );
 
+  // return query top match
   const setPointFromAddress = useCallback(
     async (q, endpoint) => {
       const hits = await searchAddress(q);

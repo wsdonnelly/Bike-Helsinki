@@ -1,9 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute } from "../RouteProvider";
 import useNominatimSearch from "../hooks/useNominatimSearch";
+// import { formatAddress } from "../utils/formatAddress";
 
 export default function AddressSearch() {
-  const { cfg, snappedStart, snappedEnd, actions } = useRoute();
+  const {
+    cfg,
+    snappedStart,
+    setSnappedStart,
+    snappedEnd,
+    setSnappedEnd,
+    actions,
+  } = useRoute();
   const disabled = !cfg;
 
   const startSearch = useNominatimSearch(actions.searchAddress);
@@ -30,7 +38,10 @@ export default function AddressSearch() {
   }, [snappedStart]); // When snappedStart changes, update the input
 
   useEffect(() => {
-    if (snappedEnd?.address) {
+    if (!snappedEnd){
+      endSearch.setQuery("");
+    }
+    else if (snappedEnd?.address) {
       endSearch.setQuery(snappedEnd.address);
     }
   }, [snappedEnd]); // When snappedEnd changes, update the input
@@ -82,18 +93,6 @@ export default function AddressSearch() {
     hideDropdowns(); // Immediate hide
   }
 
-  const btnStyle = (color, isDisabled) => ({
-    padding: "8px 14px",
-    border: "none",
-    borderRadius: 6,
-    fontWeight: 600,
-    fontSize: 14,
-    color: "#fff",
-    background: isDisabled ? "#c7c7c7" : color,
-    cursor: isDisabled ? "not-allowed" : "pointer",
-    whiteSpace: "nowrap",
-  });
-
   const inputWrapStyle = {
     position: "relative",
     display: "flex",
@@ -101,25 +100,27 @@ export default function AddressSearch() {
     alignItems: "stretch",
   };
 
-  const inputStyle = {
+  const getInputStyle = (pointType, isSet) => ({
     flex: 1,
     padding: "8px 10px",
-    border: "1px solid #ddd",
+    border: "2px solid",
+    borderColor:
+      pointType === "start"
+        ? isSet
+          ? "#2ecc71"
+          : "rgba(46, 204, 113, 0.3)"
+        : isSet
+        ? "#e74c3c"
+        : "rgba(231, 76, 60, 0.3)",
     borderRadius: 6,
     fontSize: 14,
-  };
+    transition: "all 0.2s",
+    outline: "none",
+  });
 
   function Results({ which }) {
     const isStart = which === "start";
     const { results, searching } = isStart ? startSearch : endSearch;
-
-    console.log(`Results(${which}):`, {
-      activeField,
-      resultsCount: results?.length,
-      searching,
-      shouldShow: activeField === which,
-    });
-
     if (activeField !== which) return null;
     if (!results?.length && !searching) return null;
 
@@ -137,8 +138,6 @@ export default function AddressSearch() {
           background: "#fafafa",
           zIndex: 10,
         }}
-        // Remove this - it's too broad:
-        // onMouseDown={(e) => e.preventDefault()}
       >
         {searching && (
           <div
@@ -152,32 +151,36 @@ export default function AddressSearch() {
             Searching…
           </div>
         )}
-        {results?.map((hit) => (
-          <div
-            key={hit.place_id}
-            style={{
-              padding: "8px 10px",
-              cursor: "pointer",
-              borderBottom: "1px solid #eee",
-              background: "white",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f0f0")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-            onMouseDown={(e) => {
-              e.preventDefault(); // Only prevent on the result item itself
-            }}
-            onClick={() => setFromResultList(which, hit)}
-            title={hit.display_name}
-          >
-            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>
-              {hit.display_name.split(",")[0]}
+        {results?.map((hit) => {
+          // const formatted = formatAddress(hit);
+          const formatted = hit.display_name;
+          return (
+            <div
+              key={hit.place_id}
+              style={{
+                padding: "8px 10px",
+                cursor: "pointer",
+                borderBottom: "1px solid #eee",
+                background: "white",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#f0f0f0")
+              }
+              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+              onMouseDown={(e) => {
+                e.preventDefault(); // Only prevent on the result item itself
+              }}
+              onClick={() => setFromResultList(which, hit)}
+              title={hit.display_name}
+            >
+              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>
+                {formatted}
+              </div>
+              <div style={{ fontSize: 12, color: "#666" }}>{formatted}</div>
             </div>
-            <div style={{ fontSize: 12, color: "#666" }}>
-              {hit.display_name.split(",").slice(1).join(",")}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -203,11 +206,16 @@ export default function AddressSearch() {
       <div style={{ marginBottom: 10 }}>
         <div style={inputWrapStyle}>
           <input
-            placeholder="Search START address..."
+            placeholder="Click map or search start address..."
             value={startSearch.query}
             onChange={(e) => {
               clearTimeout(blurTimeoutRef.current);
-              startSearch.setQuery(e.target.value);
+              const v = e.target.value;
+              startSearch.setQuery(v);
+              if (v.trim() === "") {
+                setSnappedStart(null); // <-- clear
+                setActiveField(null); // optional: close dropdown
+              }
             }}
             onFocus={() => {
               clearTimeout(blurTimeoutRef.current);
@@ -221,19 +229,10 @@ export default function AddressSearch() {
               }
               if (e.key === "Escape") hideDropdowns();
             }}
-            style={inputStyle}
+            style={getInputStyle("start", !!snappedStart)}
             disabled={disabled}
             aria-disabled={disabled}
           />
-          <button
-            type="button"
-            onClick={() => setFromQuery("start")}
-            disabled={disabled || !startSearch.query.trim()}
-            style={btnStyle("#2ecc71", disabled || !startSearch.query.trim())}
-            title={snappedStart ? "Update Start" : "Set Start"}
-          >
-            {snappedStart ? "Update" : "Set"} Start
-          </button>
           <Results which="start" />
         </div>
       </div>
@@ -242,22 +241,22 @@ export default function AddressSearch() {
       <div>
         <div style={inputWrapStyle}>
           <input
-            placeholder="Search END address..."
+            placeholder="Click map or search end address..."
             value={endSearch.query}
             onChange={(e) => {
-              console.log("END onChange:", e.target.value);
               clearTimeout(blurTimeoutRef.current);
-              endSearch.setQuery(e.target.value);
+              const v = e.target.value;
+              endSearch.setQuery(v);
+              if (v.trim() === "") {
+                setSnappedEnd(null); // <-- clear
+                setActiveField(null); // optional: close dropdown
+              }
             }}
             onFocus={() => {
-              console.log("END onFocus triggered");
               clearTimeout(blurTimeoutRef.current);
               setActiveField("end");
             }}
-            onBlur={() => {
-              console.log("END onBlur triggered");
-              hideDropdownsSoon();
-            }}
+            onBlur={hideDropdownsSoon}
             onKeyDown={(e) => {
               if (e.key === "Enter" && endSearch.query.trim()) {
                 e.preventDefault();
@@ -265,19 +264,10 @@ export default function AddressSearch() {
               }
               if (e.key === "Escape") hideDropdowns();
             }}
-            style={inputStyle}
+            style={getInputStyle("end", !!snappedEnd)}
             disabled={disabled}
             aria-disabled={disabled}
           />
-          <button
-            type="button"
-            onClick={() => setFromQuery("end")}
-            disabled={disabled || !endSearch.query.trim()}
-            style={btnStyle("#2ecc71", disabled || !endSearch.query.trim())}
-            title={snappedEnd ? "Update End" : "Set End"}
-          >
-            {snappedEnd ? "Update" : "Set"} End
-          </button>
           <Results which="end" />
         </div>
       </div>
