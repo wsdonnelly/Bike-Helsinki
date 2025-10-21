@@ -33,6 +33,7 @@ function AppContent() {
         routeCoords={routeCoords}
         routeModes={routeModes}
         onMapClick={actions.handleMapClick}
+        onMarkerDragEnd={actions.handleMarkerDragEnd}
       />
 
       <ControlPanel

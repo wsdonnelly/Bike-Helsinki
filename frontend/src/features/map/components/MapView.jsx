@@ -14,18 +14,25 @@ import { ROUTE_COLORS } from "@/shared/constants/colors";
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
 // NOTE: keep names as you wrote, but make them real bit flags
-const MODE_BIKE_PREFFERED      = 0x1; // 0001
-const MODE_BIKE_NON_PREFFERED  = 0x2; // 0010
-const MODE_FOOT                = 0x4; // 0100  (not 0x3!)
+const MODE_BIKE_PREFFERED = 0x1; // 0001
+const MODE_BIKE_NON_PREFFERED = 0x2; // 0010
+const MODE_FOOT = 0x4; // 0100  (not 0x3!)
 
 function splitRuns(coords, modes, modeBit) {
   const out = [];
-  if (!coords || coords.length < 2 || !modes || modes.length !== coords.length - 1) return out;
+  if (
+    !coords ||
+    coords.length < 2 ||
+    !modes ||
+    modes.length !== coords.length - 1
+  )
+    return out;
   let run = [];
   for (let i = 0; i < modes.length; i++) {
     const belongs = (modes[i] & modeBit) !== 0;
@@ -33,7 +40,8 @@ function splitRuns(coords, modes, modeBit) {
       if (run.length === 0) run.push(coords[i]);
       run.push(coords[i + 1]);
     } else if (run.length > 1) {
-      out.push(run); run = [];
+      out.push(run);
+      run = [];
     } else {
       run = [];
     }
@@ -78,9 +86,16 @@ export function MapView({
   snappedEnd,
   routeCoords,
   routeModes,
+  onMarkerDragEnd,
 }) {
-  const startIcon = useMemo(() => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }), []);
-  const endIcon   = useMemo(() => makePinIcon({ color: "#e74c3c", label: "T", anchorY: 42 }), []);
+  const startIcon = useMemo(
+    () => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }),
+    []
+  );
+  const endIcon = useMemo(
+    () => makePinIcon({ color: "#e74c3c", label: "T", anchorY: 42 }),
+    []
+  );
 
   // Build runs per mode
   const bikePrefRuns = useMemo(
@@ -103,7 +118,10 @@ export function MapView({
       style={{ height: "100dvh", width: "100vw" }}
       zoomControl={false}
       preferCanvas
-      maxBounds={[[59.0, 19.0],[62.5, 31.5]]}
+      maxBounds={[
+        [59.0, 19.0],
+        [62.5, 31.5],
+      ]}
       maxBoundsViscosity={0.3}
       minZoom={11}
       maxZoom={18}
@@ -120,30 +138,76 @@ export function MapView({
       <MapClick onMapClick={onMapClick} />
 
       {snappedStart && (
-        <Marker position={[snappedStart.lat, snappedStart.lon]} icon={startIcon} title="Start" zIndexOffset={1000} />
+        <Marker
+          position={[snappedStart.lat, snappedStart.lon]}
+          icon={startIcon}
+          title="Start"
+          zIndexOffset={1000}
+          draggable // <-- make it draggable
+          eventHandlers={{
+            dragend: (e) => {
+              const { lat, lng } = e.target.getLatLng();
+              onMarkerDragEnd?.("start", { lat, lng }); // <-- tell parent
+            },
+          }}
+        />
       )}
+
       {snappedEnd && (
-        <Marker position={[snappedEnd.lat, snappedEnd.lon]} icon={endIcon} title="End" zIndexOffset={1000} />
+        <Marker
+          position={[snappedEnd.lat, snappedEnd.lon]}
+          icon={endIcon}
+          title="End"
+          zIndexOffset={1000}
+          draggable
+          eventHandlers={{
+            dragend: (e) => {
+              const { lat, lng } = e.target.getLatLng();
+              onMarkerDragEnd?.("end", { lat, lng }); // <-- tell parent
+            },
+          }}
+        />
       )}
 
       {/* Bike preferred — solid blue */}
       {bikePrefRuns.map((pts, i) => (
-        <Polyline key={`bp${i}`} positions={pts} pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }} />
+        <Polyline
+          key={`bp${i}`}
+          positions={pts}
+          pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }}
+        />
       ))}
 
       {/* Bike non-preferred — solid orange */}
       {bikeNonPrefRuns.map((pts, i) => (
-        <Polyline key={`bn${i}`} positions={pts} pathOptions={{ color: ROUTE_COLORS.bikeNonPreferred, weight: 4 }} />
+        <Polyline
+          key={`bn${i}`}
+          positions={pts}
+          pathOptions={{ color: ROUTE_COLORS.bikeNonPreferred, weight: 4 }}
+        />
       ))}
 
       {/* Walk — dotted purple */}
       {footRuns.map((pts, i) => (
-        <Polyline key={`fw${i}`} positions={pts} pathOptions={{ color: ROUTE_COLORS.walk, weight: 4, dashArray: "6 6", lineCap: "round", opacity: 0.95 }} />
+        <Polyline
+          key={`fw${i}`}
+          positions={pts}
+          pathOptions={{
+            color: ROUTE_COLORS.walk,
+            weight: 4,
+            dashArray: "6 6",
+            lineCap: "round",
+            opacity: 0.95,
+          }}
+        />
       ))}
 
       {/* Fallback: if no modes provided, draw a single solid preferred line */}
       {(!routeModes || routeModes.length === 0) && routeCoords?.length > 1 && (
-        <Polyline positions={routeCoords} pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }} />
+        <Polyline
+          positions={routeCoords}
+          pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }}
+        />
       )}
     </MapContainer>
   );

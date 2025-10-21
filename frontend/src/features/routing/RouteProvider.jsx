@@ -139,6 +139,37 @@ export function RouteProvider({ children }) {
     }
   };
 
+  const handleMarkerDragEnd = useCallback(
+    async (endpoint, { lat, lng }) => {
+      try {
+        // snap to graph
+        const snapped = await backend.snapToGraph(lat, lng);
+
+        // optional: reverse geocode for display
+        let address = null;
+        try {
+          const rev = await nominatim.reverseNominatim({
+            lat: snapped.lat,
+            lon: snapped.lon,
+          });
+          address = rev?.display_name || null;
+        } catch (e) {
+          console.warn("Reverse geocoding failed:", e);
+        }
+
+        const withAddress = { ...snapped, address };
+
+        if (endpoint === "start") setSnappedStart(withAddress);
+        else setSnappedEnd(withAddress);
+
+        // No need to call fetchRoute() here; your effect handles it when both are set.
+      } catch (e) {
+        console.error("Drag snap error:", e);
+      }
+    },
+    [] // uses setSnappedStart/End which are stable; routing happens via the effect
+  );
+
   // ---- Settings apply ----
   const applySettings = async ({ mask, surfacePenaltySPerKm }) => {
     const nextMask = (mask ?? appliedMask) & 0xffff;
@@ -220,6 +251,7 @@ export function RouteProvider({ children }) {
     settings: { appliedMask, appliedPenalty, applySettings },
     actions: {
       handleMapClick,
+      handleMarkerDragEnd,
       fetchRoute,
       searchAddress,
       setPointFromHit,
