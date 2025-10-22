@@ -2,7 +2,7 @@ import React from "react";
 import { RouteProvider, useRoute, AddressSearch } from "@/features/routing";
 import { MapView } from "@/features/map";
 import { ControlPanel, useRouteSettings } from "@/features/routeSettings";
-import { InfoWindow } from "@/features/infoWindow";
+import { InfoWindow, useInfoWindow } from "@/features/infoWindow";
 
 function AppContent() {
   const { snappedStart, snappedEnd, routeCoords, routeModes, totals, actions } =
@@ -20,6 +20,7 @@ function AppContent() {
     applySettings,
   } = useRouteSettings();
 
+  const { visible: infoVisible, close: closeInfo } = useInfoWindow();
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
 
@@ -55,7 +56,7 @@ function AppContent() {
         hasRoute={hasRoute}
       />
 
-      <InfoWindow isVisible={false} onClose={() => {}} />
+      <InfoWindow isVisible={infoVisible} onClose={closeInfo} />
     </>
   );
 }
