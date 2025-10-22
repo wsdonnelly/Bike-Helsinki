@@ -101,13 +101,16 @@ const InfoWindow = ({ isVisible, onClose }) => {
               }}
             >
               <li style={{ marginBottom: 8 }}>
-                <strong>Click on the map</strong> to set your starting point
-              </li>
-              <li style={{ marginBottom: 8 }}>
-                <strong>Click again</strong> to set your destination
-              </li>
-              <li style={{ marginBottom: 8 }}>
+                <strong>
+                  Click the map or use the address search bar to set your origin
+                  and destination.
+                </strong>{" "}
                 Your route will be calculated automatically
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                <strong>Edit your origin and destination.</strong> Click again
+                on the map, or use the address search, or drag an existing
+                marker anywhere on the map!
               </li>
             </ol>
           </div>
