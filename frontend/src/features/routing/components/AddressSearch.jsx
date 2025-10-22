@@ -213,7 +213,8 @@ export default function AddressSearch() {
               const v = e.target.value;
               startSearch.setQuery(v);
               if (v.trim() === "") {
-                setSnappedStart(null); // <-- clear
+                // clears previous polyline route
+                setSnappedStart(null);
                 setActiveField(null); // optional: close dropdown
               }
             }}

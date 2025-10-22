@@ -139,36 +139,33 @@ export function RouteProvider({ children }) {
     }
   };
 
-  const handleMarkerDragEnd = useCallback(
-    async (endpoint, { lat, lng }) => {
-      try {
-        // snap to graph
-        const snapped = await backend.snapToGraph(lat, lng);
-
-        // optional: reverse geocode for display
-        let address = null;
-        try {
-          const rev = await nominatim.reverseNominatim({
-            lat: snapped.lat,
-            lon: snapped.lon,
-          });
-          address = rev?.display_name || null;
-        } catch (e) {
-          console.warn("Reverse geocoding failed:", e);
-        }
-
-        const withAddress = { ...snapped, address };
-
-        if (endpoint === "start") setSnappedStart(withAddress);
-        else setSnappedEnd(withAddress);
-
-        // No need to call fetchRoute() here; your effect handles it when both are set.
-      } catch (e) {
-        console.error("Drag snap error:", e);
+  const handleMarkerDragEnd = useCallback(async (endpoint, { lat, lng }) => {
+    try {
+      if (endpoint === "start") {
+        setSnappedStart(null);
+      } else {
+        setSnappedEnd(null);
       }
-    },
-    [] // uses setSnappedStart/End which are stable; routing happens via the effect
-  );
+      const snapped = await backend.snapToGraph(lat, lng);
+      let address = null;
+      try {
+        const rev = await nominatim.reverseNominatim({
+          lat: snapped.lat,
+          lon: snapped.lon,
+        });
+        address = rev?.display_name || null;
+      } catch (e) {
+        console.warn("Reverse geocoding failed:", e);
+      }
+
+      const withAddress = { ...snapped, address };
+
+      if (endpoint === "start") setSnappedStart(withAddress);
+      else setSnappedEnd(withAddress);
+    } catch (e) {
+      console.error("Drag snap error:", e);
+    }
+  }, []);
 
   // ---- Settings apply ----
   const applySettings = async ({ mask, surfacePenaltySPerKm }) => {

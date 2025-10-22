@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -111,6 +111,8 @@ export function MapView({
     [routeCoords, routeModes]
   );
 
+  const [dragging, setDragging] = useState(null);
+  const routeOpacity = dragging ? 0.35 : 0.95;
   return (
     <MapContainer
       center={[60.1699, 24.9384]}
@@ -145,9 +147,11 @@ export function MapView({
           zIndexOffset={1000}
           draggable // <-- make it draggable
           eventHandlers={{
+            dragstart: () => setDragging("start"),
             dragend: (e) => {
+              setDragging(null);
               const { lat, lng } = e.target.getLatLng();
-              onMarkerDragEnd?.("start", { lat, lng }); // <-- tell parent
+              onMarkerDragEnd?.("start", { lat, lng });
             },
           }}
         />
@@ -161,20 +165,25 @@ export function MapView({
           zIndexOffset={1000}
           draggable
           eventHandlers={{
+            dragstart: () => setDragging("end"),
             dragend: (e) => {
+              setDragging(null);
               const { lat, lng } = e.target.getLatLng();
-              onMarkerDragEnd?.("end", { lat, lng }); // <-- tell parent
+              onMarkerDragEnd?.("end", { lat, lng });
             },
           }}
         />
       )}
-
       {/* Bike preferred — solid blue */}
       {bikePrefRuns.map((pts, i) => (
         <Polyline
           key={`bp${i}`}
           positions={pts}
-          pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }}
+          pathOptions={{
+            color: ROUTE_COLORS.bikePreferred,
+            weight: 4,
+            opacity: routeOpacity,
+          }}
         />
       ))}
 
@@ -183,7 +192,11 @@ export function MapView({
         <Polyline
           key={`bn${i}`}
           positions={pts}
-          pathOptions={{ color: ROUTE_COLORS.bikeNonPreferred, weight: 4 }}
+          pathOptions={{
+            color: ROUTE_COLORS.bikeNonPreferred,
+            weight: 4,
+            opacity: routeOpacity,
+          }}
         />
       ))}
 
@@ -197,7 +210,7 @@ export function MapView({
             weight: 4,
             dashArray: "6 6",
             lineCap: "round",
-            opacity: 0.95,
+            opacity: routeOpacity,
           }}
         />
       ))}
