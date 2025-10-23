@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import { backend, nominatim } from "@/api";
 import { clamp } from "@/shared";
@@ -105,67 +106,100 @@ export function RouteProvider({ children }) {
     if (snappedStart && snappedEnd) fetchRoute();
   }, [snappedStart, snappedEnd, fetchRoute]);
 
+  const reverseCtrlRef = React.useRef({ start: null, end: null });
+  const resolveAddress = React.useCallback(
+    async (endpoint, snapped, { debounceMs = 0 } = {}) => {
+      if (!snapped) return;
+
+      // Abort any previous reverse for this endpoint
+      const prev = reverseCtrlRef.current[endpoint];
+      if (prev) prev.abort?.();
+
+      const ctrl = new AbortController();
+      reverseCtrlRef.current[endpoint] = ctrl;
+
+      // Optional small debounce after drag/drop
+      if (debounceMs) {
+        await new Promise((r) => setTimeout(r, debounceMs));
+        if (ctrl.signal.aborted) return;
+      }
+
+      try {
+        const rev = await nominatim.reverseNominatim({
+          lat: snapped.lat,
+          lon: snapped.lon,
+          signal: ctrl.signal, // make sure your helper forwards this to fetch
+        });
+        const address = rev?.display_name || null;
+
+        if (endpoint === "start") {
+          // only update if we're still pointing at the same snapped node
+          setSnappedStart((p) =>
+            p && p.idx === snapped.idx ? { ...p, address } : p
+          );
+        } else {
+          setSnappedEnd((p) =>
+            p && p.idx === snapped.idx ? { ...p, address } : p
+          );
+        }
+      } catch (e) {
+        if (!ctrl.signal.aborted) {
+          console.warn("Reverse geocoding failed:", e);
+        }
+      } finally {
+        if (reverseCtrlRef.current[endpoint] === ctrl) {
+          reverseCtrlRef.current[endpoint] = null;
+        }
+      }
+    },
+    []
+  );
   // ---- Map interaction ----
   const handleMapClick = async ({ lat, lng }) => {
     try {
       const snapped = await backend.snapToGraph(lat, lng);
-      let address = null;
-      try {
-        const reverseResult = await nominatim.reverseNominatim({
-          lat: snapped.lat,
-          lon: snapped.lon,
-        });
-        address = reverseResult?.display_name || null;
-      } catch (e) {
-        console.warn("Reverse geocoding failed:", e);
-      }
-      const snappedWithAddress = {
-        ...snapped,
-        address,
-      };
+      const snappedNoAddr = { ...snapped, address: null };
+
       if (!snappedStart) {
-        setSnappedStart(snappedWithAddress);
+        setSnappedStart(snappedNoAddr); // render immediately
+        resolveAddress("start", snappedNoAddr); // fill address later
       } else if (!snappedEnd) {
-        setSnappedEnd(snappedWithAddress);
+        setSnappedEnd(snappedNoAddr);
+        resolveAddress("end", snappedNoAddr);
       } else {
-        setSnappedStart(snappedWithAddress);
+        setSnappedStart(snappedNoAddr);
         setSnappedEnd(null);
         setRouteCoords([]);
         setRouteModes([]);
         resetStats();
+        resolveAddress("start", snappedNoAddr);
       }
     } catch (e) {
       console.error("Snap error:", e);
     }
   };
 
-  const handleMarkerDragEnd = useCallback(async (endpoint, { lat, lng }) => {
-    try {
-      if (endpoint === "start") {
-        setSnappedStart(null);
-      } else {
-        setSnappedEnd(null);
-      }
-      const snapped = await backend.snapToGraph(lat, lng);
-      let address = null;
+  const handleMarkerDragEnd = useCallback(
+    async (endpoint, { lat, lng }) => {
       try {
-        const rev = await nominatim.reverseNominatim({
-          lat: snapped.lat,
-          lon: snapped.lon,
-        });
-        address = rev?.display_name || null;
+        // Clear the endpoint first to avoid flash of the old route (optional)
+        if (endpoint === "start") setSnappedStart(null);
+        else setSnappedEnd(null);
+
+        const snapped = await backend.snapToGraph(lat, lng);
+        const snappedNoAddr = { ...snapped, address: null };
+
+        if (endpoint === "start") setSnappedStart(snappedNoAddr);
+        else setSnappedEnd(snappedNoAddr);
+
+        // Small debounce helps if user drops, re-drags quickly
+        resolveAddress(endpoint, snappedNoAddr, { debounceMs: 150 });
       } catch (e) {
-        console.warn("Reverse geocoding failed:", e);
+        console.error("Drag snap error:", e);
       }
-
-      const withAddress = { ...snapped, address };
-
-      if (endpoint === "start") setSnappedStart(withAddress);
-      else setSnappedEnd(withAddress);
-    } catch (e) {
-      console.error("Drag snap error:", e);
-    }
-  }, []);
+    },
+    [resolveAddress]
+  );
 
   // ---- Settings apply ----
   const applySettings = async ({ mask, surfacePenaltySPerKm }) => {
