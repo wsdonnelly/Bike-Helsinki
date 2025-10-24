@@ -101,6 +101,24 @@ const InfoWindow = ({ isVisible, onClose }) => {
           }}
         >
           <div style={{ marginBottom: 24 }}>
+            {/* Banner */}
+            <div
+              style={{
+                marginBottom: 12,
+                padding: "8px 12px",
+                borderRadius: 10,
+                background: "rgba(255, 87, 34, 0.10)", // soft amber
+                color: "#6b4f00",
+                border: "1px solid rgba(255, 193, 7, 0.35)",
+                fontSize: 14,
+                lineHeight: 1.4,
+              }}
+            >
+              <strong style={{ marginRight: 6 }}>Preview branch:</strong>
+              This deploy includes the new Address Search features. Expect rough edges :)
+              Also currently working on more geolocation features (track your location and follow routes)
+              and a full reworking of the underlying algorithm. Stay tuned!
+            </div>
             <h3
               style={{
                 margin: "0 0 12px",
@@ -133,11 +151,14 @@ const InfoWindow = ({ isVisible, onClose }) => {
                 marker anywhere on the map!
               </li>
 
-           <li style={{ marginBottom: 8 }}>
-
+              <li style={{ marginBottom: 8 }}>
                 <span>
-                  Use the <strong><HouseIcon size={16} style={{ marginTop: -1 }}/></strong> button to open/close
-                  the address search bar at the top of the map.
+                  Use the{" "}
+                  <strong>
+                    <HouseIcon size={16} style={{ marginTop: -1 }} />
+                  </strong>{" "}
+                  button to open/close the address search bar at the top of the
+                  map.
                 </span>
               </li>
             </ol>
