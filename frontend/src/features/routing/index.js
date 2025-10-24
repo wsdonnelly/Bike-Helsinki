@@ -6,3 +6,6 @@ export { default as useNominatimSearch } from "./hooks/useNominatimSearch";
 
 // Context
 export { RouteProvider, useRoute } from "./RouteProvider";
+
+// Utils
+export { formatAddress } from "./utils/formatAddress";
