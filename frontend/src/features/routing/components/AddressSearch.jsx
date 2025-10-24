@@ -170,7 +170,7 @@ export default function AddressSearch() {
       title={open ? "Hide address search" : "Show address search"}
       style={{
         position: "absolute",
-        top: 20,
+        top: 5,
         right: 10,
         zIndex: 1003,
         // width: 40,
@@ -214,7 +214,7 @@ export default function AddressSearch() {
           ref={containerRef}
           style={{
             position: "absolute",
-            top: 12,
+            top: 10,
             left: "50%",
             transform: "translateX(-50%)",
             width: "min(92vw, 560px)",
@@ -226,39 +226,6 @@ export default function AddressSearch() {
           }}
           aria-label="Address search"
         >
-          {/* Panel header with inline close (optional) */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 8,
-            }}
-          >
-            <strong style={{ fontSize: 12, opacity: 0.8 }}>
-              Address search
-            </strong>
-            <button
-              type="button"
-              onClick={() => {
-                hideDropdowns();
-                setIsOpen(false);
-              }}
-              style={{
-                border: "1px solid #eee",
-                background: "#fff",
-                borderRadius: 8,
-                padding: "4px 8px",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              title="Hide"
-            >
-              Close
-            </button>
-          </div>
-
           {/* START field */}
           <div style={{ marginBottom: 10 }}>
             <div style={inputWrapStyle}>

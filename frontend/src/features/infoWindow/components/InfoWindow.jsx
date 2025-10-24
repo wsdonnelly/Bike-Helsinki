@@ -3,6 +3,25 @@ import React from "react";
 const InfoWindow = ({ isVisible, onClose }) => {
   if (!isVisible) return null;
 
+  const HouseIcon = ({ size = 16, style }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={style}
+    >
+      <path d="M3 11.5L12 4l9 7.5" />
+      <path d="M5 10.5V20h14v-9.5" />
+      <path d="M10 20v-4a2 2 0 0 1 4 0v4" />
+    </svg>
+  );
+
   return (
     <>
       {/* Backdrop */}
@@ -90,7 +109,7 @@ const InfoWindow = ({ isVisible, onClose }) => {
                 color: "#333",
               }}
             >
-              🗺️ How to get started
+              How to get started
             </h3>
             <ol
               style={{
@@ -105,12 +124,21 @@ const InfoWindow = ({ isVisible, onClose }) => {
                   Click the map or use the address search bar to set your origin
                   and destination.
                 </strong>{" "}
-                Your route will be calculated automatically
+                Your route will be calculated automatically.
               </li>
+
               <li style={{ marginBottom: 8 }}>
                 <strong>Edit your origin and destination.</strong> Click again
                 on the map, or use the address search, or drag an existing
                 marker anywhere on the map!
+              </li>
+
+           <li style={{ marginBottom: 8 }}>
+
+                <span>
+                  Use the <strong><HouseIcon size={16} style={{ marginTop: -1 }}/></strong> button to open/close
+                  the address search bar at the top of the map.
+                </span>
               </li>
             </ol>
           </div>
