@@ -90,7 +90,7 @@ export default function AddressSearch() {
         ? "#e74c3c"
         : "rgba(231, 76, 60, 0.3)",
     borderRadius: 6,
-    fontSize: 14,
+    fontSize: 16,
     transition: "all 0.2s",
     outline: "none",
   });
