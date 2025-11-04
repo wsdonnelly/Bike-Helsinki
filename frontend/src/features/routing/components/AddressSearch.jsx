@@ -17,7 +17,7 @@ export default function AddressSearch() {
   const endSearch = useNominatimSearch(actions.searchAddress);
 
   const [activeField, setActiveField] = useState(null);
-  const [isOpen, setIsOpen] = useState(true); // ← NEW
+  const [isOpen, setIsOpen] = useState(true);
 
   const containerRef = useRef(null);
   const blurTimeoutRef = useRef(null);

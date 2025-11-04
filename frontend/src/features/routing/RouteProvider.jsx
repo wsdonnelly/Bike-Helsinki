@@ -106,8 +106,8 @@ export function RouteProvider({ children }) {
     if (snappedStart && snappedEnd) fetchRoute();
   }, [snappedStart, snappedEnd, fetchRoute]);
 
-  const reverseCtrlRef = React.useRef({ start: null, end: null });
-  const resolveAddress = React.useCallback(
+  const reverseCtrlRef = useRef({ start: null, end: null });
+  const resolveAddress = useCallback(
     async (endpoint, snapped, { debounceMs = 0 } = {}) => {
       if (!snapped) return;
 
@@ -155,9 +155,9 @@ export function RouteProvider({ children }) {
     []
   );
   // ---- Map interaction ----
-  const handleMapClick = async ({ lat, lng }) => {
+  const handleMapClick = async ({ lat, lon }) => {
     try {
-      const snapped = await backend.snapToGraph(lat, lng);
+      const snapped = await backend.snapToGraph(lat, lon);
       const snappedNoAddr = { ...snapped, address: null };
 
       if (!snappedStart) {
@@ -180,13 +180,13 @@ export function RouteProvider({ children }) {
   };
 
   const handleMarkerDragEnd = useCallback(
-    async (endpoint, { lat, lng }) => {
+    async (endpoint, { lat, lon }) => {
       try {
         // Clear the endpoint first to avoid flash of the old route (optional)
         if (endpoint === "start") setSnappedStart(null);
         else setSnappedEnd(null);
 
-        const snapped = await backend.snapToGraph(lat, lng);
+        const snapped = await backend.snapToGraph(lat, lon);
         const snappedNoAddr = { ...snapped, address: null };
 
         if (endpoint === "start") setSnappedStart(snappedNoAddr);

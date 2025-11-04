@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -23,6 +23,12 @@ L.Icon.Default.mergeOptions({
 const MODE_BIKE_PREFFERED = 0x1; // 0001
 const MODE_BIKE_NON_PREFFERED = 0x2; // 0010
 const MODE_FOOT = 0x4; // 0100  (not 0x3!)
+
+// Leaflet → app ({lat, lng} → {lat, lon})
+const lngToLon = ({ lat, lng }) => ({ lat, lon: lng });
+
+// app → Leaflet ({lat, lon} → [lat, lng])
+const lonToLeafletTuple = ({ lat, lon }) => ({ lat, lng: lon });
 
 function splitRuns(coords, modes, modeBit) {
   const out = [];
@@ -52,7 +58,9 @@ function splitRuns(coords, modes, modeBit) {
 
 // Keeps click handler in sync with the latest prop, and auto-cleans
 function MapClick({ onMapClick }) {
-  useMapEvents({ click: (e) => onMapClick?.(e.latlng) });
+  useMapEvents({
+    click: (e) => onMapClick && onMapClick(lngToLon(e.latlng)),
+  });
   return null;
 }
 
@@ -78,6 +86,59 @@ function makePinIcon({ color = "#2ecc71", label = "S", anchorY = 42 }) {
     popupAnchor: [0, -40],
     className: "leaflet-marker-icon",
   });
+}
+
+function ToggleButton({ onToggle }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    L.DomEvent.disableClickPropagation(ref.current);
+    L.DomEvent.disableScrollPropagation(ref.current);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      style={{ position: "absolute", top: 35, right: 10, zIndex: 1003 }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          background: "white",
+          // width: 36,
+          // height: 36,
+          borderRadius: 10,
+          border: "1px solid #e5e5e5",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          display: "grid",
+          placeItems: "center",
+          cursor: "pointer",
+        }}
+        aria-label="Toggle satellite view"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 0 1 0 20a15.3 15.3 0 0 1 0-20z" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 export function MapView({
@@ -111,8 +172,10 @@ export function MapView({
     [routeCoords, routeModes]
   );
 
+  const [isSatView, setIsSatView] = useState(false);
   const [dragging, setDragging] = useState(null);
   const routeOpacity = dragging ? 0.35 : 0.95;
+
   return (
     <MapContainer
       center={[60.1699, 24.9384]}
@@ -131,27 +194,35 @@ export function MapView({
       wheelPxPerZoomLevel={120}
     >
       <ZoomControl position="topleft" />
+      <ToggleButton onToggle={() => setIsSatView((v) => !v)} />
 
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="© OSM contributors"
-      />
+      {isSatView ? (
+        <TileLayer
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+        />
+      ) : (
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="© OSM contributors"
+        />
+      )}
 
       <MapClick onMapClick={onMapClick} />
 
       {snappedStart && (
         <Marker
-          position={[snappedStart.lat, snappedStart.lon]}
+          position={lonToLeafletTuple(snappedStart)} // [lat, lng]
           icon={startIcon}
           title="Start"
           zIndexOffset={1000}
-          draggable // <-- make it draggable
+          draggable
           eventHandlers={{
             dragstart: () => setDragging("start"),
             dragend: (e) => {
               setDragging(null);
               const { lat, lng } = e.target.getLatLng();
-              onMarkerDragEnd?.("start", { lat, lng });
+              onMarkerDragEnd && onMarkerDragEnd("start", { lat, lon: lng });
             },
           }}
         />
@@ -159,7 +230,7 @@ export function MapView({
 
       {snappedEnd && (
         <Marker
-          position={[snappedEnd.lat, snappedEnd.lon]}
+          position={lonToLeafletTuple(snappedEnd)}
           icon={endIcon}
           title="End"
           zIndexOffset={1000}
@@ -169,11 +240,12 @@ export function MapView({
             dragend: (e) => {
               setDragging(null);
               const { lat, lng } = e.target.getLatLng();
-              onMarkerDragEnd?.("end", { lat, lng });
+              onMarkerDragEnd && onMarkerDragEnd("end", { lat, lon: lng });
             },
           }}
         />
       )}
+
       {/* Bike preferred — solid blue */}
       {bikePrefRuns.map((pts, i) => (
         <Polyline
