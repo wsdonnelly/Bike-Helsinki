@@ -19,7 +19,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-// NOTE: keep names as you wrote, but make them real bit flags
 const MODE_BIKE_PREFFERED = 0x1; // 0001
 const MODE_BIKE_NON_PREFFERED = 0x2; // 0010
 const MODE_FOOT = 0x4; // 0100  (not 0x3!)
@@ -88,59 +87,6 @@ function makePinIcon({ color = "#2ecc71", label = "S", anchorY = 42 }) {
   });
 }
 
-function ToggleButton({ onToggle }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    L.DomEvent.disableClickPropagation(ref.current);
-    L.DomEvent.disableScrollPropagation(ref.current);
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      style={{ position: "absolute", top: 35, right: 10, zIndex: 1003 }}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{
-          background: "white",
-          // width: 36,
-          // height: 36,
-          borderRadius: 10,
-          border: "1px solid #e5e5e5",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          display: "grid",
-          placeItems: "center",
-          cursor: "pointer",
-        }}
-        aria-label="Toggle satellite view"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          width="20"
-          height="20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="2" y1="12" x2="22" y2="12" />
-          <path d="M12 2a15.3 15.3 0 0 1 0 20a15.3 15.3 0 0 1 0-20z" />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
 export function MapView({
   onMapClick,
   snappedStart,
@@ -148,6 +94,7 @@ export function MapView({
   routeCoords,
   routeModes,
   onMarkerDragEnd,
+  isSatView,
 }) {
   const startIcon = useMemo(
     () => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }),
@@ -172,7 +119,6 @@ export function MapView({
     [routeCoords, routeModes]
   );
 
-  const [isSatView, setIsSatView] = useState(false);
   const [dragging, setDragging] = useState(null);
   const routeOpacity = dragging ? 0.35 : 0.95;
 
@@ -194,8 +140,6 @@ export function MapView({
       wheelPxPerZoomLevel={120}
     >
       <ZoomControl position="topleft" />
-      <ToggleButton onToggle={() => setIsSatView((v) => !v)} />
-
       {isSatView ? (
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

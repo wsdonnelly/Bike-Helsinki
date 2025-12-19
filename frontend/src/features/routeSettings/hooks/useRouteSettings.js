@@ -9,6 +9,12 @@ export function useRouteSettings() {
   const [draftMask, setDraftMask] = useState(settings.appliedMask);
   const [draftPenalty, setDraftPenalty] = useState(settings.appliedPenalty);
 
+  // Add satellite view state with localStorage persistence
+  const [isSatView, setIsSatView] = useState(() => {
+    const saved = localStorage.getItem('satelliteView');
+    return saved === 'true';
+  });
+
   const openPanel = () => {
     setDraftMask(settings.appliedMask & 0xffff);
     setDraftPenalty(clamp(settings.appliedPenalty, 0, 1000));
@@ -31,6 +37,15 @@ export function useRouteSettings() {
     setPanelOpen(true);
   };
 
+  // Toggle satellite view with localStorage persistence
+  const toggleSatView = () => {
+    setIsSatView(prev => {
+      const newValue = !prev;
+      localStorage.setItem('satelliteView', newValue.toString());
+      return newValue;
+    });
+  };
+
   return {
     panelOpen,
     openPanel,
@@ -41,5 +56,7 @@ export function useRouteSettings() {
     draftPenalty,
     setDraftPenalty,
     applySettings,
+    isSatView,
+    toggleSatView,
   };
 }

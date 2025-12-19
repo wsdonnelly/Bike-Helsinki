@@ -18,6 +18,8 @@ function AppContent() {
     draftPenalty,
     setDraftPenalty,
     applySettings,
+    isSatView,
+    toggleSatView,
   } = useRouteSettings();
 
   const { visible: infoVisible, close: closeInfo } = useInfoWindow();
@@ -35,6 +37,7 @@ function AppContent() {
         routeModes={routeModes}
         onMapClick={actions.handleMapClick}
         onMarkerDragEnd={actions.handleMarkerDragEnd}
+        isSatView={isSatView}  // Pass satellite view state
       />
 
       <ControlPanel
@@ -54,6 +57,8 @@ function AppContent() {
         distanceWalk={totals.totalDistanceWalk}
         hasSelection={hasSelection}
         hasRoute={hasRoute}
+        isSatView={isSatView}
+        onToggleSatView={toggleSatView}
       />
 
       <InfoWindow isVisible={infoVisible} onClose={closeInfo} />

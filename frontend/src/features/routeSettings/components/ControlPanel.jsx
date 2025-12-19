@@ -14,6 +14,26 @@ import {
 } from "../constants/surfaceTypes";
 import * as styles from "./ControlPanel.styles";
 
+// Satellite/Globe icon as a reusable component
+const GlobeIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    width="20"
+    height="20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 0 20a15.3 15.3 0 0 1 0-20z" />
+  </svg>
+);
+
 const ControlPanel = ({
   surfaceMask,
   onToggleSurface,
@@ -31,6 +51,8 @@ const ControlPanel = ({
   distanceWalk = 0,
   hasSelection = false,
   hasRoute = false,
+  isSatView = false,
+  onToggleSatView,
 }) => {
   const isMobile = useIsMobile("(max-width: 640px)");
   const [activeTab, setActiveTab] = useState("filters");
@@ -78,9 +100,32 @@ const ControlPanel = ({
           >
             <div style={styles.hdr}>
               <h2 style={styles.titleStyle}>Surface Types</h2>
+
+              {/* Satellite toggle button */}
+              <button
+                type="button"
+                onClick={onToggleSatView}
+                style={{
+                  ...styles.btnSm,
+                  marginLeft: 'auto',
+                  marginRight: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px 10px',
+                  backgroundColor: isSatView ? '#e3f2fd' : '#fff',
+                  border: isSatView ? '1px solid #2196f3' : '1px solid #ddd',
+                }}
+                aria-label={isSatView ? "Switch to map view" : "Switch to satellite view"}
+                title={isSatView ? "Switch to map view" : "Switch to satellite view"}
+              >
+                <GlobeIcon />
+              </button>
+
               <button type="button" onClick={onClose} style={styles.btnSm}>
                 Close
               </button>
+
               <button
                 type="button"
                 aria-label="Apply"
@@ -175,9 +220,32 @@ const ControlPanel = ({
             onTouchStart={startDrag}
           >
             <h2 style={styles.titleStyle}>Route Options</h2>
+
+            {/* Satellite toggle button for mobile */}
+            <button
+              type="button"
+              onClick={onToggleSatView}
+              style={{
+                ...styles.btnSm,
+                marginLeft: 'auto',
+                marginRight: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '6px 10px',
+                backgroundColor: isSatView ? '#e3f2fd' : '#fff',
+                border: isSatView ? '1px solid #2196f3' : '1px solid #ddd',
+              }}
+              aria-label={isSatView ? "Switch to map view" : "Switch to satellite view"}
+              title={isSatView ? "Switch to map view" : "Switch to satellite view"}
+            >
+              <GlobeIcon />
+            </button>
+
             <button type="button" onClick={onClose} style={styles.btnSm}>
               Close
             </button>
+
             {activeTab === "filters" && (
               <button
                 type="button"
