@@ -4,7 +4,7 @@
 #include <cstring>
 #include <osmium/osm/way.hpp>
 
-namespace injest
+namespace ingest
 {
 // ─────────────────────────────────────────────────────────────────────────────
 // Surface mapping implementation
@@ -181,4 +181,4 @@ void WayCollector::way(const osmium::Way& way)
   wayIdWayMetaMap[way.id()] = wayMeta;
 }
 
-}  // namespace injest
+}  // namespace ingest

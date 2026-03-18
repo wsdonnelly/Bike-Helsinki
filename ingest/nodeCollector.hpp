@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace injest
+namespace ingest
 {
 struct NodeCollector : public osmium::handler::Handler
 {
@@ -19,4 +19,4 @@ struct NodeCollector : public osmium::handler::Handler
   {}
   void node(const osmium::Node& node);
 };
-}  // namespace injest
+}  // namespace ingest

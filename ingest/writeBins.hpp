@@ -6,7 +6,7 @@
 
 #include "binHeaders.hpp"
 
-namespace injest
+namespace ingest
 {
 void writeGraphNodesBin(
     const std::vector<uint64_t>& allNodeIds,
@@ -20,4 +20,4 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
                         const std::vector<uint8_t>& surfacePrimary,
                         const std::vector<uint8_t>& modeMasks);
 
-}  // namespace injest
+}  // namespace ingest

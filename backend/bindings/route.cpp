@@ -76,8 +76,8 @@ static NodesView loadNodes(const std::string& filePath)
   };
 
   // Header
-  requireBytes(sizeof(injest::NodesHeader));
-  const auto* header = reinterpret_cast<const injest::NodesHeader*>(cursor);
+  requireBytes(sizeof(ingest::NodesHeader));
+  const auto* header = reinterpret_cast<const ingest::NodesHeader*>(cursor);
   if (std::memcmp(header->magic, "MMAPNODE", 8) != 0)
   {
     throw std::runtime_error("bad nodes header");
@@ -117,8 +117,8 @@ static EdgesView loadEdges(const std::string& filePath)
   };
 
   // --- Header ---
-  requireBytes(sizeof(injest::EdgesHeader));
-  const auto* header = reinterpret_cast<const injest::EdgesHeader*>(cursor);
+  requireBytes(sizeof(ingest::EdgesHeader));
+  const auto* header = reinterpret_cast<const ingest::EdgesHeader*>(cursor);
 
   // accept both
   const bool okMagic = (std::memcmp(header->magic, "MMAPGRPH", 8) == 0) ||

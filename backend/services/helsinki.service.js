@@ -4,7 +4,7 @@ const { computeBBox } = require("../lib/computeBBox");
 
 const HELSINKI_GJ_PATH = path.resolve(
   __dirname,
-  "../../injest/helsinki.geojson"
+  "../../ingest/helsinki.geojson"
 );
 
 let cached = null;

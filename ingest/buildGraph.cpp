@@ -14,7 +14,7 @@
 #include "wayCollector.hpp"
 #include "writeBins.hpp"
 
-using namespace injest;
+using namespace ingest;
 // ─────────────────────────────────────────────────────────────────────────────
 // Main: read PBF → build directed CSR with modes & surfaces
 // ─────────────────────────────────────────────────────────────────────────────

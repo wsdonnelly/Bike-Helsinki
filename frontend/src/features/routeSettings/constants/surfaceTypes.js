@@ -1,4 +1,4 @@
-// Bit flags must match injest/surfaceTypes.hpp
+// Bit flags must match ingest/surfaceTypes.hpp
 export const SurfaceBits = {
   SURF_PAVED: 1 << 0,
   SURF_ASPHALT: 1 << 1,

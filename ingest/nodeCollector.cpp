@@ -1,6 +1,6 @@
 #include "nodeCollector.hpp"
 
-namespace injest
+namespace ingest
 {
 void NodeCollector::node(const osmium::Node& node)
 {
@@ -9,4 +9,4 @@ void NodeCollector::node(const osmium::Node& node)
     nodeIdCoordMap[id] = {(float)node.location().lat(),
                           (float)node.location().lon()};
 }
-}  // namespace injest
+}  // namespace ingest

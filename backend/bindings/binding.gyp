@@ -6,7 +6,7 @@
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
         "/opt/homebrew/include",
-        "../../injest",
+        "../../ingest",
 
       ],
       'dependencies': [
@@ -31,7 +31,7 @@
             "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")",
         "/opt/homebrew/include",
-        "../../injest"
+        "../../ingest"
       ],
       'dependencies': [
         "<!(node -p \"require('node-addon-api').targets\"):node_addon_api_except_all",

@@ -13,7 +13,7 @@ flowchart TD
     OSM[OSM PBF File<br/>raw_data/]
 
     %% Ingestion Process
-    subgraph INGEST [" 🔄 bikemap/injest "]
+    subgraph INGEST [" 🔄 bikemap/ingest "]
         BUILD[buildGraph.cpp<br/>Main ingestion process]
         WAY[WayCollector<br/>Extract bike/foot ways]
         NODE[NodeCollector<br/>Extract coordinates]
@@ -182,7 +182,7 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 ### Fetch OSM data and build graph
 
 ```bash
-in injest/
+in ingest/
 ./all.sh
 ```
 

@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cstring>
 
-namespace injest
+namespace ingest
 {
 
 void writeGraphNodesBin(
@@ -91,4 +91,4 @@ void writeGraphEdgesBin(uint32_t numNodes, uint32_t numEdges,
   out.close();
   std::cout << "Wrote graph_edges.bin (" << numEdges << " directed edges)\n";
 }
-}  // namespace injest
+}  // namespace ingest

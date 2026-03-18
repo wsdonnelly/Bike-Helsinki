@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace injest
+namespace ingest
 {
 struct NodesHeader
 {
