@@ -13,7 +13,7 @@ flowchart TD
     OSM[OSM PBF File<br/>raw_data/]
 
     %% Ingestion Process
-    subgraph INGEST [" 🔄 bikemap/injest "]
+    subgraph INGEST [" 🔄 bikemap/ingest "]
         BUILD[buildGraph.cpp<br/>Main ingestion process]
         WAY[WayCollector<br/>Extract bike/foot ways]
         NODE[NodeCollector<br/>Extract coordinates]
@@ -182,7 +182,9 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 ### Fetch OSM data and build graph
 
 ```bash
-in injest/
+# From project root
+
+cd ingest
 ./all.sh
 ```
 
@@ -197,7 +199,12 @@ This script will:
 ### Install dependencies
 
 ```bash
-in backend/
+# From project root
+
+cd backend
+```
+
+```bash
 npm install
 ```
 
@@ -209,7 +216,11 @@ Core dependencies include:
 ### Build C++ addons
 
 ```bash
-in backend/bindings/
+npm run build:native
+
+or
+
+cd bindings
 npx node-gyp configure && npx node-gyp build
 or
 npx node-gyp rebuild --release
@@ -220,8 +231,7 @@ This compiles `kd_snap.cpp` and `route.cpp` with optimizations enabled.
 ### Start server
 
 ```bash
-in backend/  # Back to backend/
-node index.js
+node run dev
 ```
 
 Server will start on `http://localhost:3000` with endpoints:
@@ -234,7 +244,12 @@ Server will start on `http://localhost:3000` with endpoints:
 ### Install dependencies
 
 ```bash
-in frontend/
+# From project root
+
+cd frontend
+```
+
+```bash
 npm install
 ```
 
