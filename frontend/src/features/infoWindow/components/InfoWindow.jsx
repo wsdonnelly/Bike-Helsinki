@@ -1,4 +1,3 @@
-import React from "react";
 import * as styles from "./InfoWindow.styles";
 
 const HouseIcon = ({ size = 16, style }) => (
