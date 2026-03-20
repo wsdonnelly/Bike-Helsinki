@@ -97,6 +97,7 @@ export function MapView({
   onMarkerDragEnd,
 }) {
   const { isSatView } = useRouteSettingsContext();
+
   const startIcon = useMemo(
     () => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }),
     []
