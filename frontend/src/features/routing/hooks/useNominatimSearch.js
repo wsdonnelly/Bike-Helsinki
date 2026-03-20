@@ -8,7 +8,8 @@ export default function useNominatimSearch(
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const t = useRef(null);
+  const timerRef = useRef(null);
+  const ctrlRef = useRef(null);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -16,13 +17,18 @@ export default function useNominatimSearch(
       return;
     }
     setSearching(true);
-    clearTimeout(t.current);
-    t.current = setTimeout(async () => {
-      const hits = await searchFn(query, { limit });
-      setResults(hits || []);
-      setSearching(false);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      ctrlRef.current?.abort();
+      const ctrl = new AbortController();
+      ctrlRef.current = ctrl;
+      const hits = await searchFn(query, { limit, signal: ctrl.signal });
+      if (!ctrl.signal.aborted) {
+        setResults(hits || []);
+        setSearching(false);
+      }
     }, delay);
-    return () => clearTimeout(t.current);
+    return () => clearTimeout(timerRef.current);
   }, [query, delay, limit, searchFn]);
 
   return { query, setQuery, results, searching };

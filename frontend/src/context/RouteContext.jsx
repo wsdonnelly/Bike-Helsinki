@@ -187,7 +187,7 @@ export function RouteProvider({ children }) {
   };
 
   const searchAddress = useCallback(
-    async (q, { limit = 5, lang = "fi" } = {}) => {
+    async (q, { limit = 5, lang = "fi", signal } = {}) => {
       if (!cfg?.viewboxString || !q?.trim()) return [];
       try {
         return await nominatim.searchNominatim({
@@ -196,8 +196,10 @@ export function RouteProvider({ children }) {
           bounded: true,
           lang,
           limit,
+          signal,
         });
       } catch (e) {
+        if (e?.code === "ERR_CANCELED") return [];
         console.error("Nominatim failed:", e);
         return [];
       }

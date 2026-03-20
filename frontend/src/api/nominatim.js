@@ -14,6 +14,7 @@ export async function searchNominatim({
   lang = "fi",
   limit = 5,
   country = "fi",
+  signal,
 } = {}) {
   const params = {
     q,
@@ -31,7 +32,7 @@ export async function searchNominatim({
   const email = (import.meta.env.VITE_NOMINATIM_EMAIL || "").trim();
   if (email) params.email = email;
 
-  const res = await client.get("/search", { params });
+  const res = await client.get("/search", { params, signal });
   return res.data;
 }
 
