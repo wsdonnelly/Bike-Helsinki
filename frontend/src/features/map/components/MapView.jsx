@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState} from "react";
 import {
   MapContainer,
   TileLayer,
@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { ROUTE_COLORS } from "@/shared/constants/colors";
+import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 
 // Fix Leaflet default marker icons (CDN assets)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -94,8 +95,8 @@ export function MapView({
   routeCoords,
   routeModes,
   onMarkerDragEnd,
-  isSatView,
 }) {
+  const { isSatView } = useRouteSettingsContext();
   const startIcon = useMemo(
     () => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }),
     []

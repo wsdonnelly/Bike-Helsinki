@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { SEARCH_DEBOUNCE_MS } from "@/shared";
 
 export default function useNominatimSearch(
   searchFn,
-  { delay = 300, limit = 6 } = {}
+  { delay = SEARCH_DEBOUNCE_MS, limit = 6 } = {}
 ) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);

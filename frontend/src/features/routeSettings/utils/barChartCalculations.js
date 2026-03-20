@@ -1,7 +1,5 @@
-/**
- * Calculates segment widths for a stacked bar chart
- * Ensures tiny segments get minimum visibility while maintaining ~100% total
- */
+import { MIN_BAR_WIDTH_PCT } from "@/shared";
+
 export function calculateSegmentWidths(
   distanceBikePreferred,
   distanceBikeNonPreferred,
@@ -20,8 +18,7 @@ export function calculateSegmentWidths(
   let wBN = pct(bn);
   let wWK = pct(wk);
 
-  // Minimal visibility for tiny segments (keeps total near 100%)
-  const minPct = 1.5;
+  const minPct = MIN_BAR_WIDTH_PCT;
   const boosts = [
     wBP < minPct && wBP > 0,
     wBN < minPct && wBN > 0,

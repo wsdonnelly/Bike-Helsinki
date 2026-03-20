@@ -7,7 +7,7 @@ import React, {
   useRef,
 } from "react";
 import { backend, nominatim } from "@/api";
-import { clamp } from "@/shared";
+import { clamp, MAX_PENALTY, DRAG_DEBOUNCE_MS, DEFAULT_MASK } from "@/shared";
 
 const Ctx = createContext(null);
 export const useRoute = () => useContext(Ctx);
@@ -28,7 +28,7 @@ export function RouteProvider({ children }) {
   const [routeModes, setRouteModes] = useState([]);
 
   // Masks / penalties
-  const [appliedMask, setAppliedMask] = useState(0xffff);
+  const [appliedMask, setAppliedMask] = useState(DEFAULT_MASK);
   const [appliedPenalty, setAppliedPenalty] = useState(0);
 
   // Stats
@@ -45,19 +45,6 @@ export function RouteProvider({ children }) {
     setDistanceBikeNonPreferred(0);
     setDistanceWalk(0);
   };
-  //debug logger
-  useEffect(() => {
-    const fmt = (p) =>
-      p
-        ? { idx: p.idx, lat: +p.lat, lon: +p.lon, address: p.address || "" }
-        : null;
-
-    console.log("[Route] points changed:", {
-      start: fmt(snappedStart),
-      end: fmt(snappedEnd),
-    });
-  }, [snappedStart, snappedEnd]);
-
   useEffect(() => {
     if (!snappedStart || !snappedEnd) {
       setRouteCoords([]);
@@ -72,7 +59,7 @@ export function RouteProvider({ children }) {
       if (!snappedStart || !snappedEnd) return;
 
       const mask = (maskOverride ?? appliedMask) & 0xffff;
-      const penalty = clamp(penaltyOverride ?? appliedPenalty, 0, 1000);
+      const penalty = clamp(penaltyOverride ?? appliedPenalty, 0, MAX_PENALTY);
 
       const payload = {
         startIdx: snappedStart.idx,
@@ -193,7 +180,7 @@ export function RouteProvider({ children }) {
         else setSnappedEnd(snappedNoAddr);
 
         // Small debounce helps if user drops, re-drags quickly
-        resolveAddress(endpoint, snappedNoAddr, { debounceMs: 150 });
+        resolveAddress(endpoint, snappedNoAddr, { debounceMs: DRAG_DEBOUNCE_MS });
       } catch (e) {
         console.error("Drag snap error:", e);
       }
@@ -204,7 +191,7 @@ export function RouteProvider({ children }) {
   // ---- Settings apply ----
   const applySettings = async ({ mask, surfacePenaltySPerKm }) => {
     const nextMask = (mask ?? appliedMask) & 0xffff;
-    const nextPenalty = clamp(surfacePenaltySPerKm ?? appliedPenalty, 0, 1000);
+    const nextPenalty = clamp(surfacePenaltySPerKm ?? appliedPenalty, 0, MAX_PENALTY);
     const changed = nextMask !== appliedMask || nextPenalty !== appliedPenalty;
     setAppliedMask(nextMask);
     setAppliedPenalty(nextPenalty);

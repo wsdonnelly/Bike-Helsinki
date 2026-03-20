@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { MOBILE_BREAKPOINT_PX } from "../constants/config";
 
-export function useIsMobile(q = "(max-width: 640px)") {
+export function useIsMobile(q = `(max-width: ${MOBILE_BREAKPOINT_PX}px)`) {
   const [m, setM] = useState(false);
   useEffect(() => {
     const mm = window.matchMedia(q);

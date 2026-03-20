@@ -1,0 +1,62 @@
+import React, { createContext, useContext, useState } from "react";
+import { useRoute } from "@/features/routing";
+import { clamp, MAX_PENALTY, DEFAULT_MASK } from "@/shared";
+
+const Ctx = createContext(null);
+export const useRouteSettingsContext = () => useContext(Ctx);
+
+export function RouteSettingsProvider({ children }) {
+  const { settings } = useRoute();
+
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [draftMask, setDraftMask] = useState(settings.appliedMask);
+  const [draftPenalty, setDraftPenalty] = useState(settings.appliedPenalty);
+
+  const [isSatView, setIsSatView] = useState(() => {
+    const saved = localStorage.getItem("satelliteView");
+    return saved === "true";
+  });
+
+  const openPanel = () => {
+    setDraftMask(settings.appliedMask & DEFAULT_MASK);
+    setDraftPenalty(clamp(settings.appliedPenalty, 0, MAX_PENALTY));
+    setPanelOpen(true);
+  };
+
+  const closePanel = () => setPanelOpen(false);
+
+  const toggleDraftBit = (bit) => {
+    setDraftMask((prev) => (prev & bit ? prev & ~bit : prev | bit));
+  };
+
+  const applySettings = async ({ mask, surfacePenaltySPerKm } = {}) => {
+    const nextMask = (mask ?? draftMask) & DEFAULT_MASK;
+    const nextPenalty = clamp(surfacePenaltySPerKm ?? draftPenalty, 0, MAX_PENALTY);
+    await settings.applySettings({ mask: nextMask, surfacePenaltySPerKm: nextPenalty });
+    setPanelOpen(true);
+  };
+
+  const toggleSatView = () => {
+    setIsSatView((prev) => {
+      const next = !prev;
+      localStorage.setItem("satelliteView", next.toString());
+      return next;
+    });
+  };
+
+  const value = {
+    panelOpen,
+    openPanel,
+    closePanel,
+    draftMask,
+    setDraftMask,
+    toggleDraftBit,
+    draftPenalty,
+    setDraftPenalty,
+    applySettings,
+    isSatView,
+    toggleSatView,
+  };
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
