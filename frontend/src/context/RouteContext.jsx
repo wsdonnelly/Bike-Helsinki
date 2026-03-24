@@ -80,12 +80,12 @@ export function RouteProvider({ children }) {
         resetStats();
       }
     },
-    [snappedStart, snappedEnd, appliedMask, appliedPenalty]
+    [snappedStart?.idx, snappedEnd?.idx, appliedMask, appliedPenalty]
   );
 
   useEffect(() => {
     if (snappedStart && snappedEnd) fetchRoute();
-  }, [snappedStart, snappedEnd, fetchRoute]);
+  }, [snappedStart?.idx, snappedEnd?.idx, fetchRoute]);
 
   const reverseCtrlRef = useRef({ start: null, end: null });
   const resolveAddress = useCallback(

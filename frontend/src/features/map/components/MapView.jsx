@@ -1,4 +1,4 @@
-import React, { useMemo, useState} from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -6,6 +6,7 @@ import {
   Polyline,
   ZoomControl,
   useMapEvents,
+  useMap,
 } from "react-leaflet";
 import L from "leaflet";
 import { ROUTE_COLORS } from "@/shared/constants/colors";
@@ -62,6 +63,19 @@ function MapClick({ onMapClick }) {
   useMapEvents({
     click: (e) => onMapClick && onMapClick(lngToLon(e.latlng)),
   });
+  return null;
+}
+
+function BoundsController({ snappedStart, snappedEnd }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!snappedStart || !snappedEnd) return;
+    const bounds = L.latLngBounds(
+      [snappedStart.lat, snappedStart.lon],
+      [snappedEnd.lat, snappedEnd.lon]
+    );
+    map.flyToBounds(bounds, { padding: [80, 80], duration: 0.8 });
+  }, [snappedStart?.idx, snappedEnd?.idx]);
   return null;
 }
 
@@ -156,6 +170,7 @@ export function MapView({
       )}
 
       <MapClick onMapClick={onMapClick} />
+      <BoundsController snappedStart={snappedStart} snappedEnd={snappedEnd} />
 
       {snappedStart && (
         <Marker

@@ -23,7 +23,7 @@ export function TripController() {
     if (!isTripActive || !position) return;
     const now = Date.now();
     if (!hasCenteredRef.current) {
-      map.flyTo([position.lat, position.lon], 17, { duration: 0.5 });
+      map.flyTo([position.lat, position.lon], 18, { duration: 0.5 });
       hasCenteredRef.current = true;
       lastFlyRef.current = now;
       return;
