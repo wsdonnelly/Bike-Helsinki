@@ -4,9 +4,20 @@ import { useGeolocation } from "../context/GeolocationContext";
 
 export function TripController() {
   const map = useMap();
-  const { position, isTripActive } = useGeolocation();
+  const { position, isLocating, isTripActive } = useGeolocation();
   const lastFlyRef = useRef(0);
   const hasCenteredRef = useRef(false);
+  const hasCenteredOnLocateRef = useRef(false);
+
+  useEffect(() => {
+    if (!isLocating || !position || hasCenteredOnLocateRef.current) return;
+    map.flyTo([position.lat, position.lon], 15, { duration: 0.8 });
+    hasCenteredOnLocateRef.current = true;
+  }, [position, isLocating, map]);
+
+  useEffect(() => {
+    if (!isLocating) hasCenteredOnLocateRef.current = false;
+  }, [isLocating]);
 
   useEffect(() => {
     if (!isTripActive || !position) return;
