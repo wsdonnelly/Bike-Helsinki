@@ -44,9 +44,10 @@ const InfoWindow = ({ isVisible, onClose }) => {
           <div style={{ marginBottom: 24 }}>
             <div style={styles.banner}>
               <strong style={{ marginRight: 6 }}>Preview branch:</strong>
-              This deploy includes the new Address Search features. Expect rough edges :)
-              Also currently working on more geolocation features (track your location and follow routes)
-              and a full reworking of the underlying algorithm. Stay tuned!
+              This deploy includes the new Address Search features. Expect rough
+              edges :) Also currently working on more geolocation features
+              (track your location and follow routes) and a full reworking of
+              the underlying algorithm. Stay tuned!
             </div>
             <h3 style={styles.sectionHeading}>How to get started</h3>
             <ol style={styles.list}>
@@ -137,7 +138,7 @@ const InfoWindow = ({ isVisible, onClose }) => {
               e.target.style.transform = "translateY(0)";
             }}
           >
-            Got it, let's start! 🚀
+            Got it, let's start!
           </button>
         </div>
       </div>
