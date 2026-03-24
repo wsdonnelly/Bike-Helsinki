@@ -149,3 +149,73 @@ export const applyBtn = {
   ...btnSm,
   marginLeft: 6,
 };
+
+export const locationBtn = (active) => ({
+  position: "absolute",
+  top: 120,
+  left: 10,
+  padding: "6px 10px",
+  zIndex: 10000,
+  border: active ? "1px solid #2196f3" : "1px solid #ccc",
+  borderRadius: 6,
+  backgroundColor: active ? "#e3f2fd" : "#fff",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  cursor: "pointer",
+  pointerEvents: "auto",
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+});
+
+export const tripBtn = (active, disabled) => ({
+  position: "absolute",
+  top: 165,
+  left: 10,
+  padding: "6px 10px",
+  zIndex: 10000,
+  border: active ? "1px solid #2196f3" : "1px solid #ccc",
+  borderRadius: 6,
+  backgroundColor: active ? "#e3f2fd" : disabled ? "#f5f5f5" : "#fff",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  cursor: disabled ? "not-allowed" : "pointer",
+  pointerEvents: "auto",
+  opacity: disabled ? 0.5 : 1,
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+});
+
+export const mobileLocationBtn = (active) => ({
+  position: "fixed",
+  bottom: 75,
+  right: 20,
+  padding: "10px 12px",
+  zIndex: 10000,
+  border: active ? "1px solid #2196f3" : "1px solid #ccc",
+  borderRadius: 6,
+  backgroundColor: active ? "#e3f2fd" : "#fff",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  cursor: "pointer",
+  pointerEvents: "auto",
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+});
+
+export const mobileTripBtn = (active, disabled) => ({
+  position: "fixed",
+  bottom: 130,
+  right: 20,
+  padding: "10px 12px",
+  zIndex: 10000,
+  border: active ? "1px solid #2196f3" : "1px solid #ccc",
+  borderRadius: 6,
+  backgroundColor: active ? "#e3f2fd" : disabled ? "#f5f5f5" : "#fff",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  cursor: disabled ? "not-allowed" : "pointer",
+  pointerEvents: "auto",
+  opacity: disabled ? 0.5 : 1,
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+});

@@ -14,6 +14,27 @@ import SurfacePenaltyControl from "./SurfacePenaltyControl";
 import RideStats from "./RideStats";
 import GlobeIcon from "./GlobeIcon";
 import * as styles from "./ControlPanel.styles";
+import { useGeolocation } from "@/features/geolocation";
+
+function LocationIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="2" x2="12" y2="6" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="6" y2="12" />
+      <line x1="18" y1="12" x2="22" y2="12" />
+    </svg>
+  );
+}
+
+function TripIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
 
 export default function DesktopSidebar() {
   const {
@@ -29,6 +50,8 @@ export default function DesktopSidebar() {
     isSatView,
     toggleSatView,
   } = useRouteSettingsContext();
+
+  const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
   const { totals, snappedStart, snappedEnd, routeCoords } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
@@ -71,6 +94,30 @@ export default function DesktopSidebar() {
           ☰
         </button>
       )}
+
+      <button
+        type="button"
+        aria-label={isLocating ? "Stop showing my location" : "Show my location"}
+        onClick={isLocating ? stopLocating : startLocating}
+        style={styles.locationBtn(isLocating)}
+      >
+        <LocationIcon />
+      </button>
+      {geoError && (
+        <div style={{ position: "absolute", top: 148, left: 10, fontSize: 11, color: "#e53935", maxWidth: 140, pointerEvents: "none" }}>
+          {geoError}
+        </div>
+      )}
+
+      <button
+        type="button"
+        aria-label={isTripActive ? "Stop trip" : "Start trip"}
+        onClick={isTripActive ? stopTrip : startTrip}
+        disabled={!isLocating}
+        style={styles.tripBtn(isTripActive, !isLocating)}
+      >
+        <TripIcon />
+      </button>
 
       {panelOpen && (
         <div
