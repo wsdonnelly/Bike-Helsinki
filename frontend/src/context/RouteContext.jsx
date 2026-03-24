@@ -233,6 +233,18 @@ export function RouteProvider({ children }) {
     [searchAddress, setPointFromHit]
   );
 
+  const setPointFromCoords = useCallback(async (lat, lon, which) => {
+    try {
+      const snapped = await backend.snapToGraph(lat, lon);
+      if (!snapped) return;
+      const point = { ...snapped, address: "Current location" };
+      if (which === "start") setSnappedStart(point);
+      else setSnappedEnd(point);
+    } catch (e) {
+      console.error("Snap from coords failed:", e);
+    }
+  }, []);
+
   const value = {
     cfg,
     snappedStart,
@@ -256,6 +268,7 @@ export function RouteProvider({ children }) {
       searchAddress,
       setPointFromHit,
       setPointFromAddress,
+      setPointFromCoords,
     },
   };
 

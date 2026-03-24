@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRoute } from "../RouteProvider";
 import useNominatimSearch from "../hooks/useNominatimSearch";
 import SearchField from "./SearchField";
+import { useGeolocation } from "@/features/geolocation";
 
 export default function AddressSearch() {
   const {
@@ -13,6 +14,10 @@ export default function AddressSearch() {
     actions,
   } = useRoute();
   const disabled = !cfg;
+  const { isLocating, position } = useGeolocation();
+  const handleLocateStart = () => {
+    if (position) actions.setPointFromCoords(position.lat, position.lon, "start");
+  };
 
   const startSearch = useNominatimSearch(actions.searchAddress);
   const endSearch = useNominatimSearch(actions.searchAddress);
@@ -147,6 +152,7 @@ export default function AddressSearch() {
                 setSnappedStart(null);
                 setActiveField(null);
               }}
+              onLocate={isLocating ? handleLocateStart : undefined}
               placeholder="Click map or search start address..."
               isSet={!!snappedStart}
               pointType="start"

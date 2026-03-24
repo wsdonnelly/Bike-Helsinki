@@ -1,5 +1,17 @@
 import React from "react";
 
+function LocateIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="2" x2="12" y2="6" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="6" y2="12" />
+      <line x1="18" y1="12" x2="22" y2="12" />
+    </svg>
+  );
+}
+
 const dropdownStyle = {
   position: "absolute",
   left: 0,
@@ -60,6 +72,7 @@ export default function SearchField({
   onEnter,
   onEscape,
   onEmpty,
+  onLocate,
   placeholder,
   isSet,
   pointType,
@@ -88,6 +101,21 @@ export default function SearchField({
         disabled={disabled}
         aria-disabled={disabled}
       />
+      {onLocate && (
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); onLocate(); }}
+          style={{
+            border: "none", background: "transparent", cursor: "pointer",
+            padding: "0 6px", color: "#2196f3",
+            display: "flex", alignItems: "center", flexShrink: 0,
+          }}
+          title="Use current location"
+          aria-label="Use current location"
+        >
+          <LocateIcon />
+        </button>
+      )}
       {showDropdown && (results?.length > 0 || searching) && (
         <div style={dropdownStyle}>
           {searching && <div style={searchingStyle}>Searching…</div>}
