@@ -5,7 +5,7 @@ export { default as AddressSearch } from "./components/AddressSearch";
 export { default as useNominatimSearch } from "./hooks/useNominatimSearch";
 
 // Context
-export { RouteProvider, useRoute } from "./RouteProvider";
+export { RouteProvider, useRoute } from "@/context/RouteContext";
 
 // Utils
 export { formatAddress } from "./utils/formatAddress";

@@ -1,30 +1,15 @@
 import React from "react";
 import { RouteProvider, useRoute, AddressSearch } from "@/features/routing";
 import { MapView } from "@/features/map";
-import { ControlPanel, useRouteSettings } from "@/features/routeSettings";
+import { ControlPanel, RouteSettingsProvider } from "@/features/routeSettings";
 import { InfoWindow, useInfoWindow } from "@/features/infoWindow";
+import { ErrorBoundary } from "@/shared";
 
 function AppContent() {
-  const { snappedStart, snappedEnd, routeCoords, routeModes, totals, actions } =
+  const { snappedStart, snappedEnd, routeCoords, routeModes, actions } =
     useRoute();
 
-  const {
-    panelOpen,
-    openPanel,
-    closePanel,
-    draftMask,
-    setDraftMask,
-    toggleDraftBit,
-    draftPenalty,
-    setDraftPenalty,
-    applySettings,
-    isSatView,
-    toggleSatView,
-  } = useRouteSettings();
-
   const { visible: infoVisible, close: closeInfo } = useInfoWindow();
-  const hasSelection = Boolean(snappedStart && snappedEnd);
-  const hasRoute = routeCoords.length > 1;
 
   return (
     <>
@@ -37,29 +22,9 @@ function AppContent() {
         routeModes={routeModes}
         onMapClick={actions.handleMapClick}
         onMarkerDragEnd={actions.handleMarkerDragEnd}
-        isSatView={isSatView}  // Pass satellite view state
       />
 
-      <ControlPanel
-        panelOpen={panelOpen}
-        onOpen={openPanel}
-        onClose={closePanel}
-        surfaceMask={draftMask}
-        onToggleSurface={toggleDraftBit}
-        onSetSurfaceMask={setDraftMask}
-        surfacePenaltyDraft={draftPenalty}
-        onSetSurfacePenalty={setDraftPenalty}
-        onApply={applySettings}
-        totalDistanceM={totals.totalDistanceM}
-        totalDurationS={totals.totalDurationS}
-        distanceBikePreferred={totals.distanceBikePreferred}
-        distanceBikeNonPreferred={totals.distanceBikeNonPreferred}
-        distanceWalk={totals.totalDistanceWalk}
-        hasSelection={hasSelection}
-        hasRoute={hasRoute}
-        isSatView={isSatView}
-        onToggleSatView={toggleSatView}
-      />
+      <ControlPanel />
 
       <InfoWindow isVisible={infoVisible} onClose={closeInfo} />
     </>
@@ -69,7 +34,11 @@ function AppContent() {
 export default function App() {
   return (
     <RouteProvider>
-      <AppContent />
+      <ErrorBoundary>
+        <RouteSettingsProvider>
+          <AppContent />
+        </RouteSettingsProvider>
+      </ErrorBoundary>
     </RouteProvider>
   );
 }
