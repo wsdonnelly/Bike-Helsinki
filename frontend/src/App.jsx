@@ -4,6 +4,7 @@ import { MapView } from "@/features/map";
 import { ControlPanel, RouteSettingsProvider } from "@/features/routeSettings";
 import { InfoWindow, useInfoWindow } from "@/features/infoWindow";
 import { ErrorBoundary } from "@/shared";
+import { GeolocationProvider } from "@/features/geolocation";
 
 function AppContent() {
   const { snappedStart, snappedEnd, routeCoords, routeModes, actions } =
@@ -36,7 +37,9 @@ export default function App() {
     <RouteProvider>
       <ErrorBoundary>
         <RouteSettingsProvider>
-          <AppContent />
+          <GeolocationProvider>
+            <AppContent />
+          </GeolocationProvider>
         </RouteSettingsProvider>
       </ErrorBoundary>
     </RouteProvider>

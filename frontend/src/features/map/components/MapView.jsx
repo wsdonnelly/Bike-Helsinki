@@ -10,6 +10,7 @@ import {
 import L from "leaflet";
 import { ROUTE_COLORS } from "@/shared/constants/colors";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
+import { LocationMarker, TripController } from "@/features/geolocation";
 
 // Fix Leaflet default marker icons (CDN assets)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -232,6 +233,9 @@ export function MapView({
           }}
         />
       ))}
+
+      <LocationMarker />
+      <TripController />
 
       {/* Fallback: if no modes provided, draw a single solid preferred line */}
       {(!routeModes || routeModes.length === 0) && routeCoords?.length > 1 && (
