@@ -44,10 +44,8 @@ const InfoWindow = ({ isVisible, onClose }) => {
           <div style={{ marginBottom: 24 }}>
             <div style={styles.banner}>
               <strong style={{ marginRight: 6 }}>Preview branch:</strong>
-              This deploy includes the new Address Search features. Expect rough
-              edges :) Also currently working on more geolocation features
-              (track your location and follow routes) and a full reworking of
-              the underlying algorithm. Stay tuned!
+              This deploy includes new Address Search and geolocation features. Expect rough
+              edges :)
             </div>
             <h3 style={styles.sectionHeading}>How to get started</h3>
             <ol style={styles.list}>
