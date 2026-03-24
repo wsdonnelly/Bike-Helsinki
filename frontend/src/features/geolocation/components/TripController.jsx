@@ -20,7 +20,7 @@ export function TripController() {
     if (now - lastFlyRef.current < 1000) return;
     map.flyTo([position.lat, position.lon], map.getZoom(), { duration: 0.3 });
     lastFlyRef.current = now;
-  }, [position, isTripActive]);
+  }, [position, isTripActive, map]);
 
   useEffect(() => {
     if (!isTripActive) hasCenteredRef.current = false;
