@@ -38,10 +38,12 @@ export default function AddressSearch() {
 
   useEffect(() => {
     if (snappedStart?.address) startSearch.setQuery(snappedStart.address);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart]);
   useEffect(() => {
     if (!snappedEnd) endSearch.setQuery("");
     else if (snappedEnd?.address) endSearch.setQuery(snappedEnd.address);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedEnd]);
 
   const hideDropdowns = () => {

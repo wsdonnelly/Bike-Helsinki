@@ -10,6 +10,8 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { ROUTE_COLORS } from "@/shared/constants/colors";
+import { SIDEBAR_WIDTH_PX } from "@/shared/constants/config";
+import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { LocationMarker, TripController } from "@/features/geolocation";
 
@@ -68,14 +70,37 @@ function MapClick({ onMapClick }) {
 
 function BoundsController({ snappedStart, snappedEnd }) {
   const map = useMap();
+  const { panelOpen } = useRouteSettingsContext();
+  const isMobile = useIsMobile();
+
+  const flyToBoth = (sidebarOpen) => {
+    const leftPad = !isMobile && sidebarOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
+    map.flyToBounds(
+      L.latLngBounds(
+        [snappedStart.lat, snappedStart.lon],
+        [snappedEnd.lat, snappedEnd.lon]
+      ),
+      { paddingTopLeft: [leftPad, 80], paddingBottomRight: [80, 80], duration: 0.8 }
+    );
+  };
+
   useEffect(() => {
     if (!snappedStart || !snappedEnd) return;
-    const bounds = L.latLngBounds(
-      [snappedStart.lat, snappedStart.lon],
-      [snappedEnd.lat, snappedEnd.lon]
-    );
-    map.flyToBounds(bounds, { padding: [80, 80], duration: 0.8 });
+    const currentBounds = map.getBounds();
+    if (
+      currentBounds.contains([snappedStart.lat, snappedStart.lon]) &&
+      currentBounds.contains([snappedEnd.lat, snappedEnd.lon])
+    ) return;
+    flyToBoth(panelOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
+
+  useEffect(() => {
+    if (!panelOpen || !snappedStart || !snappedEnd) return;
+    flyToBoth(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen]);
+
   return null;
 }
 

@@ -80,11 +80,13 @@ export function RouteProvider({ children }) {
         resetStats();
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [snappedStart?.idx, snappedEnd?.idx, appliedMask, appliedPenalty]
   );
 
   useEffect(() => {
     if (snappedStart && snappedEnd) fetchRoute();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx, fetchRoute]);
 
   const reverseCtrlRef = useRef({ start: null, end: null });
