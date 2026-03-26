@@ -1,3 +1,6 @@
+// Not currently used: RouteContext stores raw display_name from Digitransit.
+// Kept as a ready-made alternative for producing shorter "Street, City" labels
+// if the verbose Pelias display_name proves too long for the UI.
 export const formatAddress = (place) => {
   if (!place) return "Unknown location";
 
