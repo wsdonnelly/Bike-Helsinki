@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { backend, nominatim } from "@/api";
+import { backend, geocoding } from "@/api";
 import { clamp, MAX_PENALTY, DRAG_DEBOUNCE_MS, DEFAULT_MASK } from "@/shared";
 
 const Ctx = createContext(null);
@@ -106,7 +106,7 @@ export function RouteProvider({ children }) {
       }
 
       try {
-        const rev = await nominatim.reverseNominatim({
+        const rev = await geocoding.reverseGeocode({
           lat: snapped.lat,
           lon: snapped.lon,
           signal: ctrl.signal,
@@ -192,7 +192,7 @@ export function RouteProvider({ children }) {
     async (q, { limit = 5, lang = "fi", signal } = {}) => {
       if (!cfg?.viewboxString || !q?.trim()) return [];
       try {
-        return await nominatim.searchNominatim({
+        return await geocoding.searchAddresses({
           q: q.trim(),
           viewbox: cfg.viewboxString,
           bounded: true,
