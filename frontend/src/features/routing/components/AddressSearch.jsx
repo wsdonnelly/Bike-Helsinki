@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRoute } from "../RouteProvider";
-import useNominatimSearch from "../hooks/useNominatimSearch";
+import useGeocoding from "../hooks/useGeocoding";
 import SearchField from "./SearchField";
 import { useGeolocation } from "@/features/geolocation";
 
@@ -19,8 +19,8 @@ export default function AddressSearch() {
     if (position) actions.setPointFromCoords(position.lat, position.lon, "start");
   };
 
-  const startSearch = useNominatimSearch(actions.searchAddress);
-  const endSearch = useNominatimSearch(actions.searchAddress);
+  const startSearch = useGeocoding(actions.searchAddress);
+  const endSearch = useGeocoding(actions.searchAddress);
 
   const [activeField, setActiveField] = useState(null);
   const [isOpen, setIsOpen] = useState(true);
