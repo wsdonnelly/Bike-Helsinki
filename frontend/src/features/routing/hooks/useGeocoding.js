@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SEARCH_DEBOUNCE_MS } from "@/shared";
 
-export default function useNominatimSearch(
+export default function useGeocoding(
   searchFn,
   { delay = SEARCH_DEBOUNCE_MS, limit = 6 } = {}
 ) {
