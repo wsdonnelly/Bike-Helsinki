@@ -1,3 +1,3 @@
 export * as backend from "./backend";
-export * as nominatim from "./nominatim";
+export * as geocoding from "./digitransit";
 export { API } from "./http";
