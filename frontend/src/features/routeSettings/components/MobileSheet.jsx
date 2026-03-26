@@ -100,29 +100,32 @@ export default function MobileSheet() {
         </button>
       )}
 
-      <button
-        type="button"
-        aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-        onClick={isLocating ? stopLocating : startLocating}
-        style={styles.mobileLocationBtn(isLocating)}
-      >
-        <LocationIcon />
-      </button>
-      {geoError && (
-        <div style={{ position: "fixed", bottom: 115, right: 20, fontSize: 11, color: "#e53935", maxWidth: 140, textAlign: "right", pointerEvents: "none" }}>
-          {geoError}
-        </div>
+      {!panelOpen && (
+        <>
+          <button
+            type="button"
+            aria-label={isLocating ? "Stop showing my location" : "Show my location"}
+            onClick={isLocating ? stopLocating : startLocating}
+            style={styles.mobileLocationBtn(isLocating)}
+          >
+            <LocationIcon />
+          </button>
+          {geoError && (
+            <div style={{ position: "fixed", bottom: 115, right: 20, fontSize: 11, color: "#e53935", maxWidth: 140, textAlign: "right", pointerEvents: "none" }}>
+              {geoError}
+            </div>
+          )}
+          <button
+            type="button"
+            aria-label={isTripActive ? "Stop trip" : "Start trip"}
+            onClick={isTripActive ? stopTrip : startTrip}
+            disabled={!isLocating}
+            style={styles.mobileTripBtn(isTripActive, !isLocating)}
+          >
+            <TripIcon />
+          </button>
+        </>
       )}
-
-      <button
-        type="button"
-        aria-label={isTripActive ? "Stop trip" : "Start trip"}
-        onClick={isTripActive ? stopTrip : startTrip}
-        disabled={!isLocating}
-        style={styles.mobileTripBtn(isTripActive, !isLocating)}
-      >
-        <TripIcon />
-      </button>
 
       {panelOpen && (
         <div
