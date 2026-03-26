@@ -95,29 +95,32 @@ export default function DesktopSidebar() {
         </button>
       )}
 
-      <button
-        type="button"
-        aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-        onClick={isLocating ? stopLocating : startLocating}
-        style={styles.locationBtn(isLocating)}
-      >
-        <LocationIcon />
-      </button>
-      {geoError && (
-        <div style={{ position: "absolute", top: 148, left: 10, fontSize: 11, color: "#e53935", maxWidth: 140, pointerEvents: "none" }}>
-          {geoError}
-        </div>
+      {!panelOpen && (
+        <>
+          <button
+            type="button"
+            aria-label={isLocating ? "Stop showing my location" : "Show my location"}
+            onClick={isLocating ? stopLocating : startLocating}
+            style={styles.locationBtn(isLocating)}
+          >
+            <LocationIcon />
+          </button>
+          {geoError && (
+            <div style={{ position: "absolute", top: 148, left: 10, fontSize: 11, color: "#e53935", maxWidth: 140, pointerEvents: "none" }}>
+              {geoError}
+            </div>
+          )}
+          <button
+            type="button"
+            aria-label={isTripActive ? "Stop trip" : "Start trip"}
+            onClick={isTripActive ? stopTrip : startTrip}
+            disabled={!isLocating}
+            style={styles.tripBtn(isTripActive, !isLocating)}
+          >
+            <TripIcon />
+          </button>
+        </>
       )}
-
-      <button
-        type="button"
-        aria-label={isTripActive ? "Stop trip" : "Start trip"}
-        onClick={isTripActive ? stopTrip : startTrip}
-        disabled={!isLocating}
-        style={styles.tripBtn(isTripActive, !isLocating)}
-      >
-        <TripIcon />
-      </button>
 
       {panelOpen && (
         <div
