@@ -2,7 +2,7 @@
 export { default as AddressSearch } from "./components/AddressSearch";
 
 // Hooks
-export { default as useNominatimSearch } from "./hooks/useNominatimSearch";
+export { default as useGeocoding } from "./hooks/useGeocoding";
 
 // Context
 export { RouteProvider, useRoute } from "@/context/RouteContext";
