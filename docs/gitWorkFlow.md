@@ -6,12 +6,21 @@
 - Keep branches updated via **rebase**
 - Merge finished work cleanly back into `master`
 
-## branch naming convention eg. SEE commitMessageStyle.md -> Types
+## branch naming convention — see commitMessageStyle.md for types
 - feature/<name>
 - fix/<name>
-- refactor/
-- tests/
-etc
+- refactor/<name>
+- tests/<name>
+- etc
+
+Branch names must be **descriptive** — the `<name>` part becomes the `[branch]` prefix in every commit message via the `prepare-commit-msg` hook.
+Good: `feature/add-address-autocomplete`
+Bad: `feature/stuff`
+
+Install the hook once per clone:
+```bash
+sh scripts/install-hooks.sh
+```
 
 ## Start a New Feature
 ```bash
@@ -42,12 +51,16 @@ git rebase origin/master
 ```
 
 ### Normal Development on a feature branch (or branches)
+
+Always open the editor for commits — never use `git commit -m`. The hook will pre-fill the `[branch]` prefix.
+See commitMessageStyle.md for the full format.
+
 ```bash
 git add <changes>
-git commit -m "Add feature X"
+git commit
 
-#WIP commits are fine and prefered over stash:
-#git commit -m "WIP: partial implementation"
+#WIP commits are fine and preferred over stash — use the editor:
+#git commit   (write: wip(scope): partial implementation)
 
 #Temporary switch (stash)
 #git stash push -m "work in progress"
