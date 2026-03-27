@@ -1,9 +1,7 @@
 import { useEffect, useRef } from "react";
-import { useMap } from "react-leaflet";
 import { useGeolocation } from "../context/GeolocationContext";
 
-export function TripController() {
-  const map = useMap();
+export function TripController({ mapRef }) {
   const { position, isLocating, isTripActive } = useGeolocation();
   const lastFlyRef = useRef(0);
   const hasCenteredRef = useRef(false);
@@ -11,9 +9,10 @@ export function TripController() {
 
   useEffect(() => {
     if (!isLocating || !position || hasCenteredOnLocateRef.current) return;
-    map.flyTo([position.lat, position.lon], 15, { duration: 0.8 });
+    mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: 15, duration: 800 });
     hasCenteredOnLocateRef.current = true;
-  }, [position, isLocating, map]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, isLocating]);
 
   useEffect(() => {
     if (!isLocating) hasCenteredOnLocateRef.current = false;
@@ -21,17 +20,23 @@ export function TripController() {
 
   useEffect(() => {
     if (!isTripActive || !position) return;
+    const map = mapRef.current;
+    if (!map) return;
     const now = Date.now();
     if (!hasCenteredRef.current) {
-      map.flyTo([position.lat, position.lon], 18, { duration: 0.5 });
+      map.flyTo({ center: [position.lon, position.lat], zoom: 18, duration: 500 });
       hasCenteredRef.current = true;
       lastFlyRef.current = now;
       return;
     }
     if (now - lastFlyRef.current < 1000) return;
-    map.flyTo([position.lat, position.lon], map.getZoom(), { duration: 0.3 });
+    map.flyTo({ center: [position.lon, position.lat], zoom: map.getZoom(), duration: 300 });
+    if (position.heading != null) {
+      map.rotateTo(position.heading, { duration: 300 });
+    }
     lastFlyRef.current = now;
-  }, [position, isTripActive, map]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, isTripActive]);
 
   useEffect(() => {
     if (!isTripActive) hasCenteredRef.current = false;

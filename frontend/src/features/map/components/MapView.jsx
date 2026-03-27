@@ -1,38 +1,41 @@
-import React, { useMemo, useState, useEffect } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Polyline,
-  ZoomControl,
-  useMapEvents,
-  useMap,
-} from "react-leaflet";
-import L from "leaflet";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import { Map, Marker, Source, Layer, NavigationControl } from "react-map-gl/maplibre";
 import { ROUTE_COLORS } from "@/shared/constants/colors";
 import { SIDEBAR_WIDTH_PX } from "@/shared/constants/config";
 import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
+import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 import { LocationMarker, TripController } from "@/features/geolocation";
 
-// Fix Leaflet default marker icons (CDN assets)
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
+const MODE_BIKE_PREFFERED = 0x1;
+const MODE_BIKE_NON_PREFFERED = 0x2;
+const MODE_FOOT = 0x4;
 
-const MODE_BIKE_PREFFERED = 0x1; // 0001
-const MODE_BIKE_NON_PREFFERED = 0x2; // 0010
-const MODE_FOOT = 0x4; // 0100  (not 0x3!)
+const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
-// Leaflet → app ({lat, lng} → {lat, lon})
-const lngToLon = ({ lat, lng }) => ({ lat, lon: lng });
+const SAT_STYLE = {
+  version: 8,
+  sources: {
+    esri: {
+      type: "raster",
+      tiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      ],
+      tileSize: 256,
+      attribution:
+        "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
+    },
+  },
+  layers: [{ id: "esri-sat", type: "raster", source: "esri" }],
+};
 
-// app → Leaflet ({lat, lon} → [lat, lng])
-const lonToLeafletTuple = ({ lat, lon }) => ({ lat, lng: lon });
+const FINLAND_BOUNDS = [
+  [19.0, 59.0],
+  [31.5, 62.5],
+];
+
+const fromLngLat = ({ lat, lng }) => ({ lat, lon: lng });
 
 function splitRuns(coords, modes, modeBit) {
   const out = [];
@@ -60,53 +63,22 @@ function splitRuns(coords, modes, modeBit) {
   return out;
 }
 
-// Keeps click handler in sync with the latest prop, and auto-cleans
-function MapClick({ onMapClick }) {
-  useMapEvents({
-    click: (e) => onMapClick && onMapClick(lngToLon(e.latlng)),
-  });
-  return null;
-}
-
-function BoundsController({ snappedStart, snappedEnd }) {
-  const map = useMap();
-  const { panelOpen } = useRouteSettingsContext();
-  const isMobile = useIsMobile();
-
-  const flyToBoth = (sidebarOpen) => {
-    const leftPad = !isMobile && sidebarOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
-    map.flyToBounds(
-      L.latLngBounds(
-        [snappedStart.lat, snappedStart.lon],
-        [snappedEnd.lat, snappedEnd.lon]
-      ),
-      { paddingTopLeft: [leftPad, 80], paddingBottomRight: [80, 80], duration: 0.8 }
-    );
+function runsToGeoJSON(runs) {
+  return {
+    type: "FeatureCollection",
+    features: runs.map((pts) => ({
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: pts.map(([lat, lon]) => [lon, lat]),
+      },
+    })),
   };
-
-  useEffect(() => {
-    if (!snappedStart || !snappedEnd) return;
-    const currentBounds = map.getBounds();
-    if (
-      currentBounds.contains([snappedStart.lat, snappedStart.lon]) &&
-      currentBounds.contains([snappedEnd.lat, snappedEnd.lon])
-    ) return;
-    flyToBoth(panelOpen);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snappedStart?.idx, snappedEnd?.idx]);
-
-  useEffect(() => {
-    if (!panelOpen || !snappedStart || !snappedEnd) return;
-    flyToBoth(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panelOpen]);
-
-  return null;
 }
 
-function makePinIcon({ color = "#2ecc71", label = "S", anchorY = 42 }) {
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="48" viewBox="0 0 32 48">
+function makePinSvg({ color = "#2ecc71", label = "S" }) {
+  return `
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="37" viewBox="0 0 32 37">
     <defs>
       <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity=".35"/>
@@ -118,14 +90,6 @@ function makePinIcon({ color = "#2ecc71", label = "S", anchorY = 42 }) {
           font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
           font-weight="700" font-size="11" fill="#fff">${label}</text>
   </svg>`.trim();
-
-  return L.icon({
-    iconUrl: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
-    iconSize: [32, 48],
-    iconAnchor: [16, anchorY],
-    popupAnchor: [0, -40],
-    className: "leaflet-marker-icon",
-  });
 }
 
 export function MapView({
@@ -137,17 +101,14 @@ export function MapView({
   onMarkerDragEnd,
 }) {
   const { isSatView } = useRouteSettingsContext();
+  const { panelOpen } = useRouteSettingsContext();
+  const { position, isTripActive } = useGeolocation();
+  const isMobile = useIsMobile();
+  const mapRef = useRef(null);
 
-  const startIcon = useMemo(
-    () => makePinIcon({ color: "#2ecc71", label: "S", anchorY: 42 }),
-    []
-  );
-  const endIcon = useMemo(
-    () => makePinIcon({ color: "#e74c3c", label: "T", anchorY: 42 }),
-    []
-  );
+  const startSvg = useMemo(() => makePinSvg({ color: "#2ecc71", label: "S" }), []);
+  const endSvg = useMemo(() => makePinSvg({ color: "#e74c3c", label: "T" }), []);
 
-  // Build runs per mode
   const bikePrefRuns = useMemo(
     () => splitRuns(routeCoords, routeModes, MODE_BIKE_PREFFERED),
     [routeCoords, routeModes]
@@ -161,129 +122,200 @@ export function MapView({
     [routeCoords, routeModes]
   );
 
+  const bikePrefGeoJSON = useMemo(() => runsToGeoJSON(bikePrefRuns), [bikePrefRuns]);
+  const bikeNonPrefGeoJSON = useMemo(() => runsToGeoJSON(bikeNonPrefRuns), [bikeNonPrefRuns]);
+  const footGeoJSON = useMemo(() => runsToGeoJSON(footRuns), [footRuns]);
+
+  const fallbackGeoJSON = useMemo(() => {
+    if (routeModes?.length > 0 || !routeCoords || routeCoords.length < 2) return null;
+    return {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: routeCoords.map(([lat, lon]) => [lon, lat]),
+      },
+    };
+  }, [routeCoords, routeModes]);
+
   const [dragging, setDragging] = useState(null);
   const routeOpacity = dragging ? 0.35 : 0.95;
 
+  // BoundsController logic: fit map when both endpoints are set
+  const prevStartIdx = useRef(null);
+  const prevEndIdx = useRef(null);
+
+  useEffect(() => {
+    if (!snappedStart || !snappedEnd) return;
+    const map = mapRef.current;
+    if (!map) return;
+    if (
+      snappedStart.idx === prevStartIdx.current &&
+      snappedEnd.idx === prevEndIdx.current
+    )
+      return;
+    prevStartIdx.current = snappedStart.idx;
+    prevEndIdx.current = snappedEnd.idx;
+
+    const bounds = map.getBounds();
+    const startLngLat = [snappedStart.lon, snappedStart.lat];
+    const endLngLat = [snappedEnd.lon, snappedEnd.lat];
+    if (
+      bounds.contains(startLngLat) &&
+      bounds.contains(endLngLat)
+    )
+      return;
+
+    const leftPad = !isMobile && panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
+    map.fitBounds(
+      [
+        [Math.min(snappedStart.lon, snappedEnd.lon), Math.min(snappedStart.lat, snappedEnd.lat)],
+        [Math.max(snappedStart.lon, snappedEnd.lon), Math.max(snappedStart.lat, snappedEnd.lat)],
+      ],
+      { padding: { top: 80, bottom: 80, left: leftPad, right: 80 }, duration: 800 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snappedStart?.idx, snappedEnd?.idx]);
+
+  useEffect(() => {
+    if (!panelOpen || !snappedStart || !snappedEnd) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.fitBounds(
+      [
+        [Math.min(snappedStart.lon, snappedEnd.lon), Math.min(snappedStart.lat, snappedEnd.lat)],
+        [Math.max(snappedStart.lon, snappedEnd.lon), Math.max(snappedStart.lat, snappedEnd.lat)],
+      ],
+      { padding: { top: 80, bottom: 80, left: SIDEBAR_WIDTH_PX + 80, right: 80 }, duration: 800 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen]);
+
+  const bearing = isTripActive && position?.heading != null ? position.heading : 0;
+
   return (
-    <MapContainer
-      center={[60.1699, 24.9384]}
-      zoom={15}
+    <Map
+      ref={mapRef}
+      mapLib={maplibregl}
+      mapStyle={isSatView ? SAT_STYLE : STREET_STYLE_URL}
+      initialViewState={{
+        longitude: 24.9384,
+        latitude: 60.1699,
+        zoom: 15,
+      }}
+      bearing={bearing}
       style={{ height: "100dvh", width: "100vw" }}
-      zoomControl={false}
-      preferCanvas
-      maxBounds={[
-        [59.0, 19.0],
-        [62.5, 31.5],
-      ]}
-      maxBoundsViscosity={0.3}
       minZoom={11}
       maxZoom={18}
+      maxBounds={FINLAND_BOUNDS}
       doubleClickZoom={false}
-      wheelPxPerZoomLevel={120}
+      onClick={(e) => onMapClick && onMapClick(fromLngLat(e.lngLat))}
     >
-      <ZoomControl position="topleft" />
-      {isSatView ? (
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-        />
-      ) : (
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="© OSM contributors"
-        />
-      )}
-
-      <MapClick onMapClick={onMapClick} />
-      <BoundsController snappedStart={snappedStart} snappedEnd={snappedEnd} />
+      <NavigationControl showCompass showZoom={false} position="top-left" />
 
       {snappedStart && (
         <Marker
-          position={lonToLeafletTuple(snappedStart)} // [lat, lng]
-          icon={startIcon}
-          title="Start"
-          zIndexOffset={1000}
+          longitude={snappedStart.lon}
+          latitude={snappedStart.lat}
+          anchor="bottom"
           draggable
-          eventHandlers={{
-            dragstart: () => setDragging("start"),
-            dragend: (e) => {
-              setDragging(null);
-              const { lat, lng } = e.target.getLatLng();
-              onMarkerDragEnd && onMarkerDragEnd("start", { lat, lon: lng });
-            },
+          style={{ zIndex: 1000 }}
+          onDragStart={() => setDragging("start")}
+          onDragEnd={(e) => {
+            setDragging(null);
+            onMarkerDragEnd &&
+              onMarkerDragEnd("start", { lat: e.lngLat.lat, lon: e.lngLat.lng });
           }}
-        />
+        >
+          <img
+            src={"data:image/svg+xml;charset=UTF-8," + encodeURIComponent(startSvg)}
+            width={32}
+            height={37}
+            style={{ display: "block", cursor: "grab" }}
+            alt="Start"
+          />
+        </Marker>
       )}
 
       {snappedEnd && (
         <Marker
-          position={lonToLeafletTuple(snappedEnd)}
-          icon={endIcon}
-          title="End"
-          zIndexOffset={1000}
+          longitude={snappedEnd.lon}
+          latitude={snappedEnd.lat}
+          anchor="bottom"
           draggable
-          eventHandlers={{
-            dragstart: () => setDragging("end"),
-            dragend: (e) => {
-              setDragging(null);
-              const { lat, lng } = e.target.getLatLng();
-              onMarkerDragEnd && onMarkerDragEnd("end", { lat, lon: lng });
-            },
+          style={{ zIndex: 1000 }}
+          onDragStart={() => setDragging("end")}
+          onDragEnd={(e) => {
+            setDragging(null);
+            onMarkerDragEnd &&
+              onMarkerDragEnd("end", { lat: e.lngLat.lat, lon: e.lngLat.lng });
           }}
-        />
+        >
+          <img
+            src={"data:image/svg+xml;charset=UTF-8," + encodeURIComponent(endSvg)}
+            width={32}
+            height={37}
+            style={{ display: "block", cursor: "grab" }}
+            alt="End"
+          />
+        </Marker>
       )}
 
-      {/* Bike preferred — solid blue */}
-      {bikePrefRuns.map((pts, i) => (
-        <Polyline
-          key={`bp${i}`}
-          positions={pts}
-          pathOptions={{
-            color: ROUTE_COLORS.bikePreferred,
-            weight: 4,
-            opacity: routeOpacity,
+      <Source id="route-bike-pref" type="geojson" data={bikePrefGeoJSON}>
+        <Layer
+          id="route-bike-pref-line"
+          type="line"
+          paint={{
+            "line-color": ROUTE_COLORS.bikePreferred,
+            "line-width": 4,
+            "line-opacity": routeOpacity,
           }}
+          layout={{ "line-cap": "round", "line-join": "round" }}
         />
-      ))}
+      </Source>
 
-      {/* Bike non-preferred — solid orange */}
-      {bikeNonPrefRuns.map((pts, i) => (
-        <Polyline
-          key={`bn${i}`}
-          positions={pts}
-          pathOptions={{
-            color: ROUTE_COLORS.bikeNonPreferred,
-            weight: 4,
-            opacity: routeOpacity,
+      <Source id="route-bike-nonpref" type="geojson" data={bikeNonPrefGeoJSON}>
+        <Layer
+          id="route-bike-nonpref-line"
+          type="line"
+          paint={{
+            "line-color": ROUTE_COLORS.bikeNonPreferred,
+            "line-width": 4,
+            "line-opacity": routeOpacity,
           }}
+          layout={{ "line-cap": "round", "line-join": "round" }}
         />
-      ))}
+      </Source>
 
-      {/* Walk — dotted purple */}
-      {footRuns.map((pts, i) => (
-        <Polyline
-          key={`fw${i}`}
-          positions={pts}
-          pathOptions={{
-            color: ROUTE_COLORS.walk,
-            weight: 4,
-            dashArray: "6 6",
-            lineCap: "round",
-            opacity: routeOpacity,
+      <Source id="route-foot" type="geojson" data={footGeoJSON}>
+        <Layer
+          id="route-foot-line"
+          type="line"
+          paint={{
+            "line-color": ROUTE_COLORS.walk,
+            "line-width": 4,
+            "line-opacity": routeOpacity,
+            "line-dasharray": [2, 2],
           }}
+          layout={{ "line-cap": "round", "line-join": "round" }}
         />
-      ))}
+      </Source>
+
+      {fallbackGeoJSON && (
+        <Source id="route-fallback" type="geojson" data={fallbackGeoJSON}>
+          <Layer
+            id="route-fallback-line"
+            type="line"
+            paint={{
+              "line-color": ROUTE_COLORS.bikePreferred,
+              "line-width": 4,
+            }}
+            layout={{ "line-cap": "round", "line-join": "round" }}
+          />
+        </Source>
+      )}
 
       <LocationMarker />
-      <TripController />
-
-      {/* Fallback: if no modes provided, draw a single solid preferred line */}
-      {(!routeModes || routeModes.length === 0) && routeCoords?.length > 1 && (
-        <Polyline
-          positions={routeCoords}
-          pathOptions={{ color: ROUTE_COLORS.bikePreferred, weight: 4 }}
-        />
-      )}
-    </MapContainer>
+      <TripController mapRef={mapRef} />
+    </Map>
   );
 }
