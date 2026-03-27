@@ -17,18 +17,6 @@ import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
 import AddressSearch from "@/features/routing/components/AddressSearch";
 
-function LocationIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <line x1="12" y1="2" x2="12" y2="6" />
-      <line x1="12" y1="18" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="6" y2="12" />
-      <line x1="18" y1="12" x2="22" y2="12" />
-    </svg>
-  );
-}
-
 function TripIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -52,7 +40,7 @@ export default function DesktopSidebar() {
     toggleSatView,
   } = useRouteSettingsContext();
 
-  const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
+  const { isLocating, isTripActive, error: geoError, startTrip, stopTrip } = useGeolocation();
 
   const { totals, snappedStart, snappedEnd, routeCoords } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
@@ -124,19 +112,6 @@ export default function DesktopSidebar() {
           </div>
 
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button
-              type="button"
-              aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-              onClick={isLocating ? stopLocating : startLocating}
-              style={{
-                ...styles.btnSm,
-                backgroundColor: isLocating ? "#e3f2fd" : "#fff",
-                border: isLocating ? "1px solid #2196f3" : "1px solid #ddd",
-                display: "flex", alignItems: "center", gap: 4,
-              }}
-            >
-              <LocationIcon /> {isLocating ? "Stop GPS" : "GPS"}
-            </button>
             <button
               type="button"
               aria-label={isTripActive ? "Stop trip" : "Start trip"}

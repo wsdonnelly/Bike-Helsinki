@@ -14,10 +14,29 @@ export default function AddressSearch() {
     actions,
   } = useRoute();
   const disabled = !cfg;
-  const { isLocating, position } = useGeolocation();
+  const { isLocating, position, startLocating, stopLocating } = useGeolocation();
+  const pendingLocateRef = useRef(false);
+
   const handleLocateStart = () => {
-    if (position) actions.setPointFromCoords(position.lat, position.lon, "start");
+    if (isLocating) {
+      stopLocating();
+      return;
+    }
+    startLocating();
+    if (position) {
+      actions.setPointFromCoords(position.lat, position.lon, "start");
+    } else {
+      pendingLocateRef.current = true;
+    }
   };
+
+  useEffect(() => {
+    if (pendingLocateRef.current && position) {
+      pendingLocateRef.current = false;
+      actions.setPointFromCoords(position.lat, position.lon, "start");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position]);
 
   const startSearch = useGeocoding(actions.searchAddress);
   const endSearch = useGeocoding(actions.searchAddress);
@@ -95,7 +114,7 @@ export default function AddressSearch() {
             setSnappedStart(null);
             setActiveField(null);
           }}
-          onLocate={isLocating ? handleLocateStart : undefined}
+          onLocate={handleLocateStart}
           placeholder="Click map or search start address..."
           isSet={!!snappedStart}
           pointType="start"
