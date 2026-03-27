@@ -78,7 +78,7 @@ function runsToGeoJSON(runs) {
 
 function makePinSvg({ color = "#2ecc71", label = "S" }) {
   return `
-  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="48" viewBox="0 0 32 48">
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="37" viewBox="0 0 32 37">
     <defs>
       <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
         <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity=".35"/>
@@ -229,7 +229,7 @@ export function MapView({
           <img
             src={"data:image/svg+xml;charset=UTF-8," + encodeURIComponent(startSvg)}
             width={32}
-            height={48}
+            height={37}
             style={{ display: "block", cursor: "grab" }}
             alt="Start"
           />
@@ -253,7 +253,7 @@ export function MapView({
           <img
             src={"data:image/svg+xml;charset=UTF-8," + encodeURIComponent(endSvg)}
             width={32}
-            height={48}
+            height={37}
             style={{ display: "block", cursor: "grab" }}
             alt="End"
           />
