@@ -1,0 +1,20 @@
+#!/bin/sh
+BRANCH_CHECKOUT="$3"
+
+[ "$BRANCH_CHECKOUT" = "1" ] || exit 0
+
+BRANCH=$(git branch --show-current)
+
+case "$BRANCH" in
+  master|main|"") exit 0 ;;
+esac
+
+REFLOG_ACTION=$(git reflog show --format='%gs' "$BRANCH" -1 2>/dev/null)
+echo "$REFLOG_ACTION" | grep -q '^branch: Created' || exit 0
+
+if ! echo "$BRANCH" | grep -qE '^(feat|fix|refactor|tests|chore|docs|style)/.{5,}$'; then
+  echo "Warning: branch name '$BRANCH' does not follow type/name convention."
+  echo "Valid types: feat, fix, refactor, tests, chore, docs, style"
+  echo "Name must be at least 5 characters."
+  echo "Rename with: git branch -m <new-name>"
+fi
