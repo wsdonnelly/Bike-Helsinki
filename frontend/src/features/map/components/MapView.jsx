@@ -210,7 +210,7 @@ export function MapView({
       doubleClickZoom={false}
       onClick={(e) => onMapClick && onMapClick(fromLngLat(e.lngLat))}
     >
-      <NavigationControl showCompass position="top-left" />
+      <NavigationControl showCompass showZoom={false} position="top-left" />
 
       {snappedStart && (
         <Marker
