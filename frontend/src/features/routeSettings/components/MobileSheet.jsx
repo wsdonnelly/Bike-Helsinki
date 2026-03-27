@@ -14,6 +14,7 @@ import SurfaceCheckboxGroup from "./SurfaceCheckboxGroup";
 import SurfacePenaltyControl from "./SurfacePenaltyControl";
 import RideStats from "./RideStats";
 import GlobeIcon from "./GlobeIcon";
+import MapAttribution from "./MapAttribution";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
 import AddressSearch from "@/features/routing/components/AddressSearch";
@@ -223,6 +224,8 @@ export default function MobileSheet() {
               />
             </div>
           )}
+
+          <MapAttribution />
         </div>
       )}
     </>

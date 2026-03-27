@@ -207,6 +207,7 @@ export function MapView({
       minZoom={11}
       maxZoom={18}
       maxBounds={FINLAND_BOUNDS}
+      attributionControl={false}
       doubleClickZoom={false}
       onClick={(e) => onMapClick && onMapClick(fromLngLat(e.lngLat))}
     >
