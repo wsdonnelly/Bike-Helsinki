@@ -101,33 +101,6 @@ export default function MobileSheet() {
         </button>
       )}
 
-      {!panelOpen && (
-        <>
-          <button
-            type="button"
-            aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-            onClick={isLocating ? stopLocating : startLocating}
-            style={styles.mobileLocationBtn(isLocating)}
-          >
-            <LocationIcon />
-          </button>
-          {geoError && (
-            <div style={{ position: "fixed", bottom: 115, right: 20, fontSize: 11, color: "#e53935", maxWidth: 140, textAlign: "right", pointerEvents: "none" }}>
-              {geoError}
-            </div>
-          )}
-          <button
-            type="button"
-            aria-label={isTripActive ? "Stop trip" : "Start trip"}
-            onClick={isTripActive ? stopTrip : startTrip}
-            disabled={!isLocating}
-            style={styles.mobileTripBtn(isTripActive, !isLocating)}
-          >
-            <TripIcon />
-          </button>
-        </>
-      )}
-
       {panelOpen && (
         <div
           role="dialog"
@@ -173,8 +146,45 @@ export default function MobileSheet() {
             </button>
           </div>
 
-          <div style={{ padding: "8px 0", borderBottom: "1px solid #eee", marginBottom: 8 }}>
+          <div style={{ padding: "8px 0", marginBottom: 8 }}>
             <AddressSearch />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}>
+            <button
+              type="button"
+              aria-label={isLocating ? "Stop showing my location" : "Show my location"}
+              onClick={isLocating ? stopLocating : startLocating}
+              style={{
+                ...styles.btnSm,
+                backgroundColor: isLocating ? "#e3f2fd" : "#fff",
+                border: isLocating ? "1px solid #2196f3" : "1px solid #ddd",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <LocationIcon /> {isLocating ? "Stop GPS" : "GPS"}
+            </button>
+            <button
+              type="button"
+              aria-label={isTripActive ? "Stop trip" : "Start trip"}
+              onClick={isTripActive ? stopTrip : () => { startTrip(); closePanel(); }}
+              disabled={!isLocating}
+              style={{
+                ...styles.btnSm,
+                backgroundColor: isTripActive ? "#e3f2fd" : "#fff",
+                border: isTripActive ? "1px solid #2196f3" : "1px solid #ddd",
+                opacity: !isLocating ? 0.5 : 1,
+                cursor: !isLocating ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
+            </button>
+            {geoError && (
+              <span style={{ fontSize: 11, color: "#e53935", alignSelf: "center" }}>
+                {geoError}
+              </span>
+            )}
           </div>
 
           <div style={styles.tabsContainer}>

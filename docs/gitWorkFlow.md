@@ -22,6 +22,10 @@ Branch names must be **descriptive** — the full branch name becomes the `[bran
 Good: `feat/add-address-autocomplete` → `[feat/add-address-autocomplete] feat(...): ...`
 Bad: `feat/stuff`
 
+##rename a branch
+```bash
+git branch -m <new name>
+
 Install the hook once per clone:
 ```bash
 sh scripts/install-hooks.sh

@@ -96,33 +96,6 @@ export default function DesktopSidebar() {
         </button>
       )}
 
-      {!panelOpen && (
-        <>
-          <button
-            type="button"
-            aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-            onClick={isLocating ? stopLocating : startLocating}
-            style={styles.locationBtn(isLocating)}
-          >
-            <LocationIcon />
-          </button>
-          {geoError && (
-            <div style={{ position: "absolute", top: 148, left: 10, fontSize: 11, color: "#e53935", maxWidth: 140, pointerEvents: "none" }}>
-              {geoError}
-            </div>
-          )}
-          <button
-            type="button"
-            aria-label={isTripActive ? "Stop trip" : "Start trip"}
-            onClick={isTripActive ? stopTrip : startTrip}
-            disabled={!isLocating}
-            style={styles.tripBtn(isTripActive, !isLocating)}
-          >
-            <TripIcon />
-          </button>
-        </>
-      )}
-
       {panelOpen && (
         <div
           role="dialog"
@@ -148,6 +121,43 @@ export default function DesktopSidebar() {
 
           <div style={{ marginBottom: 12 }}>
             <AddressSearch />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button
+              type="button"
+              aria-label={isLocating ? "Stop showing my location" : "Show my location"}
+              onClick={isLocating ? stopLocating : startLocating}
+              style={{
+                ...styles.btnSm,
+                backgroundColor: isLocating ? "#e3f2fd" : "#fff",
+                border: isLocating ? "1px solid #2196f3" : "1px solid #ddd",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <LocationIcon /> {isLocating ? "Stop GPS" : "GPS"}
+            </button>
+            <button
+              type="button"
+              aria-label={isTripActive ? "Stop trip" : "Start trip"}
+              onClick={isTripActive ? stopTrip : () => { startTrip(); closePanel(); }}
+              disabled={!isLocating}
+              style={{
+                ...styles.btnSm,
+                backgroundColor: isTripActive ? "#e3f2fd" : "#fff",
+                border: isTripActive ? "1px solid #2196f3" : "1px solid #ddd",
+                opacity: !isLocating ? 0.5 : 1,
+                cursor: !isLocating ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
+            </button>
+            {geoError && (
+              <span style={{ fontSize: 11, color: "#e53935", alignSelf: "center" }}>
+                {geoError}
+              </span>
+            )}
           </div>
 
           <BulkActions
