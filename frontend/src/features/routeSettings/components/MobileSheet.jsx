@@ -16,6 +16,7 @@ import RideStats from "./RideStats";
 import GlobeIcon from "./GlobeIcon";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
+import AddressSearch from "@/features/routing/components/AddressSearch";
 
 function LocationIcon() {
   return (
@@ -170,18 +171,10 @@ export default function MobileSheet() {
             <button type="button" onClick={closePanel} style={styles.btnSm}>
               Close
             </button>
-            {activeTab === "filters" && (
-              <button
-                type="button"
-                onClick={() => {
-                  commitApply();
-                  setActiveTab("stats");
-                }}
-                style={styles.applyBtn}
-              >
-                Apply
-              </button>
-            )}
+          </div>
+
+          <div style={{ padding: "8px 0", borderBottom: "1px solid #eee", marginBottom: 8 }}>
+            <AddressSearch />
           </div>
 
           <div style={styles.tabsContainer}>
@@ -214,6 +207,7 @@ export default function MobileSheet() {
                 onSelectNone={selectNone}
                 onSelectPaved={selectPaved}
                 onSelectUnpaved={selectUnpaved}
+                onApply={() => { commitApply(); setActiveTab("stats"); }}
               />
               {SURFACE_GROUPS.map((group) => (
                 <SurfaceCheckboxGroup

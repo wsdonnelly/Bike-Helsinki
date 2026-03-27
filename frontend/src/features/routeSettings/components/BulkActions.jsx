@@ -5,9 +5,10 @@ export default function BulkActions({
   onSelectNone,
   onSelectPaved,
   onSelectUnpaved,
+  onApply,
 }) {
   return (
-    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+    <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
       <button type="button" onClick={onSelectAll} style={btnSm}>
         All
       </button>
@@ -20,6 +21,11 @@ export default function BulkActions({
       <button type="button" onClick={onSelectUnpaved} style={btnSm}>
         Unpaved
       </button>
+      {onApply && (
+        <button type="button" onClick={onApply} style={{ ...btnSm, marginLeft: "auto" }}>
+          Apply
+        </button>
+      )}
     </div>
   );
 }

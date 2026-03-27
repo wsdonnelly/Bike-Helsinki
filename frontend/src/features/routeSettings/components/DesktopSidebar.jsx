@@ -15,6 +15,7 @@ import RideStats from "./RideStats";
 import GlobeIcon from "./GlobeIcon";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
+import AddressSearch from "@/features/routing/components/AddressSearch";
 
 function LocationIcon() {
   return (
@@ -143,14 +144,10 @@ export default function DesktopSidebar() {
             <button type="button" onClick={closePanel} style={styles.btnSm}>
               Close
             </button>
-            <button
-              type="button"
-              aria-label="Apply"
-              onClick={commitApply}
-              style={styles.applyBtn}
-            >
-              Apply
-            </button>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <AddressSearch />
           </div>
 
           <BulkActions
@@ -158,6 +155,7 @@ export default function DesktopSidebar() {
             onSelectNone={selectNone}
             onSelectPaved={selectPaved}
             onSelectUnpaved={selectUnpaved}
+            onApply={commitApply}
           />
 
           {SURFACE_GROUPS.map((group) => (
