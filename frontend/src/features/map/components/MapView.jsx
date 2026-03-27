@@ -70,7 +70,7 @@ function runsToGeoJSON(runs) {
       type: "Feature",
       geometry: {
         type: "LineString",
-        coordinates: pts.map(({ lat, lon }) => [lon, lat]),
+        coordinates: pts.map(([lat, lon]) => [lon, lat]),
       },
     })),
   };
@@ -132,7 +132,7 @@ export function MapView({
       type: "Feature",
       geometry: {
         type: "LineString",
-        coordinates: routeCoords.map(({ lat, lon }) => [lon, lat]),
+        coordinates: routeCoords.map(([lat, lon]) => [lon, lat]),
       },
     };
   }, [routeCoords, routeModes]);
@@ -173,6 +173,7 @@ export function MapView({
       ],
       { padding: { top: 80, bottom: 80, left: leftPad, right: 80 }, duration: 800 }
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
   useEffect(() => {
@@ -186,6 +187,7 @@ export function MapView({
       ],
       { padding: { top: 80, bottom: 80, left: SIDEBAR_WIDTH_PX + 80, right: 80 }, duration: 800 }
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);
 
   const bearing = isTripActive && position?.heading != null ? position.heading : 0;

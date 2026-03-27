@@ -24,6 +24,7 @@ export function LocationMarker() {
   const circleGeoJSON = useMemo(() => {
     if (!position) return null;
     return makeCirclePolygon(position.lat, position.lon, position.accuracy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position?.lat, position?.lon, position?.accuracy]);
 
   if (!isLocating || !position) return null;
