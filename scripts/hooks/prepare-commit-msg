@@ -13,8 +13,5 @@ case "$BRANCH" in
   master|main|"") exit 0 ;;
 esac
 
-# Strip the type prefix: feature/foo -> foo, fix/bar -> bar
-FEATURE=$(echo "$BRANCH" | sed 's|^[^/]*/||')
-
-sed -i.bak "1s|^|[$FEATURE] |" "$COMMIT_FILE"
+sed -i.bak "1s|^|[$BRANCH] |" "$COMMIT_FILE"
 rm -f "${COMMIT_FILE}.bak"

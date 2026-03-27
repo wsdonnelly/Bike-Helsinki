@@ -2,7 +2,7 @@
 # Commit messages must not contain !, backticks, or unescaped $. Prefer plain descriptive language over emphasis punctuation.
 # Never use git commit -m. Always open the editor so the full format can be written.
 
-# [branch-feature-name] <type>(<scope>): <short summary>
+# [type/branch-name] type(scope): short summary
 
 # <body — what and why, not how>
 
@@ -11,22 +11,22 @@
 
 ## Branch prefix
 
-The `prepare-commit-msg` hook automatically prepends `[branch-feature-name]` to
-every commit subject on non-master branches. Install it once per clone:
+The `prepare-commit-msg` hook automatically prepends the full branch name as `[type/name]`
+to every commit subject on non-master branches. Install it once per clone:
 
 ```sh
 sh scripts/install-hooks.sh
 ```
 
-Example: on branch `feature/switch_to_digitransit` a commit becomes:
-`[switch_to_digitransit] feat(api): add digitransit geocoding client`
+Example: on branch `feat/switch-to-digitransit` a commit becomes:
+`[feat/switch-to-digitransit] feat(api): add digitransit geocoding client`
 
 On `master` no prefix is added.
 
 ## Rules
 # Subject line
 
-- Format: [branch] type(scope): summary
+- Format: [type/branch-name] type(scope): summary
 - Max ~72 characters (prefix included)
 - Lowercase, no trailing period
 - Use imperative mood — add, fix, remove, not added, fixes
@@ -41,7 +41,9 @@ On `master` no prefix is added.
 # WIP commits
 
 WIP commits are preferred over stashing. Write them in the editor like any other commit:
-`wip(scope): partial implementation of X`
+`WIP: partial implementation of X`
+
+No scope needed — the branch prefix already carries that context.
 
 # Types
 
@@ -51,5 +53,5 @@ WIP commits are preferred over stashing. Write them in the editor like any other
 - chore — tooling, deps, config
 - docs — documentation only
 - style — formatting, no logic change
-- test — tests only
-- wip — work in progress (temporary, squash before merge if needed)
+- tests — tests only
+- WIP — work in progress (always uppercase, no scope, temporary — squash before merge)

@@ -1,0 +1,21 @@
+#!/bin/sh
+BRANCH=$(git branch --show-current)
+
+case "$BRANCH" in
+  master|main|"") exit 0 ;;
+esac
+
+if ! echo "$BRANCH" | grep -qE '^(feat|fix|refactor|tests|chore|docs|style)/.{5,}$'; then
+  echo "Push blocked: branch name '$BRANCH' does not follow type/name convention."
+  echo "Valid types: feat, fix, refactor, tests, chore, docs, style"
+  echo "Name must be at least 5 characters."
+  exit 1
+fi
+
+WIP_COMMITS=$(git log master..HEAD --format="%s" | grep -E '^(\[.*\] )?WIP:')
+if [ -n "$WIP_COMMITS" ]; then
+  echo "Push blocked: branch contains unsquashed WIP commits:"
+  echo "$WIP_COMMITS"
+  echo "Run: git rebase -i master"
+  exit 1
+fi
