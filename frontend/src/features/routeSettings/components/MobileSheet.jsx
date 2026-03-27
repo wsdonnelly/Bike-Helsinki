@@ -41,7 +41,7 @@ export default function MobileSheet() {
     toggleSatView,
   } = useRouteSettingsContext();
 
-  const { isLocating, isTripActive, error: geoError, startTrip, stopTrip } = useGeolocation();
+  const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
   const { totals, snappedStart, snappedEnd, routeCoords } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
@@ -138,29 +138,28 @@ export default function MobileSheet() {
             <AddressSearch />
           </div>
 
-          <div style={{ display: "flex", gap: 8, paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}>
-            <button
-              type="button"
-              aria-label={isTripActive ? "Stop trip" : "Start trip"}
-              onClick={isTripActive ? stopTrip : () => { startTrip(); closePanel(); }}
-              disabled={!isLocating}
-              style={{
-                ...styles.btnSm,
-                backgroundColor: isTripActive ? "#e3f2fd" : "#fff",
-                border: isTripActive ? "1px solid #2196f3" : "1px solid #ddd",
-                opacity: !isLocating ? 0.5 : 1,
-                cursor: !isLocating ? "not-allowed" : "pointer",
-                display: "flex", alignItems: "center", gap: 4,
-              }}
-            >
-              <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
-            </button>
-            {geoError && (
-              <span style={{ fontSize: 11, color: "#e53935", alignSelf: "center" }}>
-                {geoError}
-              </span>
-            )}
-          </div>
+          {(hasSelection || isTripActive) && (
+            <div style={{ display: "flex", gap: 8, paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}>
+              <button
+                type="button"
+                aria-label={isTripActive ? "Stop trip" : "Start trip"}
+                onClick={isTripActive ? () => { stopTrip(); stopLocating(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
+                style={{
+                  ...styles.btnSm,
+                  backgroundColor: isTripActive ? "#e3f2fd" : "#fff",
+                  border: isTripActive ? "1px solid #2196f3" : "1px solid #ddd",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}
+              >
+                <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
+              </button>
+              {geoError && (
+                <span style={{ fontSize: 11, color: "#e53935", alignSelf: "center" }}>
+                  {geoError}
+                </span>
+              )}
+            </div>
+          )}
 
           <div style={styles.tabsContainer}>
             <button
