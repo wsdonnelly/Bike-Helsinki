@@ -19,6 +19,27 @@ const HouseIcon = ({ size = 16, style }) => (
   </svg>
 );
 
+const LocateIcon = ({ size = 14, style }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+    style={style}
+  >
+    <circle cx="12" cy="12" r="3" />
+    <line x1="12" y1="2" x2="12" y2="6" />
+    <line x1="12" y1="18" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="6" y2="12" />
+    <line x1="18" y1="12" x2="22" y2="12" />
+  </svg>
+);
+
 const InfoWindow = ({ isVisible, onClose }) => {
   if (!isVisible) return null;
 
@@ -43,9 +64,9 @@ const InfoWindow = ({ isVisible, onClose }) => {
         <div style={styles.content}>
           <div style={{ marginBottom: 24 }}>
             <div style={styles.banner}>
-              <strong style={{ marginRight: 6 }}>Preview branch:</strong>
-              This deploy includes new Address Search and geolocation features. Expect rough
-              edges :)
+              <strong style={{ marginRight: 6 }}>Preview deploy:</strong>
+              This deploy includes Address Search, geolocation, and trip tracking features.
+              Expect rough edges.
             </div>
             <h3 style={styles.sectionHeading}>How to get started</h3>
             <ol style={styles.list}>
@@ -75,7 +96,29 @@ const InfoWindow = ({ isVisible, onClose }) => {
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <h3 style={styles.sectionHeading}>⚙️ Customize your route</h3>
+            <h3 style={styles.sectionHeading}>GPS & location</h3>
+            <ul style={styles.list}>
+              <li style={styles.listItem}>
+                Press <strong>Locate</strong> in the control panel to start GPS
+                tracking. Your position and accuracy radius appear on the map.
+              </li>
+              <li style={styles.listItem}>
+                While locating, a{" "}
+                <strong>
+                  <LocateIcon size={14} style={{ marginTop: -1 }} />
+                </strong>{" "}
+                button appears in the start address field. Tap it to snap your
+                current GPS position as the route origin.
+              </li>
+              <li style={styles.listItem}>
+                Press <strong>Trip</strong> in the control panel to enter trip
+                mode — the map zooms in and follows your position as you ride.
+              </li>
+            </ul>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={styles.sectionHeading}>Customize your route</h3>
             <ul style={styles.list}>
               <li style={styles.listItem}>
                 Use the <strong>control panel</strong> (☰ button) to adjust
@@ -99,7 +142,7 @@ const InfoWindow = ({ isVisible, onClose }) => {
           </div>
 
           <div style={{ marginBottom: 20 }}>
-            <h3 style={styles.sectionHeading}>🚴 Route colors</h3>
+            <h3 style={styles.sectionHeading}>Route colors</h3>
             <div style={styles.colorLegend}>
               <div style={styles.colorRow}>
                 <div style={styles.colorSwatch("#007AFF")} />
