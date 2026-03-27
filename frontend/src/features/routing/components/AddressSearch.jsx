@@ -112,7 +112,6 @@ export default function AddressSearch() {
           onEscape={hideDropdowns}
           onEmpty={() => {
             setSnappedStart(null);
-            setActiveField(null);
           }}
           onLocate={handleLocateStart}
           placeholder="Click map or search start address..."
@@ -138,7 +137,6 @@ export default function AddressSearch() {
         onEscape={hideDropdowns}
         onEmpty={() => {
           setSnappedEnd(null);
-          setActiveField(null);
         }}
         placeholder="Click map or search end address..."
         isSet={!!snappedEnd}
