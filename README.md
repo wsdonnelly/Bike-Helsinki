@@ -264,3 +264,17 @@ npm run dev
 ```
 
 Frontend will be available at `http://localhost:5173` (or similar).
+
+## Contributing
+
+Follow the branch naming and commit message conventions before starting work:
+
+- **Branch naming:** `type/name` — e.g. `feat/add-route-export`, `fix/snap-off-by-one`
+  Valid types: `feat`, `fix`, `refactor`, `tests`, `chore`, `docs`, `style`
+- **Commit messages:** `[branch-name] type(scope): summary` — see `docs/commitMessageStyle.md`
+- **Git workflow:** branching, rebasing, squashing WIP commits — see `docs/gitWorkFlow.md`
+
+Install the git hooks once per clone to enforce these automatically:
+```bash
+sh scripts/install-hooks.sh
+```
