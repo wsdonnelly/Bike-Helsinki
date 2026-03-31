@@ -77,7 +77,7 @@ export default function DesktopSidebar() {
       {!panelOpen && (
         <button
           type="button"
-          aria-label="Open surface filters"
+          aria-label="Open route planner"
           onClick={openPanel}
           style={styles.toggleBtn}
         >
@@ -89,7 +89,7 @@ export default function DesktopSidebar() {
         <div
           role="dialog"
           aria-modal="false"
-          aria-label="Surface filters"
+          aria-label="Route Planner"
           style={styles.panel}
         >
           <div style={styles.hdr}>

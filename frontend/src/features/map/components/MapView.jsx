@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
-import { Map, Marker, Source, Layer, NavigationControl } from "react-map-gl/maplibre";
+import { Map, Marker, Source, Layer } from "react-map-gl/maplibre";
 import { ROUTE_COLORS } from "@/shared/constants/colors";
-import { SIDEBAR_WIDTH_PX } from "@/shared/constants/config";
+import { SIDEBAR_WIDTH_PX, MOBILE_SHEET_HEIGHT_PX } from "@/shared/constants/config";
 import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
@@ -36,6 +36,14 @@ const FINLAND_BOUNDS = [
 ];
 
 const fromLngLat = ({ lat, lng }) => ({ lat, lon: lng });
+
+function fitRouteBounds(map, start, end, padding) {
+  map.fitBounds(
+    [[Math.min(start.lon, end.lon), Math.min(start.lat, end.lat)],
+     [Math.max(start.lon, end.lon), Math.max(start.lat, end.lat)]],
+    { padding, duration: 800 }
+  );
+}
 
 function splitRuns(coords, modes, modeBit) {
   const out = [];
@@ -100,7 +108,7 @@ export function MapView({
   routeModes,
   onMarkerDragEnd,
 }) {
-  const { isSatView, panelOpen, routeFitTick } = useRouteSettingsContext();
+  const { isSatView, panelOpen, routeFitTick, sheetHeight } = useRouteSettingsContext();
   const { position, isTripActive } = useGeolocation();
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
@@ -139,53 +147,38 @@ export function MapView({
   const [dragging, setDragging] = useState(null);
   const routeOpacity = dragging ? 0.35 : 0.95;
 
-  // BoundsController logic: fit map when both endpoints are set
   const prevStartIdx = useRef(null);
   const prevEndIdx = useRef(null);
 
   useEffect(() => {
     if (!snappedStart || !snappedEnd) return;
-    const map = mapRef.current;
-    if (!map) return;
-    if (
-      snappedStart.idx === prevStartIdx.current &&
-      snappedEnd.idx === prevEndIdx.current
-    )
-      return;
+    if (snappedStart.idx === prevStartIdx.current && snappedEnd.idx === prevEndIdx.current) return;
     prevStartIdx.current = snappedStart.idx;
     prevEndIdx.current = snappedEnd.idx;
-
-    const bounds = map.getBounds();
-    const startLngLat = [snappedStart.lon, snappedStart.lat];
-    const endLngLat = [snappedEnd.lon, snappedEnd.lat];
-    if (
-      bounds.contains(startLngLat) &&
-      bounds.contains(endLngLat)
-    )
+    const map = mapRef.current;
+    if (!map) return;
+    if (isMobile) {
+      if (panelOpen) return;
+      fitRouteBounds(map, snappedStart, snappedEnd,
+        { top: 80, bottom: 80, left: 80, right: 80 });
       return;
-
-    const leftPad = !isMobile && panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
-    map.fitBounds(
-      [
-        [Math.min(snappedStart.lon, snappedEnd.lon), Math.min(snappedStart.lat, snappedEnd.lat)],
-        [Math.max(snappedStart.lon, snappedEnd.lon), Math.max(snappedStart.lat, snappedEnd.lat)],
-      ],
-      { padding: { top: 80, bottom: 80, left: leftPad, right: 80 }, duration: 800 }
-    );
+    }
+    const bounds = map.getBounds();
+    if (bounds.contains([snappedStart.lon, snappedStart.lat]) &&
+        bounds.contains([snappedEnd.lon, snappedEnd.lat])) return;
+    const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
+    fitRouteBounds(map, snappedStart, snappedEnd,
+      { top: 80, bottom: 80, left: leftPad, right: 80 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
   useEffect(() => {
-    if (!panelOpen || !snappedStart || !snappedEnd) return;
+    if (!snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
-    map.fitBounds(
-      [
-        [Math.min(snappedStart.lon, snappedEnd.lon), Math.min(snappedStart.lat, snappedEnd.lat)],
-        [Math.max(snappedStart.lon, snappedEnd.lon), Math.max(snappedStart.lat, snappedEnd.lat)],
-      ],
-      { padding: { top: 80, bottom: 80, left: SIDEBAR_WIDTH_PX + 80, right: 80 }, duration: 800 }
-    );
+    if (isMobile || !panelOpen) return;
+    fitRouteBounds(map, snappedStart, snappedEnd,
+      { top: 80, bottom: 80, left: SIDEBAR_WIDTH_PX + 80, right: 80 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);
 
@@ -193,13 +186,8 @@ export function MapView({
     if (routeFitTick === 0 || !snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
-    map.fitBounds(
-      [
-        [Math.min(snappedStart.lon, snappedEnd.lon), Math.min(snappedStart.lat, snappedEnd.lat)],
-        [Math.max(snappedStart.lon, snappedEnd.lon), Math.max(snappedStart.lat, snappedEnd.lat)],
-      ],
-      { padding: { top: 60, bottom: window.innerHeight * 0.55, left: 60, right: 60 }, duration: 800 }
-    );
+    fitRouteBounds(map, snappedStart, snappedEnd,
+      { top: 60, bottom: sheetHeight || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeFitTick]);
 
@@ -217,14 +205,13 @@ export function MapView({
       }}
       bearing={bearing}
       style={{ height: "100dvh", width: "100vw" }}
-      minZoom={9}
+      minZoom={8}
       maxZoom={18}
       maxBounds={FINLAND_BOUNDS}
       attributionControl={false}
       doubleClickZoom={false}
       onClick={(e) => onMapClick && onMapClick(fromLngLat(e.lngLat))}
     >
-      <NavigationControl showCompass showZoom={false} position="top-left" />
 
       {snappedStart && (
         <Marker
@@ -236,8 +223,13 @@ export function MapView({
           onDragStart={() => setDragging("start")}
           onDragEnd={(e) => {
             setDragging(null);
-            onMarkerDragEnd &&
-              onMarkerDragEnd("start", { lat: e.lngLat.lat, lon: e.lngLat.lng });
+            const newPos = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+            onMarkerDragEnd && onMarkerDragEnd("start", newPos);
+            if (isMobile && snappedEnd) {
+              const map = mapRef.current;
+              if (map) fitRouteBounds(map, newPos, snappedEnd,
+                { top: 60, bottom: sheetHeight || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+            }
           }}
         >
           <img
@@ -260,8 +252,13 @@ export function MapView({
           onDragStart={() => setDragging("end")}
           onDragEnd={(e) => {
             setDragging(null);
-            onMarkerDragEnd &&
-              onMarkerDragEnd("end", { lat: e.lngLat.lat, lon: e.lngLat.lng });
+            const newPos = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+            onMarkerDragEnd && onMarkerDragEnd("end", newPos);
+            if (isMobile && snappedStart) {
+              const map = mapRef.current;
+              if (map) fitRouteBounds(map, newPos, snappedStart,
+                { top: 60, bottom: sheetHeight || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+            }
           }}
         >
           <img
