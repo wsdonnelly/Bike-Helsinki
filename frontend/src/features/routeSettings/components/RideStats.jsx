@@ -59,7 +59,7 @@ export default function RideStats({
 
   return (
     <div style={boxStyle}>
-      <div style={styles.statsHeader}>Ride stats</div>
+      <div style={styles.statsHeader}>Route Stats</div>
 
       <div style={styles.statsGrid}>
         <div>Duration</div>

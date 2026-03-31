@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 import { useGeolocation } from "../context/GeolocationContext";
+import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 
 export function TripController({ mapRef }) {
   const { position, isLocating, isTripActive } = useGeolocation();
+  const { panelOpen } = useRouteSettingsContext();
   const lastFlyRef = useRef(0);
   const hasCenteredRef = useRef(false);
   const hasCenteredOnLocateRef = useRef(false);
+  const prevPanelOpenRef = useRef(panelOpen);
 
   useEffect(() => {
     if (!isLocating || !position || hasCenteredOnLocateRef.current) return;
@@ -41,6 +44,15 @@ export function TripController({ mapRef }) {
   useEffect(() => {
     if (!isTripActive) hasCenteredRef.current = false;
   }, [isTripActive]);
+
+  useEffect(() => {
+    const wasOpen = prevPanelOpenRef.current;
+    prevPanelOpenRef.current = panelOpen;
+    if (wasOpen && !panelOpen && isTripActive && position) {
+      mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: 18, duration: 500 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen]);
 
   return null;
 }

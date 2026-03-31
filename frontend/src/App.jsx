@@ -1,5 +1,5 @@
 import React from "react";
-import { RouteProvider, useRoute, AddressSearch } from "@/features/routing";
+import { RouteProvider, useRoute } from "@/features/routing";
 import { MapView } from "@/features/map";
 import { ControlPanel, RouteSettingsProvider } from "@/features/routeSettings";
 import { InfoWindow, useInfoWindow } from "@/features/infoWindow";
@@ -14,8 +14,6 @@ function AppContent() {
 
   return (
     <>
-      <AddressSearch />
-
       <MapView
         snappedStart={snappedStart}
         snappedEnd={snappedEnd}

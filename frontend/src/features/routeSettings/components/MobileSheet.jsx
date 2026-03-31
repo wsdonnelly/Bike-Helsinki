@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useLayoutEffect } from "react";
 import { useRoute } from "@/features/routing";
 import { useRouteSettingsContext } from "../context/RouteSettingsContext";
 import { useDraggableSheet } from "../hooks/useDraggableSheet";
@@ -14,20 +14,10 @@ import SurfaceCheckboxGroup from "./SurfaceCheckboxGroup";
 import SurfacePenaltyControl from "./SurfacePenaltyControl";
 import RideStats from "./RideStats";
 import GlobeIcon from "./GlobeIcon";
+import MapAttribution from "./MapAttribution";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
-
-function LocationIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <line x1="12" y1="2" x2="12" y2="6" />
-      <line x1="12" y1="18" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="6" y2="12" />
-      <line x1="18" y1="12" x2="22" y2="12" />
-    </svg>
-  );
-}
+import AddressSearch from "@/features/routing/components/AddressSearch";
 
 function TripIcon() {
   return (
@@ -50,6 +40,8 @@ export default function MobileSheet() {
     applySettings,
     isSatView,
     toggleSatView,
+    triggerRouteFit,
+    setSheetHeight,
   } = useRouteSettingsContext();
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
@@ -58,9 +50,18 @@ export default function MobileSheet() {
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
 
-  const [activeTab, setActiveTab] = useState("filters");
+  const [activeTab, setActiveTab] = useState("planner");
   const { sheetOffset, draggingRef, startDrag, onDragMove, endDrag } =
     useDraggableSheet(panelOpen);
+
+  const sheetRef = useRef(null);
+  useLayoutEffect(() => {
+    const node = sheetRef.current;
+    if (!node) return;
+    const ro = new ResizeObserver(() => setSheetHeight(node.offsetHeight));
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [panelOpen]);
 
   const applyBulk = (newMask) => {
     newMask |= SurfaceBits.SURF_UNKNOWN;
@@ -92,7 +93,7 @@ export default function MobileSheet() {
       {!panelOpen && (
         <button
           type="button"
-          aria-label="Open surface filters"
+          aria-label="Open route planner"
           onClick={openPanel}
           style={styles.mobileToggleBtn}
         >
@@ -100,38 +101,12 @@ export default function MobileSheet() {
         </button>
       )}
 
-      {!panelOpen && (
-        <>
-          <button
-            type="button"
-            aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-            onClick={isLocating ? stopLocating : startLocating}
-            style={styles.mobileLocationBtn(isLocating)}
-          >
-            <LocationIcon />
-          </button>
-          {geoError && (
-            <div style={{ position: "fixed", bottom: 115, right: 20, fontSize: 11, color: "#e53935", maxWidth: 140, textAlign: "right", pointerEvents: "none" }}>
-              {geoError}
-            </div>
-          )}
-          <button
-            type="button"
-            aria-label={isTripActive ? "Stop trip" : "Start trip"}
-            onClick={isTripActive ? stopTrip : startTrip}
-            disabled={!isLocating}
-            style={styles.mobileTripBtn(isTripActive, !isLocating)}
-          >
-            <TripIcon />
-          </button>
-        </>
-      )}
-
       {panelOpen && (
         <div
+          ref={sheetRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Surface filters"
+          aria-label="Route Planner"
           style={{
             ...styles.mobileSheet,
             transform: `translateY(${sheetOffset}px)`,
@@ -157,7 +132,7 @@ export default function MobileSheet() {
             onPointerDown={startDrag}
             onTouchStart={startDrag}
           >
-            <h2 style={styles.titleStyle}>Route Options</h2>
+            <h2 style={styles.titleStyle}>{activeTab === "preferences" ? "Route Preferences" : "Route Planner"}</h2>
             <button
               type="button"
               onClick={toggleSatView}
@@ -167,53 +142,68 @@ export default function MobileSheet() {
             >
               <GlobeIcon />
             </button>
-            <button type="button" onClick={closePanel} style={styles.btnSm}>
-              Close
-            </button>
-            {activeTab === "filters" && (
+
+          </div>
+
+          {(hasSelection || isTripActive) && (
+            <div style={{ paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}>
               <button
                 type="button"
-                onClick={() => {
-                  commitApply();
-                  setActiveTab("stats");
+                aria-label={isTripActive ? "Stop trip" : "Start trip"}
+                onClick={isTripActive ? () => { stopTrip(); stopLocating(); if (hasSelection) triggerRouteFit(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
+                style={{
+                  ...styles.btnSm,
+                  width: "100%",
+                  backgroundColor: "#007AFF",
+                  border: "none",
+                  color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                 }}
-                style={styles.applyBtn}
               >
-                Apply
+                <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
               </button>
-            )}
-          </div>
+              {geoError && (
+                <span style={{ fontSize: 11, color: "#e53935", display: "block", marginTop: 4 }}>
+                  {geoError}
+                </span>
+              )}
+            </div>
+          )}
 
           <div style={styles.tabsContainer}>
             <button
-              onClick={() => setActiveTab("filters")}
+              onClick={() => setActiveTab("planner")}
               style={{
                 ...styles.tabBtn,
-                backgroundColor: activeTab === "filters" ? "#f0f0f0" : "#fff",
-                fontWeight: activeTab === "filters" ? 600 : 400,
+                backgroundColor: activeTab === "planner" ? "#f0f0f0" : "#fff",
+                fontWeight: activeTab === "planner" ? 600 : 400,
               }}
             >
-              Filters
+              Planner
             </button>
             <button
-              onClick={() => setActiveTab("stats")}
+              onClick={() => { setActiveTab("preferences"); if (hasSelection) setTimeout(triggerRouteFit, 0); }}
               style={{
                 ...styles.tabBtn,
-                backgroundColor: activeTab === "stats" ? "#f0f0f0" : "#fff",
-                fontWeight: activeTab === "stats" ? 600 : 400,
+                backgroundColor: activeTab === "preferences" ? "#f0f0f0" : "#fff",
+                fontWeight: activeTab === "preferences" ? 600 : 400,
               }}
             >
-              Stats
+              Preferences
             </button>
           </div>
 
-          {activeTab === "filters" && (
+          {activeTab === "planner" && (
             <>
+              <div style={{ padding: "8px 0", marginBottom: 8 }}>
+                <AddressSearch />
+              </div>
               <BulkActions
                 onSelectAll={selectAll}
                 onSelectNone={selectNone}
                 onSelectPaved={selectPaved}
                 onSelectUnpaved={selectUnpaved}
+                onApply={() => { commitApply(); setActiveTab("preferences"); }}
               />
               {SURFACE_GROUPS.map((group) => (
                 <SurfaceCheckboxGroup
@@ -223,10 +213,11 @@ export default function MobileSheet() {
                   onToggleSurface={toggleDraftBit}
                 />
               ))}
+              <MapAttribution />
             </>
           )}
 
-          {activeTab === "stats" && (
+          {activeTab === "preferences" && (
             <div>
               <SurfacePenaltyControl
                 value={draftPenalty}
@@ -245,6 +236,7 @@ export default function MobileSheet() {
               />
             </div>
           )}
+
         </div>
       )}
     </>

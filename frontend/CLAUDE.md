@@ -182,10 +182,26 @@ When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the *
 
 ### Responsive Layout
 `useIsMobile()` (breakpoint: 640px / `MOBILE_BREAKPOINT_PX`) switches the ControlPanel between:
-- **Desktop**: `DesktopSidebar` — fixed left sidebar
-- **Mobile**: `MobileSheet` — fixed bottom sheet with drag handle and tab nav ("Filters" / "Stats")
+- **Desktop**: `DesktopSidebar` — fixed left sidebar (`SIDEBAR_WIDTH_PX = 320`)
+- **Mobile**: `MobileSheet` — scrollable bottom sheet (max-height 85vh) with tab nav ("Planner" / "Preferences")
 
 Both layout components consume `useRouteSettingsContext()` and `useRoute()` directly — zero props from ControlPanel.
+
+### Map Viewport / Fit-Bounds Behavior
+All fit-bounds logic lives in `MapView.jsx` via a `fitRouteBounds(map, start, end, padding)` helper. Three `useEffect` triggers + two drag handlers.
+
+**Desktop:**
+- Endpoint change: fit only when at least one endpoint is outside the current viewport. Left pad = `SIDEBAR_WIDTH_PX + 80` when panel open, `80` otherwise.
+- Panel opens: always refit with sidebar padding so the route uses the new available space.
+- Marker drag: no auto-fit.
+
+**Mobile:**
+- Endpoint change: fit only when the panel is **closed** (user clicked the map without opening the sheet). Symmetric `80px` padding — full screen available.
+- Panel open: no auto-fit (user is on the Planner tab; the sheet covers the bottom).
+- `routeFitTick`: fit with `sheetHeight || MOBILE_SHEET_HEIGHT_PX` as bottom padding. Triggered by switching to the Preferences tab or stopping a trip. The Preferences tab defers `triggerRouteFit` via `setTimeout(0)` so the `ResizeObserver` can update `sheetHeight` first.
+- Marker drag: always fit with the same `sheetHeight || MOBILE_SHEET_HEIGHT_PX` bottom padding.
+
+`sheetHeight` is measured dynamically via `ResizeObserver` in `MobileSheet` and stored in `RouteSettingsContext`. `MOBILE_SHEET_HEIGHT_PX` is the fallback constant used before the sheet has mounted.
 
 ### Shared Constants
 Magic numbers live in `src/shared/constants/config.js`:
@@ -195,7 +211,7 @@ Magic numbers live in `src/shared/constants/config.js`:
 - `DRAG_DEBOUNCE_MS` — reverse geocode on drag debounce (150)
 - `DEFAULT_MASK` — default surface bitmask (0xffff)
 - `MIN_BAR_WIDTH_PCT` — minimum bar width in stacked chart (1.5)
-- `SIDEBAR_WIDTH_PX` — desktop sidebar width, used for map bounds padding
+- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `sheetHeight` from `RouteSettingsContext` is not yet measured
 
 ## Styling Conventions
 

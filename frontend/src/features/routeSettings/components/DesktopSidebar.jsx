@@ -13,20 +13,10 @@ import SurfaceCheckboxGroup from "./SurfaceCheckboxGroup";
 import SurfacePenaltyControl from "./SurfacePenaltyControl";
 import RideStats from "./RideStats";
 import GlobeIcon from "./GlobeIcon";
+import MapAttribution from "./MapAttribution";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
-
-function LocationIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <line x1="12" y1="2" x2="12" y2="6" />
-      <line x1="12" y1="18" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="6" y2="12" />
-      <line x1="18" y1="12" x2="22" y2="12" />
-    </svg>
-  );
-}
+import AddressSearch from "@/features/routing/components/AddressSearch";
 
 function TripIcon() {
   return (
@@ -87,7 +77,7 @@ export default function DesktopSidebar() {
       {!panelOpen && (
         <button
           type="button"
-          aria-label="Open surface filters"
+          aria-label="Open route planner"
           onClick={openPanel}
           style={styles.toggleBtn}
         >
@@ -95,42 +85,15 @@ export default function DesktopSidebar() {
         </button>
       )}
 
-      {!panelOpen && (
-        <>
-          <button
-            type="button"
-            aria-label={isLocating ? "Stop showing my location" : "Show my location"}
-            onClick={isLocating ? stopLocating : startLocating}
-            style={styles.locationBtn(isLocating)}
-          >
-            <LocationIcon />
-          </button>
-          {geoError && (
-            <div style={{ position: "absolute", top: 148, left: 10, fontSize: 11, color: "#e53935", maxWidth: 140, pointerEvents: "none" }}>
-              {geoError}
-            </div>
-          )}
-          <button
-            type="button"
-            aria-label={isTripActive ? "Stop trip" : "Start trip"}
-            onClick={isTripActive ? stopTrip : startTrip}
-            disabled={!isLocating}
-            style={styles.tripBtn(isTripActive, !isLocating)}
-          >
-            <TripIcon />
-          </button>
-        </>
-      )}
-
       {panelOpen && (
         <div
           role="dialog"
           aria-modal="false"
-          aria-label="Surface filters"
+          aria-label="Route Planner"
           style={styles.panel}
         >
           <div style={styles.hdr}>
-            <h2 style={styles.titleStyle}>Surface Types</h2>
+            <h2 style={styles.titleStyle}>Route Planner</h2>
             <button
               type="button"
               onClick={toggleSatView}
@@ -143,21 +106,43 @@ export default function DesktopSidebar() {
             <button type="button" onClick={closePanel} style={styles.btnSm}>
               Close
             </button>
-            <button
-              type="button"
-              aria-label="Apply"
-              onClick={commitApply}
-              style={styles.applyBtn}
-            >
-              Apply
-            </button>
           </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <AddressSearch />
+          </div>
+
+          {(hasSelection || isTripActive) && (
+            <div style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                aria-label={isTripActive ? "Stop trip" : "Start trip"}
+                onClick={isTripActive ? () => { stopTrip(); stopLocating(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
+                style={{
+                  ...styles.btnSm,
+                  width: "100%",
+                  backgroundColor: "#007AFF",
+                  border: "none",
+                  color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                }}
+              >
+                <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
+              </button>
+              {geoError && (
+                <span style={{ fontSize: 11, color: "#e53935", display: "block", marginTop: 4 }}>
+                  {geoError}
+                </span>
+              )}
+            </div>
+          )}
 
           <BulkActions
             onSelectAll={selectAll}
             onSelectNone={selectNone}
             onSelectPaved={selectPaved}
             onSelectUnpaved={selectUnpaved}
+            onApply={commitApply}
           />
 
           {SURFACE_GROUPS.map((group) => (
@@ -185,6 +170,7 @@ export default function DesktopSidebar() {
               distanceBikeNonPreferred={totals.distanceBikeNonPreferred}
               distanceWalk={totals.totalDistanceWalk}
             />
+            <MapAttribution />
           </div>
         </div>
       )}

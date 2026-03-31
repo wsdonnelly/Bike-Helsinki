@@ -14,16 +14,34 @@ export default function AddressSearch() {
     actions,
   } = useRoute();
   const disabled = !cfg;
-  const { isLocating, position } = useGeolocation();
+  const { isLocating, position, startLocating, stopLocating } = useGeolocation();
+  const pendingLocateRef = useRef(false);
+
   const handleLocateStart = () => {
-    if (position) actions.setPointFromCoords(position.lat, position.lon, "start");
+    if (isLocating) {
+      stopLocating();
+      return;
+    }
+    startLocating();
+    if (position) {
+      actions.setPointFromCoords(position.lat, position.lon, "start");
+    } else {
+      pendingLocateRef.current = true;
+    }
   };
+
+  useEffect(() => {
+    if (pendingLocateRef.current && position) {
+      pendingLocateRef.current = false;
+      actions.setPointFromCoords(position.lat, position.lon, "start");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position]);
 
   const startSearch = useGeocoding(actions.searchAddress);
   const endSearch = useGeocoding(actions.searchAddress);
 
   const [activeField, setActiveField] = useState(null);
-  const [isOpen, setIsOpen] = useState(true);
 
   const containerRef = useRef(null);
   const blurTimeoutRef = useRef(null);
@@ -76,117 +94,55 @@ export default function AddressSearch() {
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (isOpen) hideDropdowns();
-          setIsOpen((v) => !v);
-        }}
-        title={isOpen ? "Hide address search" : "Show address search"}
-        style={{
-          position: "absolute",
-          top: 5,
-          right: 10,
-          zIndex: 1003,
-          borderRadius: 10,
-          border: "1px solid #e5e5e5",
-          background: "#fff",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          display: "grid",
-          placeItems: "center",
-          cursor: "pointer",
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          width="20"
-          height="20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M3 11.5L12 4l9 7.5" />
-          <path d="M5 10.5V20h14v-9.5" />
-          <path d="M10 20v-4a2 2 0 0 1 4 0v4" />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div
-          ref={containerRef}
-          style={{
-            position: "absolute",
-            top: 10,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "min(92vw, 560px)",
-            background: "white",
-            borderRadius: 10,
-            padding: 10,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-            zIndex: 1002,
+    <div ref={containerRef} style={{ width: "100%" }} aria-label="Address search">
+      <div style={{ marginBottom: 10 }}>
+        <SearchField
+          query={startSearch.query}
+          setQuery={startSearch.setQuery}
+          results={startSearch.results}
+          searching={startSearch.searching}
+          showDropdown={activeField === "start"}
+          onFocus={() => {
+            clearTimeout(blurTimeoutRef.current);
+            setActiveField("start");
           }}
-          aria-label="Address search"
-        >
-          <div style={{ marginBottom: 10 }}>
-            <SearchField
-              query={startSearch.query}
-              setQuery={startSearch.setQuery}
-              results={startSearch.results}
-              searching={startSearch.searching}
-              showDropdown={activeField === "start"}
-              onFocus={() => {
-                clearTimeout(blurTimeoutRef.current);
-                setActiveField("start");
-              }}
-              onBlur={hideDropdownsSoon}
-              onSelect={(hit) => setFromResultList("start", hit)}
-              onEnter={() => setFromQuery("start")}
-              onEscape={hideDropdowns}
-              onEmpty={() => {
-                setSnappedStart(null);
-                setActiveField(null);
-              }}
-              onLocate={isLocating ? handleLocateStart : undefined}
-              placeholder="Click map or search start address..."
-              isSet={!!snappedStart}
-              pointType="start"
-              disabled={disabled}
-            />
-          </div>
+          onBlur={hideDropdownsSoon}
+          onSelect={(hit) => setFromResultList("start", hit)}
+          onEnter={() => setFromQuery("start")}
+          onEscape={hideDropdowns}
+          onEmpty={() => {
+            setSnappedStart(null);
+          }}
+          onLocate={handleLocateStart}
+          placeholder="Click map or search start address..."
+          isSet={!!snappedStart}
+          pointType="start"
+          disabled={disabled}
+        />
+      </div>
 
-          <SearchField
-            query={endSearch.query}
-            setQuery={endSearch.setQuery}
-            results={endSearch.results}
-            searching={endSearch.searching}
-            showDropdown={activeField === "end"}
-            onFocus={() => {
-              clearTimeout(blurTimeoutRef.current);
-              setActiveField("end");
-            }}
-            onBlur={hideDropdownsSoon}
-            onSelect={(hit) => setFromResultList("end", hit)}
-            onEnter={() => setFromQuery("end")}
-            onEscape={hideDropdowns}
-            onEmpty={() => {
-              setSnappedEnd(null);
-              setActiveField(null);
-            }}
-            placeholder="Click map or search end address..."
-            isSet={!!snappedEnd}
-            pointType="end"
-            disabled={disabled}
-          />
-        </div>
-      )}
-    </>
+      <SearchField
+        query={endSearch.query}
+        setQuery={endSearch.setQuery}
+        results={endSearch.results}
+        searching={endSearch.searching}
+        showDropdown={activeField === "end"}
+        onFocus={() => {
+          clearTimeout(blurTimeoutRef.current);
+          setActiveField("end");
+        }}
+        onBlur={hideDropdownsSoon}
+        onSelect={(hit) => setFromResultList("end", hit)}
+        onEnter={() => setFromQuery("end")}
+        onEscape={hideDropdowns}
+        onEmpty={() => {
+          setSnappedEnd(null);
+        }}
+        placeholder="Click map or search end address..."
+        isSet={!!snappedEnd}
+        pointType="end"
+        disabled={disabled}
+      />
+    </div>
   );
 }
