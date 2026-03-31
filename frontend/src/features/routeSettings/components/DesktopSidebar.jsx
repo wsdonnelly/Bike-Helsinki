@@ -113,22 +113,24 @@ export default function DesktopSidebar() {
           </div>
 
           {(hasSelection || isTripActive) && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <div style={{ marginBottom: 12 }}>
               <button
                 type="button"
                 aria-label={isTripActive ? "Stop trip" : "Start trip"}
                 onClick={isTripActive ? () => { stopTrip(); stopLocating(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
                 style={{
                   ...styles.btnSm,
-                  backgroundColor: isTripActive ? "#e3f2fd" : "#fff",
-                  border: isTripActive ? "1px solid #2196f3" : "1px solid #ddd",
-                  display: "flex", alignItems: "center", gap: 4,
+                  width: "100%",
+                  backgroundColor: "#007AFF",
+                  border: "none",
+                  color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                 }}
               >
                 <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
               </button>
               {geoError && (
-                <span style={{ fontSize: 11, color: "#e53935", alignSelf: "center" }}>
+                <span style={{ fontSize: 11, color: "#e53935", display: "block", marginTop: 4 }}>
                   {geoError}
                 </span>
               )}
