@@ -120,7 +120,7 @@ export default function MobileSheet() {
             onPointerDown={startDrag}
             onTouchStart={startDrag}
           >
-            <h2 style={styles.titleStyle}>Route Options</h2>
+            <h2 style={styles.titleStyle}>{activeTab === "stats" ? "Route Preferences" : "Route Planner"}</h2>
             <button
               type="button"
               onClick={toggleSatView}
@@ -171,7 +171,7 @@ export default function MobileSheet() {
                 fontWeight: activeTab === "filters" ? 600 : 400,
               }}
             >
-              Filters
+              Planner
             </button>
             <button
               onClick={() => setActiveTab("stats")}
@@ -181,7 +181,7 @@ export default function MobileSheet() {
                 fontWeight: activeTab === "stats" ? 600 : 400,
               }}
             >
-              Stats
+              Preferences
             </button>
           </div>
 

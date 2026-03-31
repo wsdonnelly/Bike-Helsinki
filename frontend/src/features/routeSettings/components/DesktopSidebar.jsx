@@ -93,7 +93,7 @@ export default function DesktopSidebar() {
           style={styles.panel}
         >
           <div style={styles.hdr}>
-            <h2 style={styles.titleStyle}>Surface Types</h2>
+            <h2 style={styles.titleStyle}>Route Planner</h2>
             <button
               type="button"
               onClick={toggleSatView}
