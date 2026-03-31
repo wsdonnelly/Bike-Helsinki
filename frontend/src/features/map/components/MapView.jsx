@@ -100,8 +100,7 @@ export function MapView({
   routeModes,
   onMarkerDragEnd,
 }) {
-  const { isSatView } = useRouteSettingsContext();
-  const { panelOpen } = useRouteSettingsContext();
+  const { isSatView, panelOpen, routeFitTick } = useRouteSettingsContext();
   const { position, isTripActive } = useGeolocation();
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
@@ -190,6 +189,20 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);
 
+  useEffect(() => {
+    if (routeFitTick === 0 || !snappedStart || !snappedEnd) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.fitBounds(
+      [
+        [Math.min(snappedStart.lon, snappedEnd.lon), Math.min(snappedStart.lat, snappedEnd.lat)],
+        [Math.max(snappedStart.lon, snappedEnd.lon), Math.max(snappedStart.lat, snappedEnd.lat)],
+      ],
+      { padding: { top: 60, bottom: window.innerHeight * 0.55, left: 60, right: 60 }, duration: 800 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeFitTick]);
+
   const bearing = isTripActive && position?.heading != null ? position.heading : 0;
 
   return (
@@ -204,7 +217,7 @@ export function MapView({
       }}
       bearing={bearing}
       style={{ height: "100dvh", width: "100vw" }}
-      minZoom={11}
+      minZoom={9}
       maxZoom={18}
       maxBounds={FINLAND_BOUNDS}
       attributionControl={false}

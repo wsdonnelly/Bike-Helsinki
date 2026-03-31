@@ -40,6 +40,7 @@ export default function MobileSheet() {
     applySettings,
     isSatView,
     toggleSatView,
+    triggerRouteFit,
   } = useRouteSettingsContext();
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
@@ -138,7 +139,7 @@ export default function MobileSheet() {
               <button
                 type="button"
                 aria-label={isTripActive ? "Stop trip" : "Start trip"}
-                onClick={isTripActive ? () => { stopTrip(); stopLocating(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
+                onClick={isTripActive ? () => { stopTrip(); stopLocating(); if (hasSelection) triggerRouteFit(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
                 style={{
                   ...styles.btnSm,
                   width: "100%",
@@ -170,7 +171,7 @@ export default function MobileSheet() {
               Planner
             </button>
             <button
-              onClick={() => setActiveTab("stats")}
+              onClick={() => { setActiveTab("stats"); if (hasSelection) triggerRouteFit(); }}
               style={{
                 ...styles.tabBtn,
                 backgroundColor: activeTab === "stats" ? "#f0f0f0" : "#fff",

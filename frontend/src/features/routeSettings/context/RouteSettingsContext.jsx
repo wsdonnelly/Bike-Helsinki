@@ -9,6 +9,8 @@ export function RouteSettingsProvider({ children }) {
   const { settings } = useRoute();
 
   const [panelOpen, setPanelOpen] = useState(false);
+  const [routeFitTick, setRouteFitTick] = useState(0);
+  const triggerRouteFit = () => setRouteFitTick((n) => n + 1);
   const [draftMask, setDraftMask] = useState(settings.appliedMask);
   const [draftPenalty, setDraftPenalty] = useState(settings.appliedPenalty);
 
@@ -48,6 +50,8 @@ export function RouteSettingsProvider({ children }) {
     panelOpen,
     openPanel,
     closePanel,
+    routeFitTick,
+    triggerRouteFit,
     draftMask,
     setDraftMask,
     toggleDraftBit,
