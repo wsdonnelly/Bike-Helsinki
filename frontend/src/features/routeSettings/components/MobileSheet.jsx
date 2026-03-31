@@ -130,9 +130,7 @@ export default function MobileSheet() {
             >
               <GlobeIcon />
             </button>
-            <button type="button" onClick={closePanel} style={styles.btnSm}>
-              Close
-            </button>
+
           </div>
 
           <div style={{ padding: "8px 0", marginBottom: 8 }}>
