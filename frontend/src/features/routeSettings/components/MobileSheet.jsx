@@ -133,10 +133,6 @@ export default function MobileSheet() {
 
           </div>
 
-          <div style={{ padding: "8px 0", marginBottom: 8 }}>
-            <AddressSearch />
-          </div>
-
           {(hasSelection || isTripActive) && (
             <div style={{ display: "flex", gap: 8, paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}>
               <button
@@ -185,6 +181,9 @@ export default function MobileSheet() {
 
           {activeTab === "filters" && (
             <>
+              <div style={{ padding: "8px 0", marginBottom: 8 }}>
+                <AddressSearch />
+              </div>
               <BulkActions
                 onSelectAll={selectAll}
                 onSelectNone={selectNone}
@@ -200,6 +199,7 @@ export default function MobileSheet() {
                   onToggleSurface={toggleDraftBit}
                 />
               ))}
+              <MapAttribution />
             </>
           )}
 
@@ -223,7 +223,6 @@ export default function MobileSheet() {
             </div>
           )}
 
-          <MapAttribution />
         </div>
       )}
     </>
