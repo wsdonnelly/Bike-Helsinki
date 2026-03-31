@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Bike-Helsinki is a full-stack bike routing web app for Helsinki, combining a React/Leaflet frontend, a Node.js/Express backend, and C++ N-API addons for high-performance A* pathfinding on an OpenStreetMap-derived graph.
+Bike-Helsinki is a full-stack bike routing web app for Helsinki, combining a React/MapLibre frontend, a Node.js/Express backend, and C++ N-API addons for high-performance A* pathfinding on an OpenStreetMap-derived graph.
 
 # do not add comments in the code, except when the code is quite complex
 
@@ -54,14 +54,14 @@ Produces `graph_nodes.bin` and `graph_edges.bin` in `backend/data/`, which the C
    - `POST /route` — computes A* path with bike/foot mode and surface preferences (C++ addon)
    - `GET /config/helsinki` — returns bbox/viewbox for the map
 
-3. **`frontend/` (React + React-Leaflet)** renders an interactive map. User clicks trigger snap→route calls, and the resulting polyline segments are color-coded by mode (bike vs. foot).
+3. **`frontend/` (React + MapLibre)** renders an interactive map. User clicks trigger snap→route calls, and the resulting polyline segments are color-coded by mode (bike vs. foot).
 
 ### Key Frontend Files
 
 - `src/api/http.js` — Axios client; uses `VITE_API_URL` env var in prod, `localhost:3000` in dev
 - `src/api/backend.js` — typed wrappers for all backend endpoints
-- `src/features/routing/RouteProvider.jsx` — central routing state (snapped endpoints, route coords, user settings); drives recalculation on setting changes
-- `src/features/map/MapView.jsx` — React-Leaflet map; handles map clicks and renders route polylines
+- `src/context/RouteContext.jsx` — central routing state (snapped endpoints, route coords, user settings); drives recalculation on setting changes
+- `src/features/map/MapView.jsx` — MapLibre map (via react-map-gl); handles map clicks and renders route GeoJSON layers
 
 ### Key Backend Files
 
@@ -84,7 +84,7 @@ The frontend calls the backend via Axios. In development, set `VITE_API_URL` in 
 
 | Layer | Stack |
 |---|---|
-| Frontend | React 19, Vite 6, React-Leaflet 5, Axios |
+| Frontend | React 19, Vite 6, react-map-gl 8 (MapLibre), Axios |
 | Backend | Node.js 20, Express 5, node-addon-api |
 | Native addons | C++17, node-gyp |
 | Data ingestion | C++17, CMake, libosmium |

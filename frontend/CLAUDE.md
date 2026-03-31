@@ -26,11 +26,11 @@ src/
 │   │   ├── hooks/
 │   │   │   └── useGeocoding.js         # Debounced search with AbortController
 │   │   ├── utils/
-│   │   │   └── formatAddress.js    # Parse Nominatim address object → readable string
+│   │   │   └── formatAddress.js    # Parse Digitransit-normalised address object → readable string
 │   │   └── index.js
 │   ├── map/
 │   │   ├── components/
-│   │   │   └── MapView.jsx         # React-Leaflet map, markers, route polylines, tile layers
+│   │   │   └── MapView.jsx         # MapLibre map (via react-map-gl), markers, route GeoJSON layers, tile styles
 │   │   └── index.js
 │   ├── routeSettings/
 │   │   ├── components/
@@ -59,8 +59,8 @@ src/
 │   │   ├── context/
 │   │   │   └── GeolocationContext.jsx      # GPS watch + trip state: position, isLocating, isTripActive
 │   │   ├── components/
-│   │   │   ├── LocationMarker.jsx          # Circle (accuracy radius) + blue dot marker on map
-│   │   │   └── TripController.jsx          # No render; flies to position on location start / trip start
+│   │   │   ├── LocationMarker.jsx          # Accuracy circle (GeoJSON Source/Layer) + blue dot Marker
+│   │   │   └── TripController.jsx          # No render; flies to position on location start / trip start via mapRef
 │   │   └── index.js
 │   └── infoWindow/
 │       ├── components/
@@ -136,11 +136,12 @@ main.jsx
 ## Key Patterns
 
 ### Coordinate Conventions
-The app uses `{lat, lon}` everywhere. Leaflet expects `{lat, lng}`. MapView has helpers to convert at the boundary:
+The app uses `{lat, lon}` everywhere. MapLibre's map click events emit `lngLat: { lat, lng }`. The conversion happens at the boundary in `MapView.jsx`:
 ```js
-lngToLon({ lat, lng })          // Leaflet → app
-lonToLeafletTuple({ lat, lon }) // app → Leaflet [lat, lng]
+const fromLngLat = ({ lat, lng }) => ({ lat, lon: lng });
 ```
+`react-map-gl` `Marker` components receive separate `longitude` and `latitude` props.
+
 Never mix `lon`/`lng` outside of MapView.
 
 ### Surface Bit Masking
@@ -149,21 +150,35 @@ Surface types are 16-bit flags defined in `surfaceTypes.js`. The active set of a
 - `0x2` — bike non-preferred (orange)
 - `0x4` — foot/walk (dotted purple)
 
+### Route Rendering
+Routes are rendered as three separate MapLibre GeoJSON `Source`/`Layer` pairs — one per mode type (`route-bike-pref`, `route-bike-nonpref`, `route-foot`). Layer paint props encode color and dash patterns. A fallback single-color polyline layer is used when `routeModes` is absent.
+
 ### Async Route Fetching
 `RouteContext` uses `AbortController` to cancel stale requests. Route recalculates automatically via `useEffect` when endpoints or settings change. Reverse geocoding on marker drag uses a 150ms debounce (`DRAG_DEBOUNCE_MS`).
 
 ### Geocoding HTTP Client
-`digitransit.js` uses its **own** dedicated Axios instance (not `http.js`), because Digitransit is an external service with a different base URL. Both `searchAddresses` and `reverseGeocode` accept a `signal` parameter for AbortController support.
+`digitransit.js` uses its **own** dedicated Axios instance (not `http.js`), because Digitransit is an external service with a different base URL. Both `searchAddresses` and `reverseGeocode` accept a `signal` parameter for AbortController support. Both functions normalise Digitransit GeoJSON responses to a consistent internal format: `{ place_id, display_name, lat, lon, address }`.
+
+### Map Bounds Fitting
+`MapView` uses two `useEffect` hooks to manage the viewport:
+1. When both endpoints are set: calls `map.fitBounds()` with padding that accounts for the sidebar (desktop) or bottom sheet (mobile).
+2. When the panel opens: re-fits bounds so the panel does not obscure the route.
+
+Padding constants (`SIDEBAR_WIDTH_PX` etc.) come from `src/shared/constants/config.js`.
+
+### Imperative Map Control
+`TripController` receives `mapRef` as a prop (passed from `MapView`). All viewport changes are made imperatively:
+- On `isLocating` start: `mapRef.current.flyTo({ center, zoom: 15 })`
+- On `isTripActive` start: zoom to 18 and continuously track position (1s debounce)
+- Uses `mapRef.current.rotateTo()` for heading alignment during trip
 
 ### GPS-to-Start in AddressSearch
 When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the **start** `SearchField` only. Clicking the locate button calls `actions.setPointFromCoords(position.lat, position.lon, "start")`, snapping the current GPS position as the route start point. The end field never receives `onLocate`.
 
 ### Geolocation & Trip Tracking
-`TripController` is a renderless component that lives inside the Leaflet map and uses `useMap()` to imperatively control the viewport:
-- On `isLocating` start: fly to position at zoom 15
-- On `isTripActive` start: zoom to 18 and continuously track position (1s debounce)
+`TripController` is a renderless component inside the map that uses `mapRef` to imperatively control the viewport (see above).
 
-`LocationMarker` renders a `Circle` (accuracy radius) and a `Marker` (blue dot) from the `geolocation` feature when position is available.
+`LocationMarker` renders the accuracy radius as a GeoJSON polygon via `Source`/`Layer` and the blue dot position as a `Marker` from `react-map-gl/maplibre`.
 
 ### Responsive Layout
 `useIsMobile()` (breakpoint: 640px / `MOBILE_BREAKPOINT_PX`) switches the ControlPanel between:
@@ -180,6 +195,7 @@ Magic numbers live in `src/shared/constants/config.js`:
 - `DRAG_DEBOUNCE_MS` — reverse geocode on drag debounce (150)
 - `DEFAULT_MASK` — default surface bitmask (0xffff)
 - `MIN_BAR_WIDTH_PCT` — minimum bar width in stacked chart (1.5)
+- `SIDEBAR_WIDTH_PX` — desktop sidebar width, used for map bounds padding
 
 ## Styling Conventions
 
@@ -217,4 +233,37 @@ The HTTP client reads `VITE_API_URL` at build time (dev default: `http://localho
 
 - `useMemo` for expensive derived values: SVG pin icons, polyline segment runs
 - `useCallback` for stable function refs passed as props
-- Canvas renderer on Leaflet for polylines (`renderer={canvasRenderer}`)
+- Route polylines rendered as MapLibre GeoJSON `Source`/`Layer` sets (one per mode type)
+
+## Known Inconsistencies & Refactoring Candidates
+
+These are places where the code deviates from its own established patterns, or where files have grown large enough to warrant splitting. They are not bugs — just documented technical debt.
+
+### a. Icon duplication
+`GlobeIcon.jsx` is the established pattern for a standalone SVG icon component. However:
+- `LocationIcon` and `TripIcon` are defined inline in **both** `DesktopSidebar.jsx` and `MobileSheet.jsx` (identical SVG code duplicated)
+- A home/clear icon is inlined directly in `AddressSearch.jsx`
+
+Refactoring: extract all icons to `/shared/components/Icons/` and follow the `GlobeIcon` pattern.
+
+### b. DesktopSidebar / MobileSheet duplication (~95% identical logic)
+The two layout components differ only in their outer layout structure (fixed sidebar vs. draggable sheet). All the internal logic — context consumption, bulk-action functions (`selectAll`, `selectNone`, `selectPaved`, `selectUnpaved`), satellite-button style object — is duplicated verbatim.
+
+Refactoring:
+- Extract `useBulkSurfaceActions(applyBulk)` hook to `/features/routeSettings/hooks/`
+- Move the satellite button style to `ControlPanel.styles.js` as a function `satBtnStyle(isSatView)` (consistent with the existing `locationBtn(isLocating)` pattern)
+
+### c. Inconsistent button styling
+Location/Trip buttons are styled via functions in `ControlPanel.styles.js` (e.g. `styles.locationBtn(isLocating)`). The satellite toggle button defines an equivalent inline object in each sidebar file instead of following the same pattern.
+
+### d. MapView size (321 lines)
+`MapView.jsx` handles: map initialisation, start/end marker rendering, route GeoJSON layers (×3 mode types + fallback), two bounds-fitting effects with padding logic, tile-style switching, and geolocation subcomponent integration.
+
+Refactoring candidates:
+- `<RoutePolylines routeCoords routeModes dragging />` — extract the three `Source`/`Layer` sets and fallback layer into a child component
+- `useMapBounds(mapRef, snappedStart, snappedEnd, panelOpen, isMobile)` — extract the two bounds-fitting effects into a custom hook
+
+### e. RouteContext size (278 lines)
+`RouteContext.jsx` has 9+ distinct concerns. The most self-contained extraction candidate is the 45-line reverse-geocoding block (lines ~92–136), which handles AbortController, debounce, coordinate snapping, and address reconciliation.
+
+Refactoring candidate: `useReverseGeocoding()` hook that accepts a snap callback and returns a debounced `resolveAddress(lat, lon, field)` function.

@@ -254,7 +254,7 @@ npm install
 ```
 
 Key dependencies include:
-- `react-leaflet` & `leaflet` - Interactive maps
+- `react-map-gl` & `maplibre-gl` - Interactive maps
 - `axios` - API communication
 
 ### Start development server
