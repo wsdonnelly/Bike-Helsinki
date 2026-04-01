@@ -22,6 +22,9 @@ Example: on branch `feat/switch-to-digitransit` a commit becomes:
 `[feat/switch-to-digitransit] feat(api): add digitransit geocoding client`
 
 On `master` no prefix is added.
+Some common master commit examples:
+docs(CLAUDE): update claude context docs
+chore(bins): update bins
 
 ## Rules
 # Subject line
