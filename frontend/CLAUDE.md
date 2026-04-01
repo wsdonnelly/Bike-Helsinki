@@ -198,10 +198,12 @@ All fit-bounds logic lives in `MapView.jsx` via a `fitRouteBounds(map, start, en
 **Mobile:**
 - Endpoint change: fit only when the panel is **closed** (user clicked the map without opening the sheet). Symmetric `80px` padding — full screen available.
 - Panel open: no auto-fit (user is on the Planner tab; the sheet covers the bottom).
-- `routeFitTick`: fit with `sheetHeight || MOBILE_SHEET_HEIGHT_PX` as bottom padding. Triggered by switching to the Preferences tab or stopping a trip. The Preferences tab defers `triggerRouteFit` via `setTimeout(0)` so the `ResizeObserver` can update `sheetHeight` first.
-- Marker drag: always fit with the same `sheetHeight || MOBILE_SHEET_HEIGHT_PX` bottom padding.
+- `routeFitTick`: fit with `sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX` as bottom padding. Triggered by switching to the Preferences tab or stopping a trip. The Preferences tab defers `triggerRouteFit` via `setTimeout(0)` so the `ResizeObserver` can update `sheetHeightRef` first.
+- Marker drag: always fit with the same `sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX` bottom padding.
 
-`sheetHeight` is measured dynamically via `ResizeObserver` in `MobileSheet` and stored in `RouteSettingsContext`. `MOBILE_SHEET_HEIGHT_PX` is the fallback constant used before the sheet has mounted.
+`sheetHeight` is measured dynamically via `ResizeObserver` in `MobileSheet` and stored in `RouteSettingsContext`. `sheetHeightRef` is a `useRef` mirror of `sheetHeight` state — used in MapView effects to avoid stale closure reads when `routeFitTick` increments before React has flushed the new state. `MOBILE_SHEET_HEIGHT_PX` is the fallback constant used before the sheet has mounted.
+
+> **Refactor candidate:** The fit-bounds system works but has accumulated complexity: a `setTimeout(0)` race workaround, a ref/state mirror, and three disconnected effects with branching desktop/mobile logic. A cleaner approach would consolidate all fit-bounds triggering into a single `useFitBounds(map, triggers)` hook with explicit dependencies, and replace the ref/state mirror with a stable imperative `getSheetHeight()` accessor. Key files: `MapView.jsx` (effects + drag handlers), `RouteSettingsContext.jsx` (`sheetHeight`/`sheetHeightRef`/`routeFitTick`), `MobileSheet.jsx` (ResizeObserver + Preferences tab click).
 
 ### Shared Constants
 Magic numbers live in `src/shared/constants/config.js`:

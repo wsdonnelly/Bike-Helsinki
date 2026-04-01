@@ -13,6 +13,7 @@ Bike-Helsinki is a full-stack bike routing web app for Helsinki, combining a Rea
 See `docs/commitMessageStyle.md` for the full commit message format.
 Always open the editor — never use `git commit -m`.
 When implementing a plan: pause between steps, write a commit message, and wait for review before proceeding.
+When the user asks for a commit message: write the message text only — do not run any git commands. The user will commit themselves.
 
 ## Commands
 
