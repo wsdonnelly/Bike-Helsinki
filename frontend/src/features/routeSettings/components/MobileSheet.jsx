@@ -18,6 +18,7 @@ import MapAttribution from "./MapAttribution";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
 import AddressSearch from "@/features/routing/components/AddressSearch";
+import { DEFAULT_MASK } from "@/shared";
 
 function TripIcon() {
   return (
@@ -46,7 +47,7 @@ export default function MobileSheet() {
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
-  const { totals, snappedStart, snappedEnd, routeCoords } = useRoute();
+  const { totals, snappedStart, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
 
@@ -133,6 +134,16 @@ export default function MobileSheet() {
             onTouchStart={startDrag}
           >
             <h2 style={styles.titleStyle}>{activeTab === "preferences" ? "Route Preferences" : "Route Planner"}</h2>
+            {(snappedStart || snappedEnd) && (
+              <button
+                type="button"
+                onClick={() => { setSnappedStart(null); setSnappedEnd(null); setDraftMask(DEFAULT_MASK); setDraftPenalty(0); applySettings({ mask: DEFAULT_MASK, surfacePenaltySPerKm: 0 }); stopTrip(); stopLocating(); }}
+                style={styles.btnSm}
+                aria-label="Clear route"
+              >
+                Clear
+              </button>
+            )}
             <button
               type="button"
               onClick={toggleSatView}

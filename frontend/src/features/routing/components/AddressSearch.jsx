@@ -55,7 +55,8 @@ export default function AddressSearch() {
   }, []);
 
   useEffect(() => {
-    if (snappedStart?.address) startSearch.setQuery(snappedStart.address);
+    if (!snappedStart) startSearch.setQuery("");
+    else if (snappedStart.address) startSearch.setQuery(snappedStart.address);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart]);
   useEffect(() => {
