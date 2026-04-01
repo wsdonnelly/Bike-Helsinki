@@ -179,13 +179,11 @@ export function RouteProvider({ children }) {
     [resolveAddress]
   );
 
-  const applySettings = async ({ mask, surfacePenaltySPerKm }) => {
+  const applySettings = ({ mask, surfacePenaltySPerKm }) => {
     const nextMask = (mask ?? appliedMask) & 0xffff;
     const nextPenalty = clamp(surfacePenaltySPerKm ?? appliedPenalty, 0, MAX_PENALTY);
-    const changed = nextMask !== appliedMask || nextPenalty !== appliedPenalty;
     setAppliedMask(nextMask);
     setAppliedPenalty(nextPenalty);
-    if (changed) await fetchRoute(nextMask, nextPenalty);
   };
 
   const searchAddress = useCallback(
