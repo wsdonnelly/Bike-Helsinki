@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useRef, useCallback } from "react";
 import { useRoute } from "@/features/routing";
 import { clamp, MAX_PENALTY, DEFAULT_MASK } from "@/shared";
 
@@ -11,7 +11,12 @@ export function RouteSettingsProvider({ children }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [routeFitTick, setRouteFitTick] = useState(0);
   const triggerRouteFit = () => setRouteFitTick((n) => n + 1);
-  const [sheetHeight, setSheetHeight] = useState(0);
+  const [sheetHeight, _setSheetHeight] = useState(0);
+  const sheetHeightRef = useRef(0);
+  const setSheetHeight = useCallback((h) => {
+    sheetHeightRef.current = h;
+    _setSheetHeight(h);
+  }, []);
   const [draftMask, setDraftMask] = useState(settings.appliedMask);
   const [draftPenalty, setDraftPenalty] = useState(settings.appliedPenalty);
 
@@ -54,6 +59,7 @@ export function RouteSettingsProvider({ children }) {
     routeFitTick,
     triggerRouteFit,
     sheetHeight,
+    sheetHeightRef,
     setSheetHeight,
     draftMask,
     setDraftMask,
