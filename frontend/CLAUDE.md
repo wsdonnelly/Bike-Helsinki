@@ -31,6 +31,8 @@ src/
 │   ├── map/
 │   │   ├── components/
 │   │   │   └── MapView.jsx         # MapLibre map (via react-map-gl), markers, route GeoJSON layers, tile styles
+│   │   ├── hooks/
+│   │   │   └── useFitBounds.js     # All fit-bounds effects + fitBoundsOnDrag callback
 │   │   └── index.js
 │   ├── routeSettings/
 │   │   ├── components/
@@ -117,7 +119,10 @@ main.jsx
 
 - **`RouteSettingsContext` (`RouteSettingsProvider` / `useRouteSettingsContext()`)** — panel UI state:
   - `panelOpen`, `draftMask`, `draftPenalty`, `isSatView` — local before Apply
-  - Handlers: `handleApply`, `handleMaskChange`, `handlePenaltyChange`, `toggleSatView`, etc.
+  - `routeFitTick` / `triggerRouteFit()` — counter incremented to signal `useFitBounds` to refit
+  - `setSheetHeight(h)` — called by MobileSheet's ResizeObserver; updates internal ref only (no state re-render)
+  - `getSheetHeight()` — stable accessor for the current measured sheet height; consumed by `useFitBounds`
+  - Handlers: `applySettings`, `toggleDraftBit`, `toggleSatView`, etc.
   - Lives at `src/features/routeSettings/context/RouteSettingsContext.jsx`
   - `useRouteSettings()` is an alias for `useRouteSettingsContext()` (backwards compat)
 
@@ -188,22 +193,27 @@ When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the *
 Both layout components consume `useRouteSettingsContext()` and `useRoute()` directly — zero props from ControlPanel.
 
 ### Map Viewport / Fit-Bounds Behavior
-All fit-bounds logic lives in `MapView.jsx` via a `fitRouteBounds(map, start, end, padding)` helper. Three `useEffect` triggers + two drag handlers.
+All fit-bounds logic lives in `src/features/map/hooks/useFitBounds.js`. `MapView` calls `useFitBounds(...)` and receives a `fitBoundsOnDrag` callback for marker drag handlers.
 
-**Desktop:**
-- Endpoint change: fit only when at least one endpoint is outside the current viewport. Left pad = `SIDEBAR_WIDTH_PX + 80` when panel open, `80` otherwise.
-- Panel opens: always refit with sidebar padding so the route uses the new available space.
-- Marker drag: no auto-fit.
+The hook contains three `useEffect` triggers:
 
-**Mobile:**
-- Endpoint change: fit only when the panel is **closed** (user clicked the map without opening the sheet). Symmetric `80px` padding — full screen available.
-- Panel open: no auto-fit (user is on the Planner tab; the sheet covers the bottom).
-- `routeFitTick`: fit with `sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX` as bottom padding. Triggered by switching to the Preferences tab or stopping a trip. The Preferences tab defers `triggerRouteFit` via `setTimeout(0)` so the `ResizeObserver` can update `sheetHeightRef` first.
-- Marker drag: always fit with the same `sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX` bottom padding.
+**1. Endpoint change** (fires on `snappedStart?.idx` / `snappedEnd?.idx`):
+- Skips if both indices are unchanged (guards against re-renders).
+- Desktop: fits only when at least one endpoint is outside the current viewport. Left pad = `SIDEBAR_WIDTH_PX + 80` when panel open, `80` otherwise.
+- Mobile: fits only when panel is **closed**. Symmetric `80px` padding — full screen available.
 
-`sheetHeight` is measured dynamically via `ResizeObserver` in `MobileSheet` and stored in `RouteSettingsContext`. `sheetHeightRef` is a `useRef` mirror of `sheetHeight` state — used in MapView effects to avoid stale closure reads when `routeFitTick` increments before React has flushed the new state. `MOBILE_SHEET_HEIGHT_PX` is the fallback constant used before the sheet has mounted.
+**2. Panel open/close** (fires on `panelOpen`):
+- Desktop panel **opens**: refit with sidebar padding so the route uses the new available space.
+- Mobile panel **closes** (drag-down dismiss): refit with symmetric `80px` padding — full screen is now available.
 
-> **Refactor candidate:** The fit-bounds system works but has accumulated complexity: a `setTimeout(0)` race workaround, a ref/state mirror, and three disconnected effects with branching desktop/mobile logic. A cleaner approach would consolidate all fit-bounds triggering into a single `useFitBounds(map, triggers)` hook with explicit dependencies, and replace the ref/state mirror with a stable imperative `getSheetHeight()` accessor. Key files: `MapView.jsx` (effects + drag handlers), `RouteSettingsContext.jsx` (`sheetHeight`/`sheetHeightRef`/`routeFitTick`), `MobileSheet.jsx` (ResizeObserver + Preferences tab click).
+**3. `routeFitTick`** (mobile explicit refit):
+- Triggered by: switching to the Preferences tab, pressing Apply (both tabs), stopping a trip.
+- Uses `getSheetHeight() || MOBILE_SHEET_HEIGHT_PX` + 10px as bottom padding, keeping the lower marker clear of the sheet edge.
+- Callers that switch tabs (Preferences tab click, Planner Apply) defer via `setTimeout(0)` so the ResizeObserver can update the sheet height before the effect reads it.
+
+**`fitBoundsOnDrag`** — returned from the hook; used by both marker drag handlers on mobile. Same sheet-height bottom padding as `routeFitTick`.
+
+Sheet height is measured dynamically via `ResizeObserver` in `MobileSheet` and stored as a ref in `RouteSettingsContext` (`setSheetHeight` / `getSheetHeight()`). No state is involved — the ref updates synchronously on resize without triggering re-renders. `MOBILE_SHEET_HEIGHT_PX` is the fallback used before the sheet has mounted.
 
 ### Shared Constants
 Magic numbers live in `src/shared/constants/config.js`:
@@ -213,7 +223,7 @@ Magic numbers live in `src/shared/constants/config.js`:
 - `DRAG_DEBOUNCE_MS` — reverse geocode on drag debounce (150)
 - `DEFAULT_MASK` — default surface bitmask (0xffff)
 - `MIN_BAR_WIDTH_PCT` — minimum bar width in stacked chart (1.5)
-- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `sheetHeight` from `RouteSettingsContext` is not yet measured
+- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `getSheetHeight()` returns 0 (sheet not yet mounted)
 
 ## Styling Conventions
 
@@ -274,12 +284,11 @@ Refactoring:
 ### c. Inconsistent button styling
 Location/Trip buttons are styled via functions in `ControlPanel.styles.js` (e.g. `styles.locationBtn(isLocating)`). The satellite toggle button defines an equivalent inline object in each sidebar file instead of following the same pattern.
 
-### d. MapView size (321 lines)
-`MapView.jsx` handles: map initialisation, start/end marker rendering, route GeoJSON layers (×3 mode types + fallback), two bounds-fitting effects with padding logic, tile-style switching, and geolocation subcomponent integration.
+### d. MapView size (277 lines)
+`MapView.jsx` handles: map initialisation, start/end marker rendering, route GeoJSON layers (×3 mode types + fallback), tile-style switching, and geolocation subcomponent integration. Fit-bounds logic has been extracted to `useFitBounds`.
 
-Refactoring candidates:
+Remaining refactoring candidate:
 - `<RoutePolylines routeCoords routeModes dragging />` — extract the three `Source`/`Layer` sets and fallback layer into a child component
-- `useMapBounds(mapRef, snappedStart, snappedEnd, panelOpen, isMobile)` — extract the two bounds-fitting effects into a custom hook
 
 ### e. RouteContext size (278 lines)
 `RouteContext.jsx` has 9+ distinct concerns. The most self-contained extraction candidate is the 45-line reverse-geocoding block (lines ~92–136), which handles AbortController, debounce, coordinate snapping, and address reconciliation.
