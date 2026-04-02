@@ -27,19 +27,10 @@ export function RouteProvider({ children }) {
   const [appliedMask, setAppliedMask] = useState(DEFAULT_MASK);
   const [appliedPenalty, setAppliedPenalty] = useState(0);
 
-  const [totalDistanceM, setTotalDistanceM] = useState(0);
-  const [totalDurationS, setTotalDurationS] = useState(0);
-  const [distanceBikePreferred, setDistanceBikePreferred] = useState(0);
-  const [distanceBikeNonPreferred, setDistanceBikeNonPreferred] = useState(0);
-  const [totalDistanceWalk, setDistanceWalk] = useState(0);
+  const defaultTotals = { totalDistanceM: 0, totalDurationS: 0, distanceBikePreferred: 0, distanceBikeNonPreferred: 0, totalDistanceWalk: 0 };
+  const [totals, setTotals] = useState(defaultTotals);
 
-  const resetStats = useCallback(() => {
-    setTotalDistanceM(0);
-    setTotalDurationS(0);
-    setDistanceBikePreferred(0);
-    setDistanceBikeNonPreferred(0);
-    setDistanceWalk(0);
-  }, []);
+  const resetStats = useCallback(() => setTotals(defaultTotals), []);
 
   useEffect(() => {
     if (!snappedStart || !snappedEnd) {
@@ -67,11 +58,13 @@ export function RouteProvider({ children }) {
         const coords = result?.coords ?? [];
         setRouteCoords(coords);
         setRouteModes(result?.modes ?? []);
-        setTotalDistanceM(result?.distanceM ?? 0);
-        setTotalDurationS(result?.durationS ?? 0);
-        setDistanceBikePreferred(result?.distanceBikePreferred ?? 0);
-        setDistanceBikeNonPreferred(result?.distanceBikeNonPreferred ?? 0);
-        setDistanceWalk(result?.distanceWalk ?? 0);
+        setTotals({
+          totalDistanceM: result?.distanceM ?? 0,
+          totalDurationS: result?.durationS ?? 0,
+          distanceBikePreferred: result?.distanceBikePreferred ?? 0,
+          distanceBikeNonPreferred: result?.distanceBikeNonPreferred ?? 0,
+          totalDistanceWalk: result?.distanceWalk ?? 0,
+        });
         if (coords.length < 2) resetStats();
       } catch (e) {
         console.error("Route error:", e);
@@ -259,13 +252,7 @@ export function RouteProvider({ children }) {
     setSnappedEnd,
     routeCoords,
     routeModes,
-    totals: {
-      totalDistanceM,
-      totalDurationS,
-      distanceBikePreferred,
-      distanceBikeNonPreferred,
-      totalDistanceWalk,
-    },
+    totals,
     settings: { appliedMask, appliedPenalty, applySettings },
     actions: {
       handleMapClick,
