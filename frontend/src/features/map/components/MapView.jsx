@@ -100,7 +100,7 @@ export function MapView({
   routeModes,
   onMarkerDragEnd,
 }) {
-  const { isSatView, panelOpen, routeFitTick, getSheetHeight } = useRouteSettingsContext();
+  const { isSatView, panelOpen, routeFitTick, getSheetVisibleHeight } = useRouteSettingsContext();
   const { position, isTripActive } = useGeolocation();
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
@@ -140,7 +140,7 @@ export function MapView({
   const routeOpacity = dragging ? 0.35 : 0.95;
 
   const { fitBoundsOnDrag } = useFitBounds({
-    mapRef, snappedStart, snappedEnd, isMobile, panelOpen, routeFitTick, getSheetHeight,
+    mapRef, snappedStart, snappedEnd, isMobile, panelOpen, routeFitTick, getSheetVisibleHeight,
   });
 
   const bearing = isTripActive && position?.heading != null ? position.heading : 0;

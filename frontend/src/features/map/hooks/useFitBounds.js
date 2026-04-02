@@ -9,7 +9,7 @@ function fitRouteBounds(map, start, end, padding) {
   );
 }
 
-export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panelOpen, routeFitTick, getSheetHeight }) {
+export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panelOpen, routeFitTick, getSheetVisibleHeight }) {
   const prevStartIdx = useRef(null);
   const prevEndIdx = useRef(null);
 
@@ -61,7 +61,7 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const map = mapRef.current;
     if (!map) return;
     fitRouteBounds(map, snappedStart, snappedEnd,
-      { top: 40, bottom: (getSheetHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
+      { top: 40, bottom: (getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeFitTick]);
 
@@ -70,12 +70,12 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     if (!map) return;
     if (isMobile) {
       fitRouteBounds(map, a, b,
-        { top: 40, bottom: (getSheetHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
+        { top: 40, bottom: (getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
     } else {
       const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
       fitRouteBounds(map, a, b, { top: 80, bottom: 80, left: leftPad, right: 80 });
     }
-  }, [mapRef, isMobile, panelOpen, getSheetHeight]);
+  }, [mapRef, isMobile, panelOpen, getSheetVisibleHeight]);
 
   return { fitBoundsOnDrag };
 }

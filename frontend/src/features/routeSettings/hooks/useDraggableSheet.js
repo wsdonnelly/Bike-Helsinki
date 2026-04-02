@@ -3,6 +3,7 @@ import { clamp } from "@/shared/utils/math";
 
 export function useDraggableSheet(isOpen) {
   const [sheetOffset, setSheetOffset] = useState(0);
+  const sheetOffsetRef = useRef(0);
   const dragStartY = useRef(0);
   const dragStartOffset = useRef(0);
   const draggingRef = useRef(false);
@@ -20,16 +21,20 @@ export function useDraggableSheet(isOpen) {
     if (!draggingRef.current) return;
     const y = e.touches ? e.touches[0].clientY : e.clientY;
     const dy = y - dragStartY.current;
-    setSheetOffset(clamp(dragStartOffset.current + dy, 0, MAX_OFFSET));
+    const next = clamp(dragStartOffset.current + dy, 0, MAX_OFFSET);
+    sheetOffsetRef.current = next;
+    setSheetOffset(next);
   };
 
-  const endDrag = (onClose) => {
+  const endDrag = (onClose, onSettle) => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
 
     const threshold = MAX_OFFSET * 0.8;
-    if (sheetOffset > threshold) {
+    if (sheetOffsetRef.current > threshold) {
       onClose();
+    } else {
+      onSettle?.(sheetOffsetRef.current);
     }
   };
 

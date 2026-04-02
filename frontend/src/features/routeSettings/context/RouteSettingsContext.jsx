@@ -12,10 +12,17 @@ export function RouteSettingsProvider({ children }) {
   const [routeFitTick, setRouteFitTick] = useState(0);
   const triggerRouteFit = () => setRouteFitTick((n) => n + 1);
   const sheetHeightRef = useRef(0);
+  const sheetOffsetRef = useRef(0);
   const setSheetHeight = useCallback((h) => {
     sheetHeightRef.current = h;
   }, []);
-  const getSheetHeight = useCallback(() => sheetHeightRef.current, []);
+  const setSheetOffset = useCallback((offset) => {
+    sheetOffsetRef.current = offset;
+  }, []);
+  const getSheetVisibleHeight = useCallback(
+    () => Math.max(0, sheetHeightRef.current - sheetOffsetRef.current),
+    []
+  );
   const [draftMask, setDraftMask] = useState(settings.appliedMask);
   const [draftPenalty, setDraftPenalty] = useState(settings.appliedPenalty);
 
@@ -27,6 +34,7 @@ export function RouteSettingsProvider({ children }) {
   const openPanel = () => {
     setDraftMask(settings.appliedMask & DEFAULT_MASK);
     setDraftPenalty(clamp(settings.appliedPenalty, 0, MAX_PENALTY));
+    sheetOffsetRef.current = 0;
     setPanelOpen(true);
   };
 
@@ -58,7 +66,8 @@ export function RouteSettingsProvider({ children }) {
     routeFitTick,
     triggerRouteFit,
     setSheetHeight,
-    getSheetHeight,
+    setSheetOffset,
+    getSheetVisibleHeight,
     draftMask,
     setDraftMask,
     toggleDraftBit,

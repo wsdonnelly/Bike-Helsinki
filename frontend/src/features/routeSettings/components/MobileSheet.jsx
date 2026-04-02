@@ -43,6 +43,7 @@ export default function MobileSheet() {
     toggleSatView,
     triggerRouteFit,
     setSheetHeight,
+    setSheetOffset,
   } = useRouteSettingsContext();
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
@@ -114,11 +115,11 @@ export default function MobileSheet() {
             transition: draggingRef.current ? "none" : "transform .2s ease",
           }}
           onPointerMove={onDragMove}
-          onPointerUp={() => endDrag(closePanel)}
-          onPointerCancel={() => endDrag(closePanel)}
+          onPointerUp={() => endDrag(closePanel, (offset) => { setSheetOffset(offset); if (hasSelection) triggerRouteFit(); })}
+          onPointerCancel={() => endDrag(closePanel, setSheetOffset)}
           onTouchMove={onDragMove}
-          onTouchEnd={() => endDrag(closePanel)}
-          onTouchCancel={() => endDrag(closePanel)}
+          onTouchEnd={() => endDrag(closePanel, (offset) => { setSheetOffset(offset); if (hasSelection) triggerRouteFit(); })}
+          onTouchCancel={() => endDrag(closePanel, setSheetOffset)}
         >
           <div
             style={styles.handleArea}
