@@ -214,7 +214,7 @@ export default function MobileSheet() {
                 onSelectNone={selectNone}
                 onSelectPaved={selectPaved}
                 onSelectUnpaved={selectUnpaved}
-                onApply={() => { commitApply(); setActiveTab("preferences"); }}
+                onApply={() => { commitApply(); setActiveTab("preferences"); if (hasSelection) setTimeout(triggerRouteFit, 0); }}
               />
               {SURFACE_GROUPS.map((group) => (
                 <SurfaceCheckboxGroup
@@ -233,7 +233,7 @@ export default function MobileSheet() {
               <SurfacePenaltyControl
                 value={draftPenalty}
                 onChange={setDraftPenalty}
-                onApply={commitApply}
+                onApply={() => { commitApply(); if (hasSelection) triggerRouteFit(); }}
               />
               <RideStats
                 sticky={false}
