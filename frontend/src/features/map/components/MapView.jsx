@@ -108,7 +108,7 @@ export function MapView({
   routeModes,
   onMarkerDragEnd,
 }) {
-  const { isSatView, panelOpen, routeFitTick, sheetHeightRef } = useRouteSettingsContext();
+  const { isSatView, panelOpen, routeFitTick, getSheetHeight } = useRouteSettingsContext();
   const { position, isTripActive } = useGeolocation();
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
@@ -187,7 +187,7 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     fitRouteBounds(map, snappedStart, snappedEnd,
-      { top: 60, bottom: sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+      { top: 60, bottom: getSheetHeight() || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeFitTick]);
 
@@ -228,7 +228,7 @@ export function MapView({
             if (isMobile && snappedEnd) {
               const map = mapRef.current;
               if (map) fitRouteBounds(map, newPos, snappedEnd,
-                { top: 60, bottom: sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+                { top: 60, bottom: getSheetHeight() || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
             }
           }}
         >
@@ -257,7 +257,7 @@ export function MapView({
             if (isMobile && snappedStart) {
               const map = mapRef.current;
               if (map) fitRouteBounds(map, newPos, snappedStart,
-                { top: 60, bottom: sheetHeightRef.current || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+                { top: 60, bottom: getSheetHeight() || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
             }
           }}
         >
