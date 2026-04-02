@@ -33,13 +33,13 @@ export function RouteProvider({ children }) {
   const [distanceBikeNonPreferred, setDistanceBikeNonPreferred] = useState(0);
   const [totalDistanceWalk, setDistanceWalk] = useState(0);
 
-  const resetStats = () => {
+  const resetStats = useCallback(() => {
     setTotalDistanceM(0);
     setTotalDurationS(0);
     setDistanceBikePreferred(0);
     setDistanceBikeNonPreferred(0);
     setDistanceWalk(0);
-  };
+  }, []);
 
   useEffect(() => {
     if (!snappedStart || !snappedEnd) {
@@ -135,29 +135,32 @@ export function RouteProvider({ children }) {
     []
   );
 
-  const handleMapClick = async ({ lat, lon }) => {
-    try {
-      const snapped = await backend.snapToGraph(lat, lon);
-      const snappedNoAddr = { ...snapped, address: null };
+  const handleMapClick = useCallback(
+    async ({ lat, lon }) => {
+      try {
+        const snapped = await backend.snapToGraph(lat, lon);
+        const snappedNoAddr = { ...snapped, address: null };
 
-      if (!snappedStart) {
-        setSnappedStart(snappedNoAddr);
-        resolveAddress("start", snappedNoAddr);
-      } else if (!snappedEnd) {
-        setSnappedEnd(snappedNoAddr);
-        resolveAddress("end", snappedNoAddr);
-      } else {
-        setSnappedStart(snappedNoAddr);
-        setSnappedEnd(null);
-        setRouteCoords([]);
-        setRouteModes([]);
-        resetStats();
-        resolveAddress("start", snappedNoAddr);
+        if (!snappedStart) {
+          setSnappedStart(snappedNoAddr);
+          resolveAddress("start", snappedNoAddr);
+        } else if (!snappedEnd) {
+          setSnappedEnd(snappedNoAddr);
+          resolveAddress("end", snappedNoAddr);
+        } else {
+          setSnappedStart(snappedNoAddr);
+          setSnappedEnd(null);
+          setRouteCoords([]);
+          setRouteModes([]);
+          resetStats();
+          resolveAddress("start", snappedNoAddr);
+        }
+      } catch (e) {
+        console.error("Snap error:", e);
       }
-    } catch (e) {
-      console.error("Snap error:", e);
-    }
-  };
+    },
+    [snappedStart, snappedEnd, resolveAddress, resetStats]
+  );
 
   const handleMarkerDragEnd = useCallback(
     async (endpoint, { lat, lon }) => {
@@ -179,12 +182,15 @@ export function RouteProvider({ children }) {
     [resolveAddress]
   );
 
-  const applySettings = ({ mask, surfacePenaltySPerKm }) => {
-    const nextMask = (mask ?? appliedMask) & 0xffff;
-    const nextPenalty = clamp(surfacePenaltySPerKm ?? appliedPenalty, 0, MAX_PENALTY);
-    setAppliedMask(nextMask);
-    setAppliedPenalty(nextPenalty);
-  };
+  const applySettings = useCallback(
+    ({ mask, surfacePenaltySPerKm }) => {
+      const nextMask = (mask ?? appliedMask) & 0xffff;
+      const nextPenalty = clamp(surfacePenaltySPerKm ?? appliedPenalty, 0, MAX_PENALTY);
+      setAppliedMask(nextMask);
+      setAppliedPenalty(nextPenalty);
+    },
+    [appliedMask, appliedPenalty]
+  );
 
   const searchAddress = useCallback(
     async (q, { limit = 5, lang = "fi", signal } = {}) => {
