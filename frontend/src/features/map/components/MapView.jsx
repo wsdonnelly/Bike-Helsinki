@@ -177,7 +177,7 @@ export function MapView({
             setDragging(null);
             const newPos = { lat: e.lngLat.lat, lon: e.lngLat.lng };
             onMarkerDragEnd && onMarkerDragEnd("start", newPos);
-            if (isMobile && snappedEnd) fitBoundsOnDrag(newPos, snappedEnd);
+            if (snappedEnd) fitBoundsOnDrag(newPos, snappedEnd);
           }}
         >
           <img
@@ -202,7 +202,7 @@ export function MapView({
             setDragging(null);
             const newPos = { lat: e.lngLat.lat, lon: e.lngLat.lng };
             onMarkerDragEnd && onMarkerDragEnd("end", newPos);
-            if (isMobile && snappedStart) fitBoundsOnDrag(newPos, snappedStart);
+            if (snappedStart) fitBoundsOnDrag(newPos, snappedStart);
           }}
         >
           <img

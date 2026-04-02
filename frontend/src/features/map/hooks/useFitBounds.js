@@ -68,9 +68,14 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
   const fitBoundsOnDrag = useCallback((a, b) => {
     const map = mapRef.current;
     if (!map) return;
-    fitRouteBounds(map, a, b,
-      { top: 40, bottom: (getSheetHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
-  }, [mapRef, getSheetHeight]);
+    if (isMobile) {
+      fitRouteBounds(map, a, b,
+        { top: 40, bottom: (getSheetHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
+    } else {
+      const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
+      fitRouteBounds(map, a, b, { top: 80, bottom: 80, left: leftPad, right: 80 });
+    }
+  }, [mapRef, isMobile, panelOpen, getSheetHeight]);
 
   return { fitBoundsOnDrag };
 }
