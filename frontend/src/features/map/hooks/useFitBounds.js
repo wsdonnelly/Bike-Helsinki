@@ -36,12 +36,20 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
-  // Desktop only: refit when sidebar opens to reclaim viewport space
+  // Refit when panel open state changes:
+  // - Desktop panel opens: refit with sidebar padding to reclaim viewport space
+  // - Mobile panel closes: refit with full-screen symmetric padding
   useEffect(() => {
     if (!snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
-    if (isMobile || !panelOpen) return;
+    if (isMobile) {
+      if (panelOpen) return;
+      fitRouteBounds(map, snappedStart, snappedEnd,
+        { top: 80, bottom: 80, left: 80, right: 80 });
+      return;
+    }
+    if (!panelOpen) return;
     fitRouteBounds(map, snappedStart, snappedEnd,
       { top: 80, bottom: 80, left: SIDEBAR_WIDTH_PX + 80, right: 80 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
