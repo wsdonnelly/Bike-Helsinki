@@ -61,7 +61,7 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const map = mapRef.current;
     if (!map) return;
     fitRouteBounds(map, snappedStart, snappedEnd,
-      { top: 60, bottom: getSheetHeight() || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+      { top: 40, bottom: (getSheetHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeFitTick]);
 
@@ -69,7 +69,7 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const map = mapRef.current;
     if (!map) return;
     fitRouteBounds(map, a, b,
-      { top: 60, bottom: getSheetHeight() || MOBILE_SHEET_HEIGHT_PX, left: 60, right: 60 });
+      { top: 40, bottom: (getSheetHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
   }, [mapRef, getSheetHeight]);
 
   return { fitBoundsOnDrag };
