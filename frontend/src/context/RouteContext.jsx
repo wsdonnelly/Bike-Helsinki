@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   useRef,
 } from "react";
 import { backend, geocoding } from "@/api";
@@ -244,17 +245,13 @@ export function RouteProvider({ children }) {
     }
   }, []);
 
-  const value = {
-    cfg,
-    snappedStart,
-    setSnappedStart,
-    snappedEnd,
-    setSnappedEnd,
-    routeCoords,
-    routeModes,
-    totals,
-    settings: { appliedMask, appliedPenalty, applySettings },
-    actions: {
+  const settings = useMemo(
+    () => ({ appliedMask, appliedPenalty, applySettings }),
+    [appliedMask, appliedPenalty, applySettings]
+  );
+
+  const actions = useMemo(
+    () => ({
       handleMapClick,
       handleMarkerDragEnd,
       fetchRoute,
@@ -262,8 +259,25 @@ export function RouteProvider({ children }) {
       setPointFromHit,
       setPointFromAddress,
       setPointFromCoords,
-    },
-  };
+    }),
+    [handleMapClick, handleMarkerDragEnd, fetchRoute, searchAddress, setPointFromHit, setPointFromAddress, setPointFromCoords]
+  );
+
+  const value = useMemo(
+    () => ({
+      cfg,
+      snappedStart,
+      setSnappedStart,
+      snappedEnd,
+      setSnappedEnd,
+      routeCoords,
+      routeModes,
+      totals,
+      settings,
+      actions,
+    }),
+    [cfg, snappedStart, snappedEnd, routeCoords, routeModes, totals, settings, actions]
+  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
