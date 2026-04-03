@@ -7,6 +7,7 @@ import * as styles from "./RideStats.styles";
 export default function RideStats({
   hasSelection = false,
   hasRoute = false,
+  routeLoading = false,
   totalDistanceM = 0,
   totalDurationS = 0,
   distanceBikePreferred = 0,
@@ -21,6 +22,20 @@ export default function RideStats({
       <div style={boxStyle}>
         <div style={{ fontSize: 12, color: "#666" }}>
           Pick two points on the map to compute a route.
+        </div>
+      </div>
+    );
+  }
+
+  if (routeLoading) {
+    return (
+      <div style={boxStyle}>
+        <div
+          role="status"
+          aria-live="polite"
+          style={{ fontSize: 13, color: "#666", padding: "4px 0" }}
+        >
+          Computing route…
         </div>
       </div>
     );

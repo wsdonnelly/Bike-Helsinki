@@ -35,7 +35,7 @@ export default function MobileSheet() {
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
-  const { totals, snappedStart, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
+  const { totals, routeLoading, snappedStart, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
 
@@ -187,6 +187,7 @@ export default function MobileSheet() {
                 sticky={false}
                 hasSelection={hasSelection}
                 hasRoute={hasRoute}
+                routeLoading={routeLoading}
                 totalDistanceM={totals.totalDistanceM}
                 totalDurationS={totals.totalDurationS}
                 distanceBikePreferred={totals.distanceBikePreferred}

@@ -100,6 +100,7 @@ export default function SearchField({
         style={getInputStyle(pointType, isSet)}
         disabled={disabled}
         aria-disabled={disabled}
+        aria-label={pointType === "start" ? "Start address" : "End address"}
       />
       {onLocate && (
         <button
@@ -117,11 +118,13 @@ export default function SearchField({
         </button>
       )}
       {showDropdown && (results?.length > 0 || searching) && (
-        <div style={dropdownStyle}>
+        <div style={dropdownStyle} role="listbox">
           {searching && <div style={searchingStyle}>Searching…</div>}
           {results?.map((hit) => (
             <div
               key={hit.place_id}
+              role="option"
+              aria-selected={false}
               style={resultItemStyle}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f0f0")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "white")}

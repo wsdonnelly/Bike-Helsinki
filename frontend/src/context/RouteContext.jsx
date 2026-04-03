@@ -30,6 +30,7 @@ export function RouteProvider({ children }) {
 
   const defaultTotals = { totalDistanceM: 0, totalDurationS: 0, distanceBikePreferred: 0, distanceBikeNonPreferred: 0, totalDistanceWalk: 0 };
   const [totals, setTotals] = useState(defaultTotals);
+  const [routeLoading, setRouteLoading] = useState(false);
 
   const resetStats = useCallback(() => setTotals(defaultTotals), []);
 
@@ -55,6 +56,7 @@ export function RouteProvider({ children }) {
       };
 
       try {
+        setRouteLoading(true);
         const result = await backend.getRoute(payload);
         const coords = result?.coords ?? [];
         setRouteCoords(coords);
@@ -72,6 +74,8 @@ export function RouteProvider({ children }) {
         setRouteCoords([]);
         setRouteModes([]);
         resetStats();
+      } finally {
+        setRouteLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -273,10 +277,11 @@ export function RouteProvider({ children }) {
       routeCoords,
       routeModes,
       totals,
+      routeLoading,
       settings,
       actions,
     }),
-    [cfg, snappedStart, snappedEnd, routeCoords, routeModes, totals, settings, actions]
+    [cfg, snappedStart, snappedEnd, routeCoords, routeModes, totals, routeLoading, settings, actions]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -119,6 +119,7 @@ main.jsx
   - `appliedMask`, `appliedPenalty` — active surface filter and penalty
   - `cfg` — Helsinki bbox from backend
   - `totals` — batched stats object: `{ totalDistanceM, totalDurationS, distanceBikePreferred, distanceBikeNonPreferred, totalDistanceWalk }`. All five values update in a single `setTotals` call to avoid cascading re-renders.
+  - `routeLoading` — boolean; true while `backend.getRoute()` is in flight. Set in `fetchRoute` before the call, cleared in `finally`. Consumed by `RideStats` to show "Computing route…" instead of "No route found" during the request.
   - Lives at `src/context/RouteContext.jsx`; `features/routing/RouteProvider.jsx` is a re-export shim
 
 - **`RouteSettingsContext` (`RouteSettingsProvider` / `useRouteSettingsContext()`)** — panel UI state:
@@ -241,6 +242,17 @@ Magic numbers live in `src/shared/constants/config.js`:
 ### Route Mode Bits
 `src/features/routeSettings/constants/surfaceTypes.js` also exports:
 - `MODE_BIKE_PREFERRED` (0x1), `MODE_BIKE_NON_PREFERRED` (0x2), `MODE_FOOT` (0x4) — must match backend `route.cpp`
+
+### Accessibility
+`SearchField` applies semantic ARIA attributes:
+- `aria-label` on the `<input>` — `"Start address"` or `"End address"` based on `pointType`
+- `role="listbox"` on the dropdown container
+- `role="option"` + `aria-selected={false}` on each result item
+
+### Error Handling
+`ErrorBoundary` (`src/shared/components/ErrorBoundary.jsx`) implements both lifecycle methods:
+- `getDerivedStateFromError` — switches to fallback UI on any render throw
+- `componentDidCatch` — logs the error and React component stack via `console.error`
 
 ## Styling Conventions
 
