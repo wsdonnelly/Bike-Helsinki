@@ -1,4 +1,5 @@
 import axios from "axios";
+import { API_TIMEOUT_MS } from "@/shared/constants/config";
 
 /** Resolve API base URL */
 function resolveBaseURL() {
@@ -10,7 +11,7 @@ function resolveBaseURL() {
 
 export const API = axios.create({
   baseURL: resolveBaseURL(),
-  timeout: 15_000,
+  timeout: API_TIMEOUT_MS,
 });
 
 // Normalize common errors -> err.userMessage

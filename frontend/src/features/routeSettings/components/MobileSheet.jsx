@@ -50,7 +50,7 @@ export default function MobileSheet() {
     const ro = new ResizeObserver(() => setSheetHeight(node.offsetHeight));
     ro.observe(node);
     return () => ro.disconnect();
-  }, [panelOpen]);
+  }, [panelOpen, setSheetHeight]);
 
   const { selectAll, selectNone, selectPaved, selectUnpaved } = useBulkSurfaceActions(setDraftMask);
 

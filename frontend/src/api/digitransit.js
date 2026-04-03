@@ -1,8 +1,9 @@
 import axios from "axios";
+import { API_TIMEOUT_MS } from "@/shared/constants/config";
 
 const client = axios.create({
   baseURL: "https://api.digitransit.fi/geocoding/v1/",
-  timeout: 15_000,
+  timeout: API_TIMEOUT_MS,
   headers: {
     "digitransit-subscription-key": import.meta.env.VITE_DIGITRANSIT_KEY ?? "",
   },

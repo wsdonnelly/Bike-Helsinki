@@ -1,16 +1,13 @@
 import React, { useMemo, useState, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { Map, Marker, Source, Layer } from "react-map-gl/maplibre";
-import { ROUTE_COLORS } from "@/shared/constants/colors";
+import { ROUTE_COLORS, UI_COLORS } from "@/shared/constants/colors";
 import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 import { LocationMarker, TripController } from "@/features/geolocation";
 import { useFitBounds } from "@/features/map/hooks/useFitBounds";
-
-const MODE_BIKE_PREFFERED = 0x1;
-const MODE_BIKE_NON_PREFFERED = 0x2;
-const MODE_FOOT = 0x4;
+import { MODE_BIKE_PREFERRED, MODE_BIKE_NON_PREFERRED, MODE_FOOT } from "@/features/routeSettings/constants/surfaceTypes";
 
 const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
@@ -105,15 +102,15 @@ export function MapView({
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
 
-  const startSvg = useMemo(() => makePinSvg({ color: "#2ecc71", label: "S" }), []);
-  const endSvg = useMemo(() => makePinSvg({ color: "#e74c3c", label: "T" }), []);
+  const startSvg = useMemo(() => makePinSvg({ color: UI_COLORS.startMarker, label: "S" }), []);
+  const endSvg = useMemo(() => makePinSvg({ color: UI_COLORS.endMarker, label: "T" }), []);
 
   const bikePrefRuns = useMemo(
-    () => splitRuns(routeCoords, routeModes, MODE_BIKE_PREFFERED),
+    () => splitRuns(routeCoords, routeModes, MODE_BIKE_PREFERRED),
     [routeCoords, routeModes]
   );
   const bikeNonPrefRuns = useMemo(
-    () => splitRuns(routeCoords, routeModes, MODE_BIKE_NON_PREFFERED),
+    () => splitRuns(routeCoords, routeModes, MODE_BIKE_NON_PREFERRED),
     [routeCoords, routeModes]
   );
   const footRuns = useMemo(

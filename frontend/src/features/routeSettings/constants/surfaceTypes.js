@@ -57,6 +57,11 @@ const groupMask = (title) =>
     0
   );
 
+// Route mode bits (must match backend route.cpp)
+export const MODE_BIKE_PREFERRED = 0x1;
+export const MODE_BIKE_NON_PREFERRED = 0x2;
+export const MODE_FOOT = 0x4;
+
 export const PAVED_BITS_MASK = groupMask("Paved surfaces");
 export const UNPAVED_BITS_MASK = groupMask("Unpaved surfaces");
 export const ALL_BITS_MASK = SURFACE_GROUPS.reduce(

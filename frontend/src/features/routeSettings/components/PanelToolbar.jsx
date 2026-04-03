@@ -2,6 +2,7 @@ import React from "react";
 import GlobeIcon from "./GlobeIcon";
 import TripIcon from "@/shared/components/Icons/TripIcon";
 import * as styles from "./ControlPanel.styles";
+import { UI_COLORS } from "@/shared/constants/colors";
 
 export default function PanelToolbar({
   title,
@@ -64,7 +65,7 @@ export default function PanelToolbar({
             style={{
               ...styles.btnSm,
               width: "100%",
-              backgroundColor: "#007AFF",
+              backgroundColor: UI_COLORS.primary,
               border: "none",
               color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
@@ -73,7 +74,7 @@ export default function PanelToolbar({
             <TripIcon size={14} /> {isTripActive ? "Stop Trip" : "Start Trip"}
           </button>
           {geoError && (
-            <span style={{ fontSize: 11, color: "#e53935", display: "block", marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: UI_COLORS.error, display: "block", marginTop: 4 }}>
               {geoError}
             </span>
           )}

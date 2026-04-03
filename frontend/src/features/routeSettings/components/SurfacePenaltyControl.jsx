@@ -1,6 +1,7 @@
 import React from "react";
+import { PENALTY_SLIDER_MAX } from "@/shared/constants/config";
 
-const clamp = (n, lo = 0, hi = 300) => Math.min(hi, Math.max(lo, n));
+const clamp = (n, lo = 0, hi = PENALTY_SLIDER_MAX) => Math.min(hi, Math.max(lo, n));
 const strengthText = (v) => (v <= 100 ? "Weak" : v <= 200 ? "Moderate" : "Strong");
 
 export default function SurfacePenaltyControl({
@@ -8,7 +9,7 @@ export default function SurfacePenaltyControl({
   onChange,   // (number) => void
   onApply,    // () => void
   min = 0,
-  max = 300,
+  max = PENALTY_SLIDER_MAX,
   step = 1,
 }) {
   const handleRange = (e) => onChange?.(clamp(+e.target.value, min, max));

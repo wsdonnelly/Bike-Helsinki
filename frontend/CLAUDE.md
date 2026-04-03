@@ -222,12 +222,25 @@ Sheet height is measured dynamically via `ResizeObserver` in `MobileSheet` and s
 ### Shared Constants
 Magic numbers live in `src/shared/constants/config.js`:
 - `MAX_PENALTY` — maximum surface penalty (1000)
+- `PENALTY_SLIDER_MAX` — UI slider max (300); distinct from `MAX_PENALTY` (API cap)
 - `MOBILE_BREAKPOINT_PX` — responsive breakpoint (640)
 - `SEARCH_DEBOUNCE_MS` — geocoding search debounce (300)
 - `DRAG_DEBOUNCE_MS` — reverse geocode on drag debounce (150)
 - `DEFAULT_MASK` — default surface bitmask (0xffff)
 - `MIN_BAR_WIDTH_PCT` — minimum bar width in stacked chart (1.5)
 - `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `getSheetHeight()` returns 0 (sheet not yet mounted)
+- `API_TIMEOUT_MS` — Axios timeout for both backend and Digitransit clients (15000)
+- `LOCATE_FLY_ZOOM` — zoom level when flying to GPS location on locate start (15)
+- `TRIP_FLY_ZOOM` — zoom level when flying to GPS location on trip start (18)
+
+### Shared UI Colors
+`src/shared/constants/colors.js` exports:
+- `ROUTE_COLORS` — route polyline colors: `bikePreferred`, `bikeNonPreferred`, `walk`
+- `UI_COLORS` — interface colors: `startMarker`, `endMarker`, `primary`, `error`, `satActive`, `satActiveBg`
+
+### Route Mode Bits
+`src/features/routeSettings/constants/surfaceTypes.js` also exports:
+- `MODE_BIKE_PREFERRED` (0x1), `MODE_BIKE_NON_PREFERRED` (0x2), `MODE_FOOT` (0x4) — must match backend `route.cpp`
 
 ## Styling Conventions
 

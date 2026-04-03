@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useGeolocation } from "../context/GeolocationContext";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
+import { LOCATE_FLY_ZOOM, TRIP_FLY_ZOOM } from "@/shared/constants/config";
 
 export function TripController({ mapRef }) {
   const { position, isLocating, isTripActive } = useGeolocation();
@@ -12,7 +13,7 @@ export function TripController({ mapRef }) {
 
   useEffect(() => {
     if (!isLocating || !position || hasCenteredOnLocateRef.current) return;
-    mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: 15, duration: 800 });
+    mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: LOCATE_FLY_ZOOM, duration: 800 });
     hasCenteredOnLocateRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, isLocating]);
@@ -27,7 +28,7 @@ export function TripController({ mapRef }) {
     if (!map) return;
     const now = Date.now();
     if (!hasCenteredRef.current) {
-      map.flyTo({ center: [position.lon, position.lat], zoom: 18, duration: 500 });
+      map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500 });
       hasCenteredRef.current = true;
       lastFlyRef.current = now;
       return;
@@ -49,7 +50,7 @@ export function TripController({ mapRef }) {
     const wasOpen = prevPanelOpenRef.current;
     prevPanelOpenRef.current = panelOpen;
     if (wasOpen && !panelOpen && isTripActive && position) {
-      mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: 18, duration: 500 });
+      mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);

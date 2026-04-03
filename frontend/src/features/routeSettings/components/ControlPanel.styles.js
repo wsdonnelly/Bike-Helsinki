@@ -1,3 +1,5 @@
+import { UI_COLORS } from "@/shared/constants/colors";
+
 export const containerStyle = {
   position: "fixed",
   top: 0,
@@ -158,8 +160,8 @@ export const locationBtn = (active) => ({
   zIndex: 10000,
   border: "none",
   borderRadius: 4,
-  backgroundColor: active ? "#e3f2fd" : "#fff",
-  boxShadow: active ? "0 0 0 2px #2196f3" : "0 0 0 2px rgba(0,0,0,.1)",
+  backgroundColor: active ? UI_COLORS.satActiveBg : "#fff",
+  boxShadow: active ? `0 0 0 2px ${UI_COLORS.satActive}` : "0 0 0 2px rgba(0,0,0,.1)",
   cursor: "pointer",
   pointerEvents: "auto",
   display: "flex",
@@ -175,8 +177,8 @@ export const tripBtn = (active, disabled) => ({
   zIndex: 10000,
   border: "none",
   borderRadius: 4,
-  backgroundColor: active ? "#e3f2fd" : disabled ? "#f5f5f5" : "#fff",
-  boxShadow: active ? "0 0 0 2px #2196f3" : "0 0 0 2px rgba(0,0,0,.1)",
+  backgroundColor: active ? UI_COLORS.satActiveBg : disabled ? "#f5f5f5" : "#fff",
+  boxShadow: active ? `0 0 0 2px ${UI_COLORS.satActive}` : "0 0 0 2px rgba(0,0,0,.1)",
   cursor: disabled ? "not-allowed" : "pointer",
   pointerEvents: "auto",
   opacity: disabled ? 0.5 : 1,
@@ -193,8 +195,8 @@ export const mobileLocationBtn = (active) => ({
   zIndex: 10000,
   border: "none",
   borderRadius: 4,
-  backgroundColor: active ? "#e3f2fd" : "#fff",
-  boxShadow: active ? "0 0 0 2px #2196f3" : "0 0 0 2px rgba(0,0,0,.1)",
+  backgroundColor: active ? UI_COLORS.satActiveBg : "#fff",
+  boxShadow: active ? `0 0 0 2px ${UI_COLORS.satActive}` : "0 0 0 2px rgba(0,0,0,.1)",
   cursor: "pointer",
   pointerEvents: "auto",
   display: "flex",
@@ -210,8 +212,8 @@ export const satBtn = (active) => ({
   alignItems: "center",
   justifyContent: "center",
   padding: "6px 10px",
-  backgroundColor: active ? "#e3f2fd" : "#fff",
-  border: active ? "1px solid #2196f3" : "1px solid #ddd",
+  backgroundColor: active ? UI_COLORS.satActiveBg : "#fff",
+  border: active ? `1px solid ${UI_COLORS.satActive}` : "1px solid #ddd",
 });
 
 export const mobileTripBtn = (active, disabled) => ({
@@ -222,8 +224,8 @@ export const mobileTripBtn = (active, disabled) => ({
   zIndex: 10000,
   border: "none",
   borderRadius: 4,
-  backgroundColor: active ? "#e3f2fd" : disabled ? "#f5f5f5" : "#fff",
-  boxShadow: active ? "0 0 0 2px #2196f3" : "0 0 0 2px rgba(0,0,0,.1)",
+  backgroundColor: active ? UI_COLORS.satActiveBg : disabled ? "#f5f5f5" : "#fff",
+  boxShadow: active ? `0 0 0 2px ${UI_COLORS.satActive}` : "0 0 0 2px rgba(0,0,0,.1)",
   cursor: disabled ? "not-allowed" : "pointer",
   pointerEvents: "auto",
   opacity: disabled ? 0.5 : 1,

@@ -6,3 +6,7 @@ export const DRAG_DEBOUNCE_MS = 150;
 export const DEFAULT_MASK = 0xffff;
 export const MIN_BAR_WIDTH_PCT = 1.5;
 export const MOBILE_SHEET_HEIGHT_PX = 320;
+export const API_TIMEOUT_MS = 15_000;
+export const PENALTY_SLIDER_MAX = 300;
+export const LOCATE_FLY_ZOOM = 15;
+export const TRIP_FLY_ZOOM = 18;

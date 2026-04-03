@@ -33,6 +33,10 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
     fitRouteBounds(map, snappedStart, snappedEnd,
       { top: 80, bottom: 80, left: leftPad, right: 80 });
+    // Intentional: dep on .idx primitives (not full objects) so the effect only fires
+    // when endpoint identity changes, not on every render that touches the objects.
+    // panelOpen/isMobile are read as stable-enough closure values — they change rarely
+    // and the [panelOpen] effect below handles the panel-toggle case.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
@@ -52,6 +56,9 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
     fitRouteBounds(map, snappedStart, snappedEnd,
       { top: 80, bottom: 80, left: leftPad, right: 80 });
+    // Intentional: reads snappedStart/snappedEnd as stale closure — they don't change
+    // between the panel toggle and this effect running, and listing them would cause
+    // spurious refits on every endpoint update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);
 
@@ -62,6 +69,9 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     if (!map) return;
     fitRouteBounds(map, snappedStart, snappedEnd,
       { top: 40, bottom: (getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
+    // Intentional: reads snappedStart/snappedEnd/getSheetVisibleHeight as stable closure —
+    // the tick counter is the only meaningful trigger; adding the others would cause
+    // spurious refits on every endpoint update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeFitTick]);
 

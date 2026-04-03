@@ -35,8 +35,7 @@ export default function AddressSearch() {
       pendingLocateRef.current = false;
       actions.setPointFromCoords(position.lat, position.lon, "start");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [position]);
+  }, [position, actions]);
 
   const startSearch = useGeocoding(actions.searchAddress);
   const endSearch = useGeocoding(actions.searchAddress);
@@ -57,13 +56,11 @@ export default function AddressSearch() {
   useEffect(() => {
     if (!snappedStart) startSearch.setQuery("");
     else if (snappedStart.address) startSearch.setQuery(snappedStart.address);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snappedStart]);
+  }, [snappedStart, startSearch.setQuery]);
   useEffect(() => {
     if (!snappedEnd) endSearch.setQuery("");
     else if (snappedEnd?.address) endSearch.setQuery(snappedEnd.address);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snappedEnd]);
+  }, [snappedEnd, endSearch.setQuery]);
 
   const hideDropdowns = () => {
     clearTimeout(blurTimeoutRef.current);
