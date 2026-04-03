@@ -22,11 +22,12 @@ Branch names must be **descriptive** — the full branch name becomes the `[bran
 Good: `feat/add-address-autocomplete` → `[feat/add-address-autocomplete] feat(...): ...`
 Bad: `feat/stuff`
 
-##rename a branch
+## Rename a Branch
 ```bash
-git branch -m <new name>
+git branch -m <new-name>
+```
 
-Install the hook once per clone:
+## Install Hooks (once per clone)
 ```bash
 sh scripts/install-hooks.sh
 ```
@@ -48,15 +49,14 @@ git rebase master
 
 ## Keep Feature Branch Updated
 ```bash
-git checkout feat/<name>
 git fetch origin
 git rebase origin/master
 # If conflicts occur:
 # fix files
 # git add <file>
 # git rebase --continue
-#Abort if needed:
-#git rebase --abort
+# Abort if needed:
+# git rebase --abort
 ```
 
 ### Normal Development on a feature branch (or branches)
@@ -69,15 +69,15 @@ See `docs/commitMessageStyle.md` for the full format.
 git add <changes>
 git commit
 
-#WIP commits are fine and preferred over stash — use the editor:
-#git commit   (write: WIP: partial implementation of X — no scope needed)
+# WIP commits are fine and preferred over stash — use the editor:
+# git commit   (write: WIP: partial implementation of X — no scope needed)
 
-#Temporary switch (stash)
-#git stash push -m "work in progress"
-#git checkout feat/other-feature
+# Temporary switch (stash)
+# git stash push -m "work in progress"
+# git checkout feat/other-feature
 
 # later
-#git stash pop
+# git stash pop
 ```
 
 
@@ -113,6 +113,26 @@ git push --force-with-lease
 ```
 The pre-push hook blocks any push that still contains WIP commits.
 
+### Interactive rebase command reference
+
+| command  | effect                                          |
+|----------|-------------------------------------------------|
+| `pick`   | keep commit as-is                               |
+| `reword` | keep commit, rewrite the message                |
+| `squash` | fold into previous commit, combine messages     |
+| `fixup`  | fold into previous commit, discard this message |
+| `edit`   | pause rebase to amend the commit                |
+| `drop`   | delete the commit entirely                      |
+
+**Faster WIP cleanup with autosquash:**
+```bash
+# While working, create a fixup commit targeting a specific hash:
+git commit --fixup <hash>
+
+# Then collapse all fixups automatically:
+git rebase -i --autosquash master
+```
+
 ## Push a Feature Branch
 ```bash
 # First push
@@ -126,13 +146,17 @@ git push --force-with-lease
 # git rebase → rewrites history
 # Remote still has old commits
 ```
+
 ## Finish a Feature
 ```bash
 git checkout master
-git pull
+git pull --rebase
 
 git checkout feat/<name>
 git rebase master
+
+# Squash all WIP commits before merging (see "Squash WIP Commits Before Merge")
+git rebase -i master
 
 git checkout master
 git merge feat/<name>
@@ -144,9 +168,10 @@ git branch -d feat/<name>
 git branch -r
 # update local view of repo
 git fetch --prune
-# delete repo branches
+# delete remote branch
 git push origin --delete feat/<name>
 ```
+
 ## gitlog reference command
 ```bash
 git log --oneline --graph --decorate
