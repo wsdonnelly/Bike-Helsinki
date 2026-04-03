@@ -1,13 +1,8 @@
 import React from "react";
 import { useRoute } from "@/features/routing";
 import { useRouteSettingsContext } from "../context/RouteSettingsContext";
-import {
-  SurfaceBits,
-  SURFACE_GROUPS,
-  PAVED_BITS_MASK,
-  UNPAVED_BITS_MASK,
-  ALL_BITS_MASK,
-} from "../constants/surfaceTypes";
+import { SURFACE_GROUPS } from "../constants/surfaceTypes";
+import { useBulkSurfaceActions } from "../hooks/useBulkSurfaceActions";
 import BulkActions from "./BulkActions";
 import SurfaceCheckboxGroup from "./SurfaceCheckboxGroup";
 import SurfacePenaltyControl from "./SurfacePenaltyControl";
@@ -48,15 +43,7 @@ export default function DesktopSidebar() {
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
 
-  const applyBulk = (newMask) => {
-    newMask |= SurfaceBits.SURF_UNKNOWN;
-    setDraftMask?.(newMask);
-  };
-
-  const selectAll = () => applyBulk(ALL_BITS_MASK);
-  const selectNone = () => applyBulk(0);
-  const selectPaved = () => applyBulk(PAVED_BITS_MASK);
-  const selectUnpaved = () => applyBulk(UNPAVED_BITS_MASK);
+  const { selectAll, selectNone, selectPaved, selectUnpaved } = useBulkSurfaceActions(setDraftMask);
 
   const commitApply = () =>
     applySettings?.({ mask: draftMask, surfacePenaltySPerKm: Number(draftPenalty) });
