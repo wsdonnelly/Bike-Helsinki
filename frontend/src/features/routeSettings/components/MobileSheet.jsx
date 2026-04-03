@@ -14,14 +14,7 @@ import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
 import AddressSearch from "@/features/routing/components/AddressSearch";
 import { DEFAULT_MASK } from "@/shared";
-
-function TripIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
+import TripIcon from "@/shared/components/Icons/TripIcon";
 
 export default function MobileSheet() {
   const {

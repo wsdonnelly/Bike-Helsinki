@@ -13,14 +13,7 @@ import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
 import AddressSearch from "@/features/routing/components/AddressSearch";
 import { DEFAULT_MASK } from "@/shared";
-
-function TripIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
+import TripIcon from "@/shared/components/Icons/TripIcon";
 
 export default function DesktopSidebar() {
   const {
@@ -114,7 +107,7 @@ export default function DesktopSidebar() {
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                 }}
               >
-                <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
+                <TripIcon size={14} /> {isTripActive ? "Stop Trip" : "Start Trip"}
               </button>
               {geoError && (
                 <span style={{ fontSize: 11, color: "#e53935", display: "block", marginTop: 4 }}>

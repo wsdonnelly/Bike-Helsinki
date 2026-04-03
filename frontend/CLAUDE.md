@@ -114,7 +114,7 @@ main.jsx
   - `routeCoords`, `routeModes` — path coordinates + per-segment mode bits
   - `appliedMask`, `appliedPenalty` — active surface filter and penalty
   - `cfg` — Helsinki bbox from backend
-  - Derived stats: distance, duration, distance by mode
+  - `totals` — batched stats object: `{ totalDistanceM, totalDurationS, distanceBikePreferred, distanceBikeNonPreferred, totalDistanceWalk }`. All five values update in a single `setTotals` call to avoid cascading re-renders.
   - Lives at `src/context/RouteContext.jsx`; `features/routing/RouteProvider.jsx` is a re-export shim
 
 - **`RouteSettingsContext` (`RouteSettingsProvider` / `useRouteSettingsContext()`)** — panel UI state:
@@ -262,6 +262,12 @@ The HTTP client reads `VITE_API_URL` at build time (dev default: `http://localho
 - `useMemo` for expensive derived values: SVG pin icons, polyline segment runs
 - `useCallback` for stable function refs passed as props
 - Route polylines rendered as MapLibre GeoJSON `Source`/`Layer` sets (one per mode type)
+
+### RouteContext memoization strategy
+All context consumers are protected from spurious re-renders by three layers:
+1. **`useCallback`** on every function exposed in context (`handleMapClick`, `applySettings`, `resetStats`, `handleMarkerDragEnd`, `fetchRoute`, `resolveAddress`, and the `setPoint*` helpers) — stable refs across renders
+2. **Batched `totals` state** — five stats update in one `setTotals` call instead of five separate `setState` calls
+3. **`useMemo`** on the `settings` sub-object, the `actions` sub-object, and the top-level `value` — the provider only propagates a new context value when a genuine dep changes
 
 ## Known Inconsistencies & Refactoring Candidates
 
