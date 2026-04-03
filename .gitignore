@@ -7,3 +7,4 @@ notes.txt
 .DS_Store
 personalNotes/*
 ingest/personalNotes/*
+*.json
