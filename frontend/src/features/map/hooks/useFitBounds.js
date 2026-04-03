@@ -1,6 +1,17 @@
 import { useEffect, useRef, useCallback } from "react";
 import { SIDEBAR_WIDTH_PX, MOBILE_SHEET_HEIGHT_PX } from "@/shared/constants/config";
 
+function computePadding(isMobile, panelOpen, sheetHeight = 0) {
+  if (isMobile) {
+    if (sheetHeight > 0) {
+      return { top: 40, bottom: sheetHeight + 10, left: 60, right: 60 };
+    }
+    return { top: 80, bottom: 80, left: 80, right: 80 };
+  }
+  const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
+  return { top: 80, bottom: 80, left: leftPad, right: 80 };
+}
+
 function fitRouteBounds(map, start, end, padding) {
   map.fitBounds(
     [[Math.min(start.lon, end.lon), Math.min(start.lat, end.lat)],
@@ -23,16 +34,13 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     if (!map) return;
     if (isMobile) {
       if (panelOpen) return;
-      fitRouteBounds(map, snappedStart, snappedEnd,
-        { top: 80, bottom: 80, left: 80, right: 80 });
+      fitRouteBounds(map, snappedStart, snappedEnd, computePadding(true, false));
       return;
     }
     const bounds = map.getBounds();
     if (bounds.contains([snappedStart.lon, snappedStart.lat]) &&
         bounds.contains([snappedEnd.lon, snappedEnd.lat])) return;
-    const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
-    fitRouteBounds(map, snappedStart, snappedEnd,
-      { top: 80, bottom: 80, left: leftPad, right: 80 });
+    fitRouteBounds(map, snappedStart, snappedEnd, computePadding(false, panelOpen));
     // Intentional: dep on .idx primitives (not full objects) so the effect only fires
     // when endpoint identity changes, not on every render that touches the objects.
     // panelOpen/isMobile are read as stable-enough closure values — they change rarely
@@ -49,13 +57,10 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     if (!map) return;
     if (isMobile) {
       if (panelOpen) return;
-      fitRouteBounds(map, snappedStart, snappedEnd,
-        { top: 80, bottom: 80, left: 80, right: 80 });
+      fitRouteBounds(map, snappedStart, snappedEnd, computePadding(true, false));
       return;
     }
-    const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
-    fitRouteBounds(map, snappedStart, snappedEnd,
-      { top: 80, bottom: 80, left: leftPad, right: 80 });
+    fitRouteBounds(map, snappedStart, snappedEnd, computePadding(false, panelOpen));
     // Intentional: reads snappedStart/snappedEnd as stale closure — they don't change
     // between the panel toggle and this effect running, and listing them would cause
     // spurious refits on every endpoint update.
@@ -68,7 +73,7 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const map = mapRef.current;
     if (!map) return;
     fitRouteBounds(map, snappedStart, snappedEnd,
-      { top: 40, bottom: (getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
+      computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
     // Intentional: reads snappedStart/snappedEnd/getSheetVisibleHeight as stable closure —
     // the tick counter is the only meaningful trigger; adding the others would cause
     // spurious refits on every endpoint update.
@@ -80,10 +85,9 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     if (!map) return;
     if (isMobile) {
       fitRouteBounds(map, a, b,
-        { top: 40, bottom: (getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX) + 10, left: 60, right: 60 });
+        computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
     } else {
-      const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
-      fitRouteBounds(map, a, b, { top: 80, bottom: 80, left: leftPad, right: 80 });
+      fitRouteBounds(map, a, b, computePadding(false, panelOpen));
     }
   }, [mapRef, isMobile, panelOpen, getSheetVisibleHeight]);
 

@@ -16,7 +16,9 @@ src/
 │   ├── digitransit.js      # Geocoding: searchAddresses, reverseGeocode (own Axios instance)
 │   └── index.js            # Re-exports
 ├── context/
-│   └── RouteContext.jsx    # Central routing context provider (moved from features/routing/)
+│   ├── RouteContext.jsx    # Central routing context provider (moved from features/routing/)
+│   └── hooks/
+│       └── useReverseGeocoding.js  # AbortController + debounce for reverse geocoding both endpoints
 ├── features/
 │   ├── routing/
 │   │   ├── RouteProvider.jsx       # Re-export shim → @/context/RouteContext
@@ -30,7 +32,8 @@ src/
 │   │   └── index.js
 │   ├── map/
 │   │   ├── components/
-│   │   │   └── MapView.jsx         # MapLibre map (via react-map-gl), markers, route GeoJSON layers, tile styles
+│   │   │   ├── MapView.jsx         # MapLibre map (via react-map-gl), markers, tile styles
+│   │   │   └── RoutePolylines.jsx  # Route GeoJSON Source/Layer sets (3 mode types + fallback)
 │   │   ├── hooks/
 │   │   │   └── useFitBounds.js     # All fit-bounds effects + fitBoundsOnDrag callback
 │   │   └── index.js
@@ -161,7 +164,7 @@ Surface types are 16-bit flags defined in `surfaceTypes.js`. The active set of a
 - `0x4` — foot/walk (dotted purple)
 
 ### Route Rendering
-Routes are rendered as three separate MapLibre GeoJSON `Source`/`Layer` pairs — one per mode type (`route-bike-pref`, `route-bike-nonpref`, `route-foot`). Layer paint props encode color and dash patterns. A fallback single-color polyline layer is used when `routeModes` is absent.
+Routes are rendered by `RoutePolylines` (`src/features/map/components/RoutePolylines.jsx`) as three MapLibre GeoJSON `Source`/`Layer` pairs — one per mode type (`route-bike-pref`, `route-bike-nonpref`, `route-foot`). Layer paint props encode color and dash patterns. A fallback single-color polyline layer is used when `routeModes` is absent. `MapView` renders `<RoutePolylines routeCoords routeModes dragging />`.
 
 ### Async Route Fetching
 `RouteContext` uses `AbortController` to cancel stale requests. Route recalculates automatically via `useEffect` when endpoints or settings change. Reverse geocoding on marker drag uses a 150ms debounce (`DRAG_DEBOUNCE_MS`).
@@ -313,13 +316,8 @@ These are places where the code deviates from its own established patterns, or w
 ### ~~c. Inconsistent button styling~~ (resolved)
 `satBtn(active)` added to `ControlPanel.styles.js`, consistent with `locationBtn(active)` and `tripBtn(active)` pattern.
 
-### d. MapView size (277 lines)
-`MapView.jsx` handles: map initialisation, start/end marker rendering, route GeoJSON layers (×3 mode types + fallback), tile-style switching, and geolocation subcomponent integration. Fit-bounds logic has been extracted to `useFitBounds`.
+### ~~d. MapView size~~ (resolved)
+Route GeoJSON layers extracted to `RoutePolylines.jsx` (3 mode-typed `Source`/`Layer` sets + fallback). `MapView.jsx` now handles only map init, markers, tile-style, and geolocation subcomponents. `computePadding` helper added to `useFitBounds` to eliminate repeated padding object literals.
 
-Remaining refactoring candidate:
-- `<RoutePolylines routeCoords routeModes dragging />` — extract the three `Source`/`Layer` sets and fallback layer into a child component
-
-### e. RouteContext size (278 lines)
-`RouteContext.jsx` has 9+ distinct concerns. The most self-contained extraction candidate is the 45-line reverse-geocoding block (lines ~92–136), which handles AbortController, debounce, coordinate snapping, and address reconciliation.
-
-Refactoring candidate: `useReverseGeocoding()` hook that accepts a snap callback and returns a debounced `resolveAddress(lat, lon, field)` function.
+### ~~e. RouteContext size~~ (resolved)
+Reverse-geocoding block (AbortController, debounce, address reconciliation) extracted to `src/context/hooks/useReverseGeocoding.js`. `RouteContext` calls `const { resolveAddress } = useReverseGeocoding(setSnappedStart, setSnappedEnd)`.
