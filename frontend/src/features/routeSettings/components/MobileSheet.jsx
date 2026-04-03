@@ -8,13 +8,12 @@ import BulkActions from "./BulkActions";
 import SurfaceCheckboxGroup from "./SurfaceCheckboxGroup";
 import SurfacePenaltyControl from "./SurfacePenaltyControl";
 import RideStats from "./RideStats";
-import GlobeIcon from "./GlobeIcon";
 import MapAttribution from "./MapAttribution";
+import PanelToolbar from "./PanelToolbar";
 import * as styles from "./ControlPanel.styles";
 import { useGeolocation } from "@/features/geolocation";
 import AddressSearch from "@/features/routing/components/AddressSearch";
 import { DEFAULT_MASK } from "@/shared";
-import TripIcon from "@/shared/components/Icons/TripIcon";
 
 export default function MobileSheet() {
   const {
@@ -58,6 +57,17 @@ export default function MobileSheet() {
   const commitApply = () =>
     applySettings?.({ mask: draftMask, surfacePenaltySPerKm: Number(draftPenalty) });
 
+  const handleClear = () => {
+    setSnappedStart(null);
+    setSnappedEnd(null);
+    setDraftMask(DEFAULT_MASK);
+    setDraftPenalty(0);
+    applySettings({ mask: DEFAULT_MASK, surfacePenaltySPerKm: 0 });
+    stopTrip();
+    stopLocating();
+  };
+
+  const dragHandlers = { onPointerDown: startDrag, onTouchStart: startDrag };
 
   return (
     <>
@@ -98,58 +108,26 @@ export default function MobileSheet() {
             <div style={styles.handleBar} />
           </div>
 
-          <div
-            style={styles.mobileHdr}
-            onPointerDown={startDrag}
-            onTouchStart={startDrag}
-          >
-            <h2 style={styles.titleStyle}>{activeTab === "preferences" ? "Route Preferences" : "Route Planner"}</h2>
-            {(snappedStart || snappedEnd) && (
-              <button
-                type="button"
-                onClick={() => { setSnappedStart(null); setSnappedEnd(null); setDraftMask(DEFAULT_MASK); setDraftPenalty(0); applySettings({ mask: DEFAULT_MASK, surfacePenaltySPerKm: 0 }); stopTrip(); stopLocating(); }}
-                style={styles.btnSm}
-                aria-label="Clear route"
-              >
-                Clear
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={toggleSatView}
-              style={styles.satBtn(isSatView)}
-              aria-label={isSatView ? "Switch to map view" : "Switch to satellite view"}
-              title={isSatView ? "Switch to map view" : "Switch to satellite view"}
-            >
-              <GlobeIcon />
-            </button>
-
-          </div>
-
-          {(hasSelection || isTripActive) && (
-            <div style={{ paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}>
-              <button
-                type="button"
-                aria-label={isTripActive ? "Stop trip" : "Start trip"}
-                onClick={isTripActive ? () => { stopTrip(); stopLocating(); if (hasSelection) triggerRouteFit(); } : () => { if (!isLocating) startLocating(); startTrip(); closePanel(); }}
-                style={{
-                  ...styles.btnSm,
-                  width: "100%",
-                  backgroundColor: "#007AFF",
-                  border: "none",
-                  color: "#fff",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                }}
-              >
-                <TripIcon /> {isTripActive ? "Stop Trip" : "Start Trip"}
-              </button>
-              {geoError && (
-                <span style={{ fontSize: 11, color: "#e53935", display: "block", marginTop: 4 }}>
-                  {geoError}
-                </span>
-              )}
-            </div>
-          )}
+          <PanelToolbar
+            title={activeTab === "preferences" ? "Route Preferences" : "Route Planner"}
+            headerStyle={styles.mobileHdr}
+            headerDragHandlers={dragHandlers}
+            canClear={Boolean(snappedStart || snappedEnd)}
+            onClear={handleClear}
+            isSatView={isSatView}
+            onToggleSatView={toggleSatView}
+            isTripActive={isTripActive}
+            isLocating={isLocating}
+            hasSelection={hasSelection}
+            geoError={geoError}
+            startLocating={startLocating}
+            startTrip={startTrip}
+            stopTrip={stopTrip}
+            stopLocating={stopLocating}
+            onAfterTripStop={() => { if (hasSelection) triggerRouteFit(); }}
+            onAfterTripStart={closePanel}
+            tripContainerStyle={{ paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}
+          />
 
           <div style={styles.tabsContainer}>
             <button

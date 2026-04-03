@@ -39,8 +39,9 @@ src/
 │   │   │   ├── ControlPanel.jsx            # Thin: renders DesktopSidebar or MobileSheet
 │   │   │   ├── DesktopSidebar.jsx          # Fixed left sidebar layout (desktop)
 │   │   │   ├── MobileSheet.jsx             # Draggable bottom sheet layout (mobile)
+│   │   │   ├── PanelToolbar.jsx            # Shared header row + trip button (used by both layouts)
 │   │   │   ├── GlobeIcon.jsx               # Shared SVG icon (sat view toggle)
-│   │   │   ├── ControlPanel.styles.js
+│   │   │   ├── ControlPanel.styles.js      # Includes satBtn(active) style function
 │   │   │   ├── SurfaceCheckboxGroup.jsx
 │   │   │   ├── SurfacePenaltyControl.jsx   # Range slider + number input (0–300 s/km)
 │   │   │   ├── RideStats.jsx               # Duration, distance, stacked bar chart
@@ -53,7 +54,8 @@ src/
 │   │   │   └── RouteSettingsContext.jsx    # Panel state context: draftMask, draftPenalty, isSatView
 │   │   ├── hooks/
 │   │   │   ├── useRouteSettings.js         # Re-export alias → useRouteSettingsContext
-│   │   │   └── useDraggableSheet.js        # Mobile drag-to-dismiss behavior
+│   │   │   ├── useDraggableSheet.js        # Mobile drag-to-dismiss behavior
+│   │   │   └── useBulkSurfaceActions.js    # selectAll/None/Paved/Unpaved bulk mask logic
 │   │   ├── utils/
 │   │   │   └── barChartCalculations.js     # Stacked bar percentages with MIN_BAR_WIDTH_PCT min width
 │   │   └── index.js
@@ -73,7 +75,9 @@ src/
 │       └── index.js
 ├── shared/
 │   ├── components/
-│   │   └── ErrorBoundary.jsx   # Class component; wraps AppContent to catch runtime throws
+│   │   ├── ErrorBoundary.jsx   # Class component; wraps AppContent to catch runtime throws
+│   │   └── Icons/
+│   │       └── TripIcon.jsx    # SVG chevron icon; accepts size prop (default 16)
 │   ├── constants/
 │   │   ├── colors.js           # ROUTE_COLORS: bikePreferred, bikeNonPreferred, walk
 │   │   └── config.js           # Named magic numbers: MAX_PENALTY, MOBILE_BREAKPOINT_PX, etc.
@@ -273,22 +277,16 @@ All context consumers are protected from spurious re-renders by three layers:
 
 These are places where the code deviates from its own established patterns, or where files have grown large enough to warrant splitting. They are not bugs — just documented technical debt.
 
-### a. Icon duplication
-`GlobeIcon.jsx` is the established pattern for a standalone SVG icon component. However:
-- `LocationIcon` and `TripIcon` are defined inline in **both** `DesktopSidebar.jsx` and `MobileSheet.jsx` (identical SVG code duplicated)
-- A home/clear icon is inlined directly in `AddressSearch.jsx`
+### ~~a. Icon duplication~~ (resolved)
+`TripIcon` has been extracted to `src/shared/components/Icons/TripIcon.jsx` with a `size` prop. The remaining inline icon is in `AddressSearch.jsx` (clear/home icon) — low priority.
 
-Refactoring: extract all icons to `/shared/components/Icons/` and follow the `GlobeIcon` pattern.
+### ~~b. DesktopSidebar / MobileSheet duplication~~ (resolved)
+- Bulk-action logic extracted to `useBulkSurfaceActions` hook
+- Shared header + trip button extracted to `PanelToolbar` component
+- Remaining difference is intentional: outer layout structure (fixed sidebar vs draggable sheet)
 
-### b. DesktopSidebar / MobileSheet duplication (~95% identical logic)
-The two layout components differ only in their outer layout structure (fixed sidebar vs. draggable sheet). All the internal logic — context consumption, bulk-action functions (`selectAll`, `selectNone`, `selectPaved`, `selectUnpaved`), satellite-button style object — is duplicated verbatim.
-
-Refactoring:
-- Extract `useBulkSurfaceActions(applyBulk)` hook to `/features/routeSettings/hooks/`
-- Move the satellite button style to `ControlPanel.styles.js` as a function `satBtnStyle(isSatView)` (consistent with the existing `locationBtn(isLocating)` pattern)
-
-### c. Inconsistent button styling
-Location/Trip buttons are styled via functions in `ControlPanel.styles.js` (e.g. `styles.locationBtn(isLocating)`). The satellite toggle button defines an equivalent inline object in each sidebar file instead of following the same pattern.
+### ~~c. Inconsistent button styling~~ (resolved)
+`satBtn(active)` added to `ControlPanel.styles.js`, consistent with `locationBtn(active)` and `tripBtn(active)` pattern.
 
 ### d. MapView size (277 lines)
 `MapView.jsx` handles: map initialisation, start/end marker rendering, route GeoJSON layers (×3 mode types + fallback), tile-style switching, and geolocation subcomponent integration. Fit-bounds logic has been extracted to `useFitBounds`.
