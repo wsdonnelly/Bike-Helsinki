@@ -20,6 +20,7 @@ export function RouteProvider({ children }) {
   }, []);
 
   const [snappedStart, setSnappedStart] = useState(null);
+  const [snappedStartSource, setSnappedStartSource] = useState(null);
   const [snappedEnd, setSnappedEnd] = useState(null);
 
   const [routeCoords, setRouteCoords] = useState([]);
@@ -97,12 +98,14 @@ export function RouteProvider({ children }) {
 
         if (!snappedStart) {
           setSnappedStart(snappedNoAddr);
+          setSnappedStartSource("map");
           resolveAddress("start", snappedNoAddr);
         } else if (!snappedEnd) {
           setSnappedEnd(snappedNoAddr);
           resolveAddress("end", snappedNoAddr);
         } else {
           setSnappedStart(snappedNoAddr);
+          setSnappedStartSource("map");
           setSnappedEnd(null);
           setRouteCoords([]);
           setRouteModes([]);
@@ -119,8 +122,10 @@ export function RouteProvider({ children }) {
   const handleMarkerDragEnd = useCallback(
     async (endpoint, { lat, lon }) => {
       try {
-        if (endpoint === "start") setSnappedStart(null);
-        else setSnappedEnd(null);
+        if (endpoint === "start") {
+          setSnappedStart(null);
+          setSnappedStartSource("map");
+        } else setSnappedEnd(null);
 
         const snapped = await backend.snapToGraph(lat, lon);
         const snappedNoAddr = { ...snapped, address: null };
@@ -173,8 +178,10 @@ export function RouteProvider({ children }) {
       try {
         const snapped = await backend.snapToGraph(Number(hit.lat), Number(hit.lon));
         const snappedWithAddress = { ...snapped, address: hit.display_name };
-        if (endpoint === "start") setSnappedStart(snappedWithAddress);
-        else setSnappedEnd(snappedWithAddress);
+        if (endpoint === "start") {
+          setSnappedStart(snappedWithAddress);
+          setSnappedStartSource("map");
+        } else setSnappedEnd(snappedWithAddress);
         return { hit, snapped: snappedWithAddress };
       } catch (e) {
         console.error("Snap from hit failed:", e);
@@ -193,13 +200,15 @@ export function RouteProvider({ children }) {
     [searchAddress, setPointFromHit]
   );
 
-  const setPointFromCoords = useCallback(async (lat, lon, which) => {
+  const setPointFromCoords = useCallback(async (lat, lon, which, source = "map") => {
     try {
       const snapped = await backend.snapToGraph(lat, lon);
       if (!snapped) return;
       const point = { ...snapped, address: "Current location" };
-      if (which === "start") setSnappedStart(point);
-      else setSnappedEnd(point);
+      if (which === "start") {
+        setSnappedStart(point);
+        setSnappedStartSource(source);
+      } else setSnappedEnd(point);
     } catch (e) {
       console.error("Snap from coords failed:", e);
     }
@@ -227,6 +236,7 @@ export function RouteProvider({ children }) {
     () => ({
       cfg,
       snappedStart,
+      snappedStartSource,
       setSnappedStart,
       snappedEnd,
       setSnappedEnd,
@@ -237,7 +247,7 @@ export function RouteProvider({ children }) {
       settings,
       actions,
     }),
-    [cfg, snappedStart, snappedEnd, routeCoords, routeModes, totals, routeLoading, settings, actions]
+    [cfg, snappedStart, snappedStartSource, snappedEnd, routeCoords, routeModes, totals, routeLoading, settings, actions]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -23,7 +23,7 @@ export function TripController({ mapRef }) {
   }, [isLocating]);
 
   useEffect(() => {
-    if (!isTripActive || !position) return;
+    if (!isTripActive || !position || panelOpen) return;
     const map = mapRef.current;
     if (!map) return;
     const now = Date.now();
@@ -40,7 +40,7 @@ export function TripController({ mapRef }) {
     }
     lastFlyRef.current = now;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [position, isTripActive]);
+  }, [position, isTripActive, panelOpen]);
 
   useEffect(() => {
     if (!isTripActive) hasCenteredRef.current = false;

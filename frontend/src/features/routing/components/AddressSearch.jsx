@@ -8,6 +8,7 @@ export default function AddressSearch() {
   const {
     cfg,
     snappedStart,
+    snappedStartSource,
     setSnappedStart,
     snappedEnd,
     setSnappedEnd,
@@ -16,6 +17,7 @@ export default function AddressSearch() {
   const disabled = !cfg;
   const { isLocating, position, startLocating, stopLocating } = useGeolocation();
   const pendingLocateRef = useRef(false);
+  const prevSourceRef = useRef(snappedStartSource);
 
   const handleLocateStart = () => {
     if (isLocating) {
@@ -24,7 +26,7 @@ export default function AddressSearch() {
     }
     startLocating();
     if (position) {
-      actions.setPointFromCoords(position.lat, position.lon, "start");
+      actions.setPointFromCoords(position.lat, position.lon, "start", "gps");
     } else {
       pendingLocateRef.current = true;
     }
@@ -33,9 +35,17 @@ export default function AddressSearch() {
   useEffect(() => {
     if (pendingLocateRef.current && position) {
       pendingLocateRef.current = false;
-      actions.setPointFromCoords(position.lat, position.lon, "start");
+      actions.setPointFromCoords(position.lat, position.lon, "start", "gps");
     }
   }, [position, actions]);
+
+  useEffect(() => {
+    const prev = prevSourceRef.current;
+    prevSourceRef.current = snappedStartSource;
+    if (isLocating && prev === "gps" && snappedStartSource === "map") {
+      stopLocating();
+    }
+  }, [snappedStartSource, isLocating, stopLocating]);
 
   const startSearch = useGeocoding(actions.searchAddress);
   const endSearch = useGeocoding(actions.searchAddress);
@@ -110,6 +120,7 @@ export default function AddressSearch() {
           onEscape={hideDropdowns}
           onEmpty={() => {
             setSnappedStart(null);
+            if (isLocating) stopLocating();
           }}
           onLocate={handleLocateStart}
           placeholder="Click map or search start address..."

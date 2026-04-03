@@ -20,7 +20,7 @@ function fitRouteBounds(map, start, end, padding) {
   );
 }
 
-export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panelOpen, routeFitTick, getSheetVisibleHeight }) {
+export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight }) {
   const prevStartIdx = useRef(null);
   const prevEndIdx = useRef(null);
 
@@ -48,22 +48,32 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
-  // Refit when panel open state changes:
-  // - Desktop panel opens: refit with sidebar padding to reclaim viewport space
-  // - Mobile panel closes: refit with full-screen symmetric padding
+  // Refit when panel open state changes.
+  // Trip mode: TripController owns the camera on panel-close (zoom to GPS), so skip
+  // fit-to-route on panel-close when a trip is active. On panel-open during a trip,
+  // mobile needs an explicit refit (normally it only refits on panel-close).
   useEffect(() => {
     if (!snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
     if (isMobile) {
-      if (panelOpen) return;
+      if (panelOpen) {
+        // Mobile panel opened during trip: show full route so user can edit
+        if (!isTripActive) return;
+        fitRouteBounds(map, snappedStart, snappedEnd,
+          computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
+        return;
+      }
+      // Mobile panel closed: TripController handles the camera when trip is active
+      if (isTripActive) return;
       fitRouteBounds(map, snappedStart, snappedEnd, computePadding(true, false));
       return;
     }
+    // Desktop panel closed during trip: TripController zooms back to GPS
+    if (!panelOpen && isTripActive) return;
     fitRouteBounds(map, snappedStart, snappedEnd, computePadding(false, panelOpen));
-    // Intentional: reads snappedStart/snappedEnd as stale closure — they don't change
-    // between the panel toggle and this effect running, and listing them would cause
-    // spurious refits on every endpoint update.
+    // Intentional: reads snappedStart/snappedEnd/isTripActive/getSheetVisibleHeight as stale
+    // closures — none of these change between the panel toggle and this effect running.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);
 

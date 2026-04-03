@@ -5,6 +5,7 @@ import { UI_COLORS } from "@/shared/constants/colors";
 import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
+import { useRoute } from "@/context/RouteContext";
 import { LocationMarker, TripController } from "@/features/geolocation";
 import { useFitBounds } from "@/features/map/hooks/useFitBounds";
 import { RoutePolylines } from "./RoutePolylines";
@@ -59,7 +60,9 @@ export function MapView({
   onMarkerDragEnd,
 }) {
   const { isSatView, panelOpen, routeFitTick, getSheetVisibleHeight } = useRouteSettingsContext();
-  const { position, isTripActive } = useGeolocation();
+  const { position, isTripActive, isLocating } = useGeolocation();
+  const { snappedStartSource } = useRoute();
+  const gpsLockedStart = isLocating && snappedStartSource === "gps";
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
 
@@ -69,7 +72,7 @@ export function MapView({
   const [dragging, setDragging] = useState(null);
 
   const { fitBoundsOnDrag } = useFitBounds({
-    mapRef, snappedStart, snappedEnd, isMobile, panelOpen, routeFitTick, getSheetVisibleHeight,
+    mapRef, snappedStart, snappedEnd, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight,
   });
 
   const bearing = isTripActive && position?.heading != null ? position.heading : 0;
@@ -99,7 +102,7 @@ export function MapView({
           longitude={snappedStart.lon}
           latitude={snappedStart.lat}
           anchor="bottom"
-          draggable
+          draggable={!gpsLockedStart}
           style={{ zIndex: 1000 }}
           onDragStart={() => setDragging("start")}
           onDragEnd={(e) => {
@@ -113,7 +116,7 @@ export function MapView({
             src={"data:image/svg+xml;charset=UTF-8," + encodeURIComponent(startSvg)}
             width={32}
             height={37}
-            style={{ display: "block", cursor: "grab" }}
+            style={{ display: "block", cursor: gpsLockedStart ? "default" : "grab" }}
             alt="Start"
           />
         </Marker>

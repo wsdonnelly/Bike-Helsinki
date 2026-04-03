@@ -15,7 +15,6 @@ export default function PanelToolbar({
   onToggleSatView,
   isTripActive,
   isLocating,
-  hasSelection,
   geoError,
   startLocating,
   startTrip,
@@ -25,7 +24,7 @@ export default function PanelToolbar({
   onAfterTripStart,
   tripContainerStyle,
 }) {
-  const showTrip = hasSelection || isTripActive;
+  const showTrip = isLocating || isTripActive;
 
   return (
     <>
