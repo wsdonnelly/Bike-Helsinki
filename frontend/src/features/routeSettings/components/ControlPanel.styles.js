@@ -202,6 +202,18 @@ export const mobileLocationBtn = (active) => ({
   gap: 4,
 });
 
+export const satBtn = (active) => ({
+  ...btnSm,
+  marginLeft: "auto",
+  marginRight: "8px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "6px 10px",
+  backgroundColor: active ? "#e3f2fd" : "#fff",
+  border: active ? "1px solid #2196f3" : "1px solid #ddd",
+});
+
 export const mobileTripBtn = (active, disabled) => ({
   position: "fixed",
   bottom: 130,

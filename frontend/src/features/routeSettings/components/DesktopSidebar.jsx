@@ -48,17 +48,6 @@ export default function DesktopSidebar() {
   const commitApply = () =>
     applySettings?.({ mask: draftMask, surfacePenaltySPerKm: Number(draftPenalty) });
 
-  const satBtnStyle = {
-    ...styles.btnSm,
-    marginLeft: "auto",
-    marginRight: "8px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "6px 10px",
-    backgroundColor: isSatView ? "#e3f2fd" : "#fff",
-    border: isSatView ? "1px solid #2196f3" : "1px solid #ddd",
-  };
 
   return (
     <div style={styles.containerStyle}>
@@ -95,7 +84,7 @@ export default function DesktopSidebar() {
             <button
               type="button"
               onClick={toggleSatView}
-              style={satBtnStyle}
+              style={styles.satBtn(isSatView)}
               aria-label={isSatView ? "Switch to map view" : "Switch to satellite view"}
               title={isSatView ? "Switch to map view" : "Switch to satellite view"}
             >
