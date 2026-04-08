@@ -7,6 +7,8 @@ This hobby project combines my long-time interest in maps, mapping, and graph al
 
 ### System Overview
 
+For a backend-only architecture walkthrough, see [`docs/backend/backend-architecture.md`](docs/backend/backend-architecture.md).
+
 ```mermaid
 flowchart TD
     %% Data Sources
