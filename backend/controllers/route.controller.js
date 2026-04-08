@@ -3,7 +3,7 @@ const {
   getRouter,
   getTypedArrays,
 } = require("../services/addons.service");
-const { getTotalNodes } = require("../services/graph.service");
+const { getGraphInfo } = require("../services/graph.service");
 const {
   toIndex,
   clampU16,
@@ -27,7 +27,8 @@ async function createRoute(req, res) {
   if (!hasRouter())
     return res.status(503).json({ error: "route addon not loaded" });
 
-  const TOTAL_NODES = getTotalNodes();
+  const graphInfo = getGraphInfo();
+  const TOTAL_NODES = graphInfo?.numNodes ?? 0;
   if (!Number.isInteger(TOTAL_NODES) || TOTAL_NODES <= 0) {
     return res.status(503).json({ error: "graph not loaded" });
   }

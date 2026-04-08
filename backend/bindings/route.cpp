@@ -4,8 +4,10 @@
 #include "route.hpp"
 
 #include <fcntl.h>
+#include <limits.h>
 #include <napi.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <cstring>
 #include <iostream>
@@ -215,6 +217,18 @@ static EdgesView loadEdges(const std::string& filePath)
 // ---------------- Global mapped graph ----------------
 static NodesView glNodes;
 static EdgesView glEdges;
+static std::string glNodesPath;
+static std::string glEdgesPath;
+
+static std::string resolvePath(const std::string& filePath)
+{
+  char resolvedPath[PATH_MAX];
+  if (::realpath(filePath.c_str(), resolvedPath) != nullptr)
+  {
+    return std::string(resolvedPath);
+  }
+  return filePath;
+}
 
 // ---------------- N-API glue ----------------
 
@@ -404,6 +418,23 @@ static Napi::Value GetNodeIdByIdx(const Napi::CallbackInfo& info)
   // return Napi::Number::New(env, static_cast<double>(id));
 }
 
+static Napi::Value GetGraphInfo(const Napi::CallbackInfo& info)
+{
+  Napi::Env env = info.Env();
+  Napi::Object out = Napi::Object::New(env);
+
+  const bool loaded = glNodes.ids != nullptr && glEdges.offsets != nullptr &&
+                      glNodes.numNodes > 0 && glEdges.numNodes == glNodes.numNodes;
+
+  out.Set("loaded", Napi::Boolean::New(env, loaded));
+  out.Set("numNodes", Napi::Number::New(env, glNodes.numNodes));
+  out.Set("numEdges", Napi::Number::New(env, glEdges.numEdges));
+  out.Set("nodesPath", Napi::String::New(env, glNodesPath));
+  out.Set("edgesPath", Napi::String::New(env, glEdgesPath));
+
+  return out;
+}
+
 // JS: findPath(options, callback)
 // options = {
 //   sourceIdx: <u32>, targetIdx: <u32>,
@@ -457,8 +488,11 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try
   {
-    glNodes = loadNodes("data/graph_nodes.bin");
-    glEdges = loadEdges("data/graph_edges.bin");
+    glNodesPath = resolvePath("data/graph_nodes.bin");
+    glEdgesPath = resolvePath("data/graph_edges.bin");
+
+    glNodes = loadNodes(glNodesPath);
+    glEdges = loadEdges(glEdgesPath);
     std::cerr << "[route.cpp] loaded numNodes =" << glNodes.numNodes
               << " numEdges =" << glEdges.numEdges << std::endl;
 
@@ -484,6 +518,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
   }
   exports.Set("findPath", Napi::Function::New(env, FindPath));
   exports.Set("getNodeIdByIdx", Napi::Function::New(env, GetNodeIdByIdx));
+  exports.Set("getGraphInfo", Napi::Function::New(env, GetGraphInfo));
   return exports;
 }
 

@@ -1,11 +1,20 @@
 let kdSnap = null;
 let router = null;
+let graphInfo = null;
+let kdSnapGraphInfo = null;
 let LAT = null,
   LON = null;
 
 try {
-  kdSnap = require("../bindings/build/Release/kd_snap.node");
   router = require("../bindings/build/Release/route.node");
+  if (router?.getGraphInfo) {
+    graphInfo = Object.freeze({ ...router.getGraphInfo() });
+    console.log("Graph info:", graphInfo);
+    if (graphInfo?.nodesPath) {
+      process.env.BIKEMAP_GRAPH_NODES_PATH = graphInfo.nodesPath;
+    }
+  }
+  kdSnap = require("../bindings/build/Release/kd_snap.node");
   console.log("Native addons loaded");
 } catch (err) {
   console.warn("Native addons not found:", err?.message || err);
@@ -13,6 +22,9 @@ try {
 
 if (kdSnap) {
   try {
+    kdSnapGraphInfo = kdSnap.getGraphInfo
+      ? Object.freeze({ ...kdSnap.getGraphInfo() })
+      : null;
     LAT = kdSnap.getLatArray();
     LON = kdSnap.getLonArray();
     console.log(
@@ -21,8 +33,11 @@ if (kdSnap) {
       LAT?.length,
       LON?.length
     );
+    if (kdSnapGraphInfo) {
+      console.log("kdSnap graph info:", kdSnapGraphInfo);
+    }
   } catch (e) {
-    console.warn("Failed to get typed arrays:", e?.message || e);
+    console.warn("Failed to initialize kdSnap metadata:", e?.message || e);
   }
 }
 
@@ -41,6 +56,12 @@ function getRouter() {
 function getTypedArrays() {
   return { LAT, LON };
 }
+function getGraphInfo() {
+  return graphInfo;
+}
+function getKdSnapGraphInfo() {
+  return kdSnapGraphInfo;
+}
 
 module.exports = {
   hasKdSnap,
@@ -48,4 +69,6 @@ module.exports = {
   getKdSnap,
   getRouter,
   getTypedArrays,
+  getGraphInfo,
+  getKdSnapGraphInfo,
 };

@@ -1,12 +1,20 @@
-const { hasKdSnap, hasRouter } = require("../services/addons.service");
-const { getTotalNodes } = require("../services/graph.service");
+const {
+  hasKdSnap,
+  hasRouter,
+  getKdSnapGraphInfo,
+} = require("../services/addons.service");
+const { getGraphInfo } = require("../services/graph.service");
 
 function healthz(_req, res) {
   const addons = { kdSnap: hasKdSnap(), router: hasRouter() };
-  const totalNodes = getTotalNodes();
-  const ok = !!addons.kdSnap && !!addons.router && totalNodes > 0;
+  const graphInfo = getGraphInfo();
+  const kdSnapGraphInfo = getKdSnapGraphInfo();
+  const totalNodes = graphInfo?.numNodes ?? 0;
+  const ok = !!addons.kdSnap && !!addons.router && !!graphInfo?.loaded;
 
-  res.status(ok ? 200 : 503).json({ ok, addons, totalNodes });
+  res
+    .status(ok ? 200 : 503)
+    .json({ ok, addons, totalNodes, graphInfo, kdSnapGraphInfo });
 }
 
 module.exports = { healthz };

@@ -9,11 +9,15 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <limits.h>
 #include <limits>
 #include <stdexcept>
+#include <string>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -233,6 +237,17 @@ class PackedKDTree
 
 // Single global KD-tree instance
 static kd2d::PackedKDTree gKdTree;
+static std::string gNodesPath;
+
+static std::string resolvePath(const std::string& filePath)
+{
+  char resolvedPath[PATH_MAX];
+  if (::realpath(filePath.c_str(), resolvedPath) != nullptr)
+  {
+    return std::string(resolvedPath);
+  }
+  return filePath;
+}
 
 // ---------------- Loader for the exact binary layout ----------------
 static bool loadFromGraphNodes(const std::string& filePath)
@@ -361,13 +376,31 @@ Napi::Value GetLonArray(const Napi::CallbackInfo& info)
                                  0);
 }
 
+Napi::Value GetGraphInfo(const Napi::CallbackInfo& info)
+{
+  Napi::Env env = info.Env();
+  Napi::Object out = Napi::Object::New(env);
+
+  out.Set("loaded", Napi::Boolean::New(env, !gLatitudeDegrees.empty()));
+  out.Set("numNodes",
+          Napi::Number::New(env, static_cast<double>(gLatitudeDegrees.size())));
+  out.Set("nodesPath", Napi::String::New(env, gNodesPath));
+
+  return out;
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   try
   {
-    if (!loadFromGraphNodes("data/graph_nodes.bin"))
+    const char* configuredPath = std::getenv("BIKEMAP_GRAPH_NODES_PATH");
+    gNodesPath = resolvePath((configuredPath && configuredPath[0] != '\0')
+                                 ? configuredPath
+                                 : "data/graph_nodes.bin");
+
+    if (!loadFromGraphNodes(gNodesPath))
     {
-      std::cerr << "[kd_snap] graph_nodes.bin missing\n";
+      std::cerr << "[kd_snap] graph_nodes.bin missing: " << gNodesPath << "\n";
     }
   } catch (const std::exception& e)
   {
@@ -380,6 +413,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("getNode", Napi::Function::New(env, getNode));
   exports.Set("getLatArray", Napi::Function::New(env, GetLatArray));
   exports.Set("getLonArray", Napi::Function::New(env, GetLonArray));
+  exports.Set("getGraphInfo", Napi::Function::New(env, GetGraphInfo));
   return exports;
 }
 
