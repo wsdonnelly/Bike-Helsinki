@@ -103,9 +103,8 @@ main.jsx
     └── RouteProvider                     ← all routing state lives here
         └── ErrorBoundary                 ← catches runtime throws, shows fallback
             └── RouteSettingsProvider     ← panel/settings state (consumes useRoute internally)
-                └── GeolocationProvider  ← GPS position watch and trip active state
-                    └── AppContent (useRoute, useRouteSettingsContext, useInfoWindow)
-                        ├── AddressSearch
+                └── GeolocationProvider   ← GPS position watch and trip active state
+                    └── AppContent (useRoute, useInfoWindow)
                         ├── MapView       ← consumes useRouteSettingsContext for isSatView;
                         │                    renders LocationMarker + TripController
                         ├── ControlPanel  ← zero props; consumes context internally
@@ -129,7 +128,8 @@ main.jsx
   - `panelOpen`, `draftMask`, `draftPenalty`, `isSatView` — local before Apply
   - `routeFitTick` / `triggerRouteFit()` — counter incremented to signal `useFitBounds` to refit
   - `setSheetHeight(h)` — called by MobileSheet's ResizeObserver; updates internal ref only (no state re-render)
-  - `getSheetHeight()` — stable accessor for the current measured sheet height; consumed by `useFitBounds`
+  - `setSheetOffset(offset)` — stores the current dragged sheet offset
+  - `getSheetVisibleHeight()` — stable accessor for currently visible sheet height; consumed by `useFitBounds`
   - Handlers: `applySettings`, `toggleDraftBit`, `toggleSatView`, etc.
   - Lives at `src/features/routeSettings/context/RouteSettingsContext.jsx`
   - `useRouteSettings()` is an alias for `useRouteSettingsContext()` (backwards compat)
@@ -167,15 +167,16 @@ Surface types are 16-bit flags defined in `surfaceTypes.js`. The active set of a
 Routes are rendered by `RoutePolylines` (`src/features/map/components/RoutePolylines.jsx`) as three MapLibre GeoJSON `Source`/`Layer` pairs — one per mode type (`route-bike-pref`, `route-bike-nonpref`, `route-foot`). Layer paint props encode color and dash patterns. A fallback single-color polyline layer is used when `routeModes` is absent. `MapView` renders `<RoutePolylines routeCoords routeModes dragging />`.
 
 ### Async Route Fetching
-`RouteContext` uses `AbortController` to cancel stale requests. Route recalculates automatically via `useEffect` when endpoints or settings change. Reverse geocoding on marker drag uses a 150ms debounce (`DRAG_DEBOUNCE_MS`).
+`RouteContext` recalculates automatically via `useEffect` when endpoint identities or applied settings change. Reverse geocoding uses `AbortController`, but route fetching itself does not currently cancel stale requests or guard against out-of-order responses. Reverse geocoding on marker drag uses a 150ms debounce (`DRAG_DEBOUNCE_MS`).
 
 ### Geocoding HTTP Client
 `digitransit.js` uses its **own** dedicated Axios instance (not `http.js`), because Digitransit is an external service with a different base URL. Both `searchAddresses` and `reverseGeocode` accept a `signal` parameter for AbortController support. Both functions normalise Digitransit GeoJSON responses to a consistent internal format: `{ place_id, display_name, lat, lon, address }`.
 
 ### Map Bounds Fitting
-`MapView` uses two `useEffect` hooks to manage the viewport:
+`useFitBounds` uses three `useEffect` hooks to manage the viewport:
 1. When both endpoints are set: calls `map.fitBounds()` with padding that accounts for the sidebar (desktop) or bottom sheet (mobile).
-2. When the panel opens: re-fits bounds so the panel does not obscure the route.
+2. When the panel open state changes: re-fits bounds so the panel or sheet does not obscure the route.
+3. When `routeFitTick` changes: performs explicit mobile refits for tab/apply/trip flows.
 
 Padding constants (`SIDEBAR_WIDTH_PX` etc.) come from `src/shared/constants/config.js`.
 
@@ -216,12 +217,12 @@ The hook contains three `useEffect` triggers:
 
 **3. `routeFitTick`** (mobile explicit refit):
 - Triggered by: switching to the Preferences tab, pressing Apply (both tabs), stopping a trip.
-- Uses `getSheetHeight() || MOBILE_SHEET_HEIGHT_PX` + 10px as bottom padding, keeping the lower marker clear of the sheet edge.
+- Uses `getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX` + 10px as bottom padding, keeping the lower marker clear of the sheet edge.
 - Callers that switch tabs (Preferences tab click, Planner Apply) defer via `setTimeout(0)` so the ResizeObserver can update the sheet height before the effect reads it.
 
-**`fitBoundsOnDrag`** — returned from the hook; used by both marker drag handlers on mobile. Same sheet-height bottom padding as `routeFitTick`.
+**`fitBoundsOnDrag`** — returned from the hook; used by both marker drag handlers on mobile. Same visible-sheet bottom padding as `routeFitTick`.
 
-Sheet height is measured dynamically via `ResizeObserver` in `MobileSheet` and stored as a ref in `RouteSettingsContext` (`setSheetHeight` / `getSheetHeight()`). No state is involved — the ref updates synchronously on resize without triggering re-renders. `MOBILE_SHEET_HEIGHT_PX` is the fallback used before the sheet has mounted.
+Sheet height is measured dynamically via `ResizeObserver` in `MobileSheet`, while the current drag offset is tracked separately. `RouteSettingsContext` derives visible sheet height from those two refs via `setSheetHeight`, `setSheetOffset`, and `getSheetVisibleHeight()`. No state is involved in those measurements, so the refs update without triggering re-renders. `MOBILE_SHEET_HEIGHT_PX` is the fallback used before the sheet has mounted.
 
 ### Shared Constants
 Magic numbers live in `src/shared/constants/config.js`:
@@ -232,7 +233,7 @@ Magic numbers live in `src/shared/constants/config.js`:
 - `DRAG_DEBOUNCE_MS` — reverse geocode on drag debounce (150)
 - `DEFAULT_MASK` — default surface bitmask (0xffff)
 - `MIN_BAR_WIDTH_PCT` — minimum bar width in stacked chart (1.5)
-- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `getSheetHeight()` returns 0 (sheet not yet mounted)
+- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `getSheetVisibleHeight()` returns 0 (sheet not yet mounted)
 - `API_TIMEOUT_MS` — Axios timeout for both backend and Digitransit clients (15000)
 - `LOCATE_FLY_ZOOM` — zoom level when flying to GPS location on locate start (15)
 - `TRIP_FLY_ZOOM` — zoom level when flying to GPS location on trip start (18)
@@ -319,5 +320,5 @@ These are places where the code deviates from its own established patterns, or w
 ### ~~d. MapView size~~ (resolved)
 Route GeoJSON layers extracted to `RoutePolylines.jsx` (3 mode-typed `Source`/`Layer` sets + fallback). `MapView.jsx` now handles only map init, markers, tile-style, and geolocation subcomponents. `computePadding` helper added to `useFitBounds` to eliminate repeated padding object literals.
 
-### ~~e. RouteContext size~~ (resolved)
-Reverse-geocoding block (AbortController, debounce, address reconciliation) extracted to `src/context/hooks/useReverseGeocoding.js`. `RouteContext` calls `const { resolveAddress } = useReverseGeocoding(setSnappedStart, setSnappedEnd)`.
+### e. RouteContext remains the main orchestration bottleneck
+Reverse-geocoding block (AbortController, debounce, address reconciliation) has been extracted to `src/context/hooks/useReverseGeocoding.js`, which helped. But `RouteContext` still owns config loading, endpoint mutation, route fetching, applied settings, totals, and search/GPS helper actions, so it remains the largest frontend state module.
