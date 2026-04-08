@@ -48,7 +48,8 @@ flowchart TD
             RoutingUI[features/routing\naddress search + geocoding hooks]
             MapUI[features/map\nmap camera + route layers]
             SettingsUI[features/routeSettings\nmobile sheet / desktop sidebar]
-            GeoUI[features/geolocation\nlocation marker + trip camera]
+            GeoUI[features/geolocation\nGPS data provider]
+            NavUI[features/navigation\nlocation marker + trip camera]
         end
     end
 
@@ -134,7 +135,8 @@ Feature packages contain most UI and lifecycle logic.
 - `features/map/`: MapLibre rendering, route polylines, camera fit behavior.
 - `features/routing/`: address search inputs and search debounce hooks.
 - `features/routeSettings/`: desktop sidebar, mobile sheet, route preference controls, and view-only draft state.
-- `features/geolocation/`: browser geolocation state, live location rendering, and trip-follow camera logic.
+- `features/geolocation/`: browser geolocation state (GPS watch, trip mode, position). Pure data provider.
+- `features/navigation/`: live location rendering and trip-follow camera logic. Consumes geolocation data.
 - `features/infoWindow/`: onboarding modal and its local visibility hook.
 
 ### `shared/`
@@ -250,13 +252,16 @@ Mobile adds extra complexity through a draggable bottom sheet and explicit route
 
 ### Geolocation
 
-The geolocation feature is split cleanly:
+[`GeolocationContext`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/context/GeolocationContext.jsx) is a pure GPS data provider. It owns browser geolocation lifecycle — position, locate mode, trip mode, errors, and `watchPosition` registration — and nothing else. Consumed by both planning (address search GPS-to-start) and navigation.
 
-- [`GeolocationContext`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/context/GeolocationContext.jsx) owns browser state
-- [`LocationMarker`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/components/LocationMarker.jsx) renders the live position and accuracy polygon
-- [`TripController`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/components/TripController.jsx) owns camera-follow behavior during locate/trip modes
+### Navigation
 
-This is one of the clearer feature boundaries in the app.
+The navigation feature owns the map-rendering side of GPS:
+
+- [`LocationMarker`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/LocationMarker.jsx) renders the live position and accuracy polygon
+- [`TripController`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/TripController.jsx) owns camera-follow behavior during locate/trip modes
+
+Both components consume `GeolocationContext` for position data but live in `navigation/` because they are rendering and camera concerns, not GPS data concerns.
 
 ### Info Window
 
@@ -314,7 +319,7 @@ This is workable, but it makes the folder structure less truthful than the runti
 Map camera behavior is split between:
 
 - [`useFitBounds`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/hooks/useFitBounds.js)
-- [`TripController`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/components/TripController.jsx)
+- [`TripController`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/TripController.jsx)
 - route-settings-triggered refit ticks
 
 The result is functional, but camera ownership is implicit rather than centralized.

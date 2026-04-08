@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useGeolocation } from "../context/GeolocationContext";
+import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { LOCATE_FLY_ZOOM, TRIP_FLY_ZOOM } from "@/shared/constants/config";
 

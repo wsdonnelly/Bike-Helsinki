@@ -6,7 +6,7 @@ import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 import { useRoute } from "@/context/RouteContext";
-import { LocationMarker, TripController } from "@/features/geolocation";
+import { LocationMarker, TripController } from "@/features/navigation";
 import { useFitBounds } from "@/features/map/hooks/useFitBounds";
 import { RoutePolylines } from "./RoutePolylines";
 

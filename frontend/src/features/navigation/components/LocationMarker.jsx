@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Source, Layer, Marker } from "react-map-gl/maplibre";
-import { useGeolocation } from "../context/GeolocationContext";
+import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 
 function makeCirclePolygon(lat, lon, radiusMeters, steps = 64) {
   const coords = [];
