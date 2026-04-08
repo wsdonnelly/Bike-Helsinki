@@ -424,7 +424,8 @@ static Napi::Value GetGraphInfo(const Napi::CallbackInfo& info)
   Napi::Object out = Napi::Object::New(env);
 
   const bool loaded = glNodes.ids != nullptr && glEdges.offsets != nullptr &&
-                      glNodes.numNodes > 0 && glEdges.numNodes == glNodes.numNodes;
+                      glNodes.numNodes > 0 &&
+                      glEdges.numNodes == glNodes.numNodes;
 
   out.Set("loaded", Napi::Boolean::New(env, loaded));
   out.Set("numNodes", Napi::Number::New(env, glNodes.numNodes));

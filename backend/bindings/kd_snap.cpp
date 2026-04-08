@@ -4,7 +4,9 @@
 //   getNode(idx) -> { idx, lat, lon }
 //   getLatArray() / getLonArray() -> zero-copy Float32Array views
 
+#include <limits.h>
 #include <napi.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cmath>
@@ -13,11 +15,9 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
 #include <limits>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
 #include <utility>
 #include <vector>
 
