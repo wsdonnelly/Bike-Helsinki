@@ -38,9 +38,10 @@ flowchart TD
         end
 
         subgraph ENDPOINTS [" API Endpoints "]
+            HEALTH_EP[GET /healthz<br/>runtime readiness]
             SNAP_EP[GET /snap<br/>lat,lon → nearest node]
             ROUTE_EP[POST /route<br/>start,end,params → path]
-            FILTER_EP[POST /filter<br/>update defaults]
+            CONFIG_EP[GET /config/helsinki<br/>bbox/viewbox config]
         end
     end
 
@@ -63,14 +64,16 @@ flowchart TD
     NODES --> ROUTE
     EDGES --> ROUTE
 
+    EXPRESS --> HEALTH_EP
     KDSNAP --> SNAP_EP
     ROUTE --> ROUTE_EP
-    EXPRESS --> FILTER_EP
+    EXPRESS --> CONFIG_EP
 
     %% Flow connections - API
+    HEALTH_EP --> UI
     SNAP_EP --> UI
     ROUTE_EP --> UI
-    FILTER_EP --> UI
+    CONFIG_EP --> UI
 
     %% Styling
     classDef dataFile fill:#e1f5fe,stroke:#01579b,stroke-width:2px
@@ -82,7 +85,7 @@ flowchart TD
     class OSM,NODES,EDGES dataFile
     class BUILD,WAY,NODE,WRITE process
     class EXPRESS,UI service
-    class SNAP_EP,ROUTE_EP,FILTER_EP api
+    class HEALTH_EP,SNAP_EP,ROUTE_EP,CONFIG_EP api
     class KDSNAP,ROUTE cpp
 ```
 ### binary file formats
@@ -176,7 +179,7 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 
 - **C++ compiler** (with C++17 support)
 - **CMake** (version 3.16+)
-- **Node.js** (version 16+)
+- **Node.js** (version 20.x recommended)
 - **npm**
 
 ## 1. Data Ingestion
@@ -233,13 +236,14 @@ This compiles `kd_snap.cpp` and `route.cpp` with optimizations enabled.
 ### Start server
 
 ```bash
-node run dev
+npm run dev
 ```
 
 Server will start on `http://localhost:3000` with endpoints:
+- `GET /healthz` - Runtime readiness and graph metadata
 - `GET /snap` - Find nearest graph node
 - `POST /route` - Calculate optimal route
-- `POST /filter` - Update routing preferences
+- `GET /config/helsinki` - Return bbox/viewbox config for the frontend
 
 ## 3. Frontend Setup
 

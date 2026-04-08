@@ -1,106 +1,256 @@
 # Graph Data Architecture: Migrating to Object Storage for Finland-Scale Growth
 
-**Date:** 2026-03-25
-**Status:** Recommended — R2 migration imminent
+**Date:** 2026-03-25  
+**Status:** Recommended
 
 ---
 
 ## Current State
 
 | File | Size |
-|---|---|
-| graph_nodes.bin | 21 MB |
-| graph_edges.bin | 35 MB |
+|---|---:|
+| `graph_nodes.bin` | 21 MB |
+| `graph_edges.bin` | 35 MB |
 | **Total** | **56 MB** |
 
-Both files live in the git repo and are shipped to Render on every deploy. Routing uses read-only mmap (lazy OS paging) for edges, and a fully in-RAM KD-tree for node snapping.
+Today both graph binaries live in the repo and are deployed with the backend.
 
-**Deployment:** Render $7/mo Starter — 1 CPU, 2 GB RAM, ephemeral disk (wiped on redeploy).
+That is workable for Helsinki, but it does not scale well to Finland-sized data:
 
----
+1. Git history accumulates binary blobs permanently.
+2. Pushes and deploys get slower as binaries grow.
+3. Render starter instances have limited ephemeral disk.
+4. The data is operationally an artifact, not source code.
 
-## The Bottleneck
+The backend architecture already points toward a better model:
 
-Git is not a data store. At 56 MB this works, but Finland-wide data (~600–900 MB) breaks it:
+- `route.node` is the primary graph owner.
+- `route.node` memory-maps the node and edge binaries at startup.
+- `kd_snap.node` is secondary and follows the resolved node path chosen by `route.node`.
+- The JS layer caches native-reported graph metadata; it does not own graph loading.
 
-1. Git repo accumulates binary history permanently
-2. Large binaries slow every push/deploy
-3. Render ephemeral disk is ~1 GB — Finland data would fill it
-4. Finland KD-tree: ~7–10 M nodes × 16 bytes ≈ **120–160 MB RAM** — fits in 2 GB, but not something to push through git
-
----
-
-## Key Architectural Insight: mmap Already Scales
-
-The A* routing side requires **no code changes** to handle Finland-wide data. Because `route.cpp` uses read-only `mmap`, the OS only pages in the graph regions touched by a query. A Helsinki route on a Finland-wide binary has essentially the same memory footprint as today. The only real memory cost of expanding coverage is the KD-tree, which loads all coordinates eagerly — and at ~160 MB for Finland, this fits comfortably in 2 GB RAM.
+That means object storage is a good fit, but only if startup sequencing is treated as part of backend correctness.
 
 ---
 
-## Recommended Plan
+## Key Architectural Constraint
 
-### Phase 1: Move Binaries to Cloudflare R2 (Immediate)
+The backend does **not** support hot-swapping graph files under a running process.
 
-**Why R2:** Free tier gives 10 GB storage and zero egress fees (no per-GB charge when Render downloads the files). Enough for many regional datasets.
+The current runtime model is:
 
-**Startup flow:**
+1. graph files must already exist locally
+2. native addons initialize at process startup
+3. `route.node` maps the graph and reports graph metadata
+4. `kd_snap.node` initializes second using the route-owned node path
+5. the process serves requests against that fixed dataset until restart
+
+So the migration should not be framed as "download files if missing and keep going." It should be framed as:
+
+`materialize one complete graph dataset locally -> verify it -> start Node once`
+
+That is the safe operational model.
+
+---
+
+## Key Architectural Insight: mmap Still Scales
+
+The A* routing side still requires no algorithmic redesign for Finland-wide data.
+
+Because `route.cpp` uses read-only `mmap`, the OS only pages in the graph regions touched by a query. A Helsinki route on a Finland-wide graph should have roughly the same active working-set behavior as today. The main eager memory cost of scaling coverage is still the KD-tree / node-coordinate load for snapping.
+
+Estimated Finland scale remains plausible on the current architecture:
+
+- Nodes: ~7–10 M
+- Edges: ~15–20 M
+- Binary size: ~600–900 MB
+- KD-tree / node-coordinate memory: ~120–160 MB
+
+This is large for git, but still reasonable for local-disk-plus-mmap on a 2 GB service if startup is handled carefully.
+
+---
+
+## Revised Recommended Plan
+
+### Phase 1: Move Graph Artifacts to Cloudflare R2
+
+**Why R2**
+
+- 10 GB free-tier storage is enough for multiple regional datasets.
+- No egress charge for the backend fetching the binaries.
+- It separates deployable code from generated graph artifacts.
+
+### Required Assumptions
+
+This migration is viable if all of these are true:
+
+1. The backend continues to load one graph dataset at startup and treat it as read-only for the life of the process.
+2. `graph_nodes.bin` and `graph_edges.bin` are treated as one versioned pair.
+3. The full pair is downloaded and verified before `node index.js` starts.
+4. Dataset replacement happens via restart/redeploy, not in-place under a running process.
+
+### Safer Startup Sequence
+
+Use this model instead of a simple “if files exist, skip download” flow:
+
+```text
+Render deploys
+-> startup wrapper runs
+-> fetch graph manifest from R2
+-> decide which dataset version should be active
+-> ensure local staging directory exists
+-> download nodes + edges into staging paths
+-> verify sizes/checksums for both files
+-> atomically promote staging files into active paths
+-> start node index.js
+-> route.node initializes
+-> kd_snap.node initializes from route-owned node path
+-> serve traffic
 ```
-Render deploys → start command runs fetch script → check if .bin files exist on disk
-→ if not, download from R2 → mmap and serve
+
+This avoids booting against:
+
+- partially downloaded files
+- mismatched node/edge versions
+- stale leftovers from an earlier dataset
+
+### Recommended Artifact Layout
+
+Prefer versioned objects in R2 instead of replacing the same filenames in place.
+
+Example:
+
+```text
+graphs/
+  helsinki-2026-03-25/
+    manifest.json
+    graph_nodes.bin
+    graph_edges.bin
+  finland-2026-06-10/
+    manifest.json
+    graph_nodes.bin
+    graph_edges.bin
 ```
 
-Download adds ~5–15 s to cold starts but zero latency to routing thereafter. Since Render's ephemeral disk is wiped on redeploy, the download runs each deploy (~15–30 s for Finland-sized files — acceptable).
+Suggested `manifest.json` fields:
 
-**Files to change:**
+- `datasetId`
+- `createdAt`
+- `nodesFile`
+- `edgesFile`
+- `nodesBytes`
+- `edgesBytes`
+- `nodesSha256`
+- `edgesSha256`
+
+That gives the startup script one authoritative description of the dataset pair.
+
+### Concrete Implementation Changes
+
 | File | Change |
 |---|---|
 | `.gitignore` | Add `backend/data/*.bin` |
-| `backend/scripts/fetch-graph.js` | New: downloads from R2 on startup |
-| `render.yaml` | Update start command; add `GRAPH_R2_BASE_URL` env var |
+| `backend/scripts/fetch-graph.js` | New: fetch manifest, download graph pair to staging, verify, promote |
+| `backend/scripts/start-with-graph.sh` | New: wrapper that fetches graph artifacts before starting Node |
+| `render.yaml` | Update start command to use startup wrapper; add R2 env vars |
+| `backend/data/` | Treat as runtime artifact directory, not source-controlled data |
 
-No changes to routing, A*, mmap, or KD-tree code.
+### Suggested Environment Variables
 
-**Optional enhancement — Render Persistent Disk ($0.25/GB/mo):** Mounts across redeploys, eliminating the per-deploy download. For Finland (~800 MB), that's ~$0.20/mo. Worth it once Finland data is in use.
+| Variable | Purpose |
+|---|---|
+| `GRAPH_R2_BASE_URL` | Base URL for R2 public bucket or signed-access endpoint |
+| `GRAPH_DATASET_ID` | Which dataset/version should be fetched |
+| `GRAPH_LOCAL_DIR` | Local active directory for runtime graph files |
+| `GRAPH_DOWNLOAD_DIR` | Temporary staging directory for downloads |
+
+### Important Note on Code Changes
+
+No routing algorithm changes are required.
+
+But this is **not** literally “no backend changes.” The startup path becomes part of backend correctness, because the native addons assume the graph files exist before module initialization. The migration is still low-risk, but the fetch/verify/start orchestration is operational code, not just deploy glue.
+
+### Optional Enhancement: Render Persistent Disk
+
+If Finland-sized datasets become the default, Render persistent disk becomes attractive:
+
+- avoids downloading large binaries on every redeploy
+- reduces cold-start variance
+- keeps the same startup model
+
+For this project, persistent disk is an optimization, not a prerequisite.
 
 ---
 
-### Phase 2: Expand to Finland (When Ready)
+## Phase 2: Expand to Finland
 
-With R2 in place and already on the $7/mo plan, expanding to Finland is a data-pipeline change only:
+Once R2-backed startup is in place, Finland expansion is mostly a data-pipeline change:
 
-1. Update `ingest/all.sh` — change bbox/polygon from Helsinki to all of Finland (OSM Geofabrik Finland extract)
-2. Run the build pipeline locally: `./all.sh`
-3. Upload the new binaries to R2 (replacing Helsinki files, or using versioned paths)
-4. Redeploy — backend downloads Finland binaries, starts up, done
+1. Update the ingest pipeline to build a Finland dataset.
+2. Produce a versioned dataset directory with `manifest.json`, `graph_nodes.bin`, and `graph_edges.bin`.
+3. Upload that dataset to R2.
+4. Change `GRAPH_DATASET_ID`.
+5. Redeploy so the backend fetches the new dataset before boot.
 
-**Estimated Finland graph:**
-- Nodes: ~7–10 M (vs ~500 K for Helsinki)
-- Edges: ~15–20 M (vs ~1.5 M for Helsinki)
-- Binary size: ~600–900 MB total
-- KD-tree RAM: ~120–160 MB
-- A* memory per query: unchanged (mmap paging)
+This is safer than replacing Helsinki files in place because it preserves atomicity and rollback.
 
-No routing code changes required.
+### Rollback Story
+
+Versioned datasets also make rollback trivial:
+
+1. change `GRAPH_DATASET_ID` back to the previous version
+2. redeploy
+3. backend fetches previous dataset and boots against it
+
+That is much safer than overwriting one mutable pair of object names.
 
 ---
 
-### Phase 3: Spatial Tiling (Only If Needed)
+## Phase 3: Spatial Tiling Only If Single-Binary Fails
 
-If graph size exceeds R2 or RAM limits (unlikely at Finland scale), tiles become relevant:
+Spatial tiling is still the last resort.
 
-- Divide Finland into ~15 regional tiles by maakunta (Uusimaa, Varsinais-Suomi, Pirkanmaa, etc.)
-- Each tile ~40–80 MB, loaded on demand, cached in memory
-- Cross-tile routing: use an overlap buffer zone per tile (simpler than border-node stitching)
+It should only happen if a single Finland-scale dataset proves insufficient due to:
 
-This is significantly more complex and is **not recommended until Finland single-binary proves insufficient**.
+- startup time
+- disk limits
+- RAM pressure from snap structures
+- unacceptable operational complexity around large artifact downloads
+
+Until that is demonstrated, a single versioned binary pair is the simpler and more robust architecture.
+
+---
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Partial download | Process boots against corrupt dataset | Download to staging, verify checksums, promote only when complete |
+| Nodes/edges mismatch | Undefined routing behavior | Treat both files as one manifest-defined dataset |
+| In-place object replacement | Race between versions | Use versioned dataset paths in R2 |
+| Slow cold starts | Longer deploy availability window | Accept initially; add persistent disk later if needed |
+| Backend starts before fetch completes | Native addon init failure | Use startup wrapper; do not start Node until fetch succeeds |
 
 ---
 
 ## Decision Summary
 
-| Approach | Cost | Code Changes | Performance |
-|---|---|---|---|
-| **R2 + current mmap** (Phase 1) | $0 | Low | Excellent |
-| **R2 + Finland binary** (Phase 2) | $0 storage + $7 Render (already paying) | Data pipeline only | Excellent |
-| Render persistent disk (optional) | +$0.20/mo | render.yaml only | Excellent (no cold-start download) |
-| Spatial tiling (Phase 3) | $0 | High | Good |
-| Git LFS | Free (limited bandwidth) | Low | Not recommended |
+| Approach | Cost | Code Changes | Operational Risk | Recommendation |
+|---|---|---|---|---|
+| **R2 + startup fetch/verify + current mmap** | Low | Low | Low | **Recommended now** |
+| **R2 + Finland single-binary dataset** | Low | Low | Medium | **Recommended when ready** |
+| Render persistent disk | Low | Very low | Lower cold-start risk | Optional optimization |
+| Spatial tiling | Higher complexity | High | High | Only if single-binary fails |
+| Git LFS | Limited relief | Low | Medium | Not recommended |
+
+---
+
+## Bottom Line
+
+The migration to R2 is viable and aligns with the backend architecture, but the correct model is not “object storage plus opportunistic download.”
+
+The correct model is:
+
+`versioned graph dataset in object storage -> verified local materialization before boot -> native startup against one fixed dataset`
+
+That keeps the current route-first graph ownership intact while removing graph binaries from git and making Finland-scale growth operationally manageable.
