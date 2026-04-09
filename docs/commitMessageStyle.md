@@ -80,4 +80,5 @@ See `docs/gitWorkFlow.md` for the full interactive rebase workflow.
 | `docs`     | documentation only                          |
 | `style`    | formatting, no logic change                 |
 | `tests`    | tests only                                  |
+| `dev`      |  dev features                               |
 | `WIP`      | work in progress — always uppercase, no scope, squash before merge |

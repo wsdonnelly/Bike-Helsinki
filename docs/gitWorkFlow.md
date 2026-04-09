@@ -7,7 +7,7 @@
 - Merge finished work cleanly back into `master`
 
 ## branch naming convention
-Valid types: `feat`, `fix`, `refactor`, `tests`, `chore`, `docs`, `style`
+Valid types: `feat`, `fix`, `refactor`, `tests`, `chore`, `docs`, `style`, 'dev'
 - feat/<name>
 - fix/<name>
 - refactor/<name>
@@ -15,6 +15,7 @@ Valid types: `feat`, `fix`, `refactor`, `tests`, `chore`, `docs`, `style`
 - chore/<name>
 - docs/<name>
 - style/<name>
+- dev/<name>
 
 `wip` is not a valid branch type — use WIP commits on a properly typed branch instead.
 

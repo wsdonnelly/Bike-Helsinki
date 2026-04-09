@@ -5,7 +5,7 @@ case "$BRANCH" in
   master|main|"") exit 0 ;;
 esac
 
-if ! echo "$BRANCH" | grep -qE '^(feat|fix|refactor|tests|chore|docs|style)/.{5,}$'; then
+if ! echo "$BRANCH" | grep -qE '^(feat|fix|refactor|tests|chore|docs|style|dev)/.{5,}$'; then
   echo "Push blocked: branch name '$BRANCH' does not follow type/name convention."
   echo "Valid types: feat, fix, refactor, tests, chore, docs, style"
   echo "Name must be at least 5 characters."
