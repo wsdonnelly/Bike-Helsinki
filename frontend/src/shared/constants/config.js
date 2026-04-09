@@ -10,3 +10,4 @@ export const API_TIMEOUT_MS = 15_000;
 export const PENALTY_SLIDER_MAX = 300;
 export const LOCATE_FLY_ZOOM = 15;
 export const TRIP_FLY_ZOOM = 18;
+export const PREVIEW_TRIP_SPEED_KMH = 20;

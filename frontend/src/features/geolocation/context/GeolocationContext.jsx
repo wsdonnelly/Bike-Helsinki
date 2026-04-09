@@ -12,15 +12,24 @@ const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 };
 const GeolocationContext = createContext(null);
 
 export function GeolocationProvider({ children }) {
-  const [position, setPosition] = useState(null);
+  const [realPosition, setRealPosition] = useState(null);
+  const [positionOverride, setPositionOverrideState] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [isTripActive, setIsTripActive] = useState(false);
   const [error, setError] = useState(null);
   const watchIdRef = useRef(null);
+  const positionOverrideRef = useRef(null);
+
+  const position = positionOverride ?? realPosition;
+
+  const setPositionOverride = useCallback((pos) => {
+    positionOverrideRef.current = pos;
+    setPositionOverrideState(pos);
+  }, []);
 
   const onSuccess = useCallback((pos) => {
     const { latitude, longitude, accuracy, heading, speed } = pos.coords;
-    setPosition({ lat: latitude, lon: longitude, accuracy, heading, speed });
+    setRealPosition({ lat: latitude, lon: longitude, accuracy, heading, speed });
     setError(null);
   }, []);
 
@@ -35,6 +44,10 @@ export function GeolocationProvider({ children }) {
   }, []);
 
   const startLocating = useCallback(() => {
+    if (positionOverrideRef.current) {
+      setIsLocating(true);
+      return;
+    }
     if (!navigator.geolocation) {
       setError("Geolocation is not supported by your browser.");
       return;
@@ -49,9 +62,11 @@ export function GeolocationProvider({ children }) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+    positionOverrideRef.current = null;
+    setPositionOverrideState(null);
     setIsLocating(false);
     setIsTripActive(false);
-    setPosition(null);
+    setRealPosition(null);
     setError(null);
   }, []);
 
@@ -68,7 +83,7 @@ export function GeolocationProvider({ children }) {
 
   return (
     <GeolocationContext.Provider
-      value={{ position, isLocating, isTripActive, error, startLocating, stopLocating, startTrip, stopTrip }}
+      value={{ position, isLocating, isTripActive, error, startLocating, stopLocating, startTrip, stopTrip, setPositionOverride }}
     >
       {children}
     </GeolocationContext.Provider>

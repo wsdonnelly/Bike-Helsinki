@@ -5,6 +5,7 @@ import { ControlPanel, RouteSettingsProvider } from "@/features/routeSettings";
 import { InfoWindow, useInfoWindow } from "@/features/infoWindow";
 import { ErrorBoundary } from "@/shared";
 import { GeolocationProvider } from "@/features/geolocation";
+import { DEV_TOOLS_ENABLED, PreviewTripProvider, PreviewTripSlider } from "@/features/devTools";
 
 function AppContent() {
   const { snappedStart, snappedEnd, routeCoords, routeModes, actions } =
@@ -26,6 +27,8 @@ function AppContent() {
       <ControlPanel />
 
       <InfoWindow isVisible={infoVisible} onClose={closeInfo} />
+
+      {DEV_TOOLS_ENABLED && <PreviewTripSlider />}
     </>
   );
 }
@@ -36,7 +39,13 @@ export default function App() {
       <ErrorBoundary>
         <RouteSettingsProvider>
           <GeolocationProvider>
-            <AppContent />
+            {DEV_TOOLS_ENABLED ? (
+              <PreviewTripProvider>
+                <AppContent />
+              </PreviewTripProvider>
+            ) : (
+              <AppContent />
+            )}
           </GeolocationProvider>
         </RouteSettingsProvider>
       </ErrorBoundary>

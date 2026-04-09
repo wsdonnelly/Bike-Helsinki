@@ -3,6 +3,7 @@ import GlobeIcon from "./GlobeIcon";
 import TripIcon from "@/shared/components/Icons/TripIcon";
 import * as styles from "./ControlPanel.styles";
 import { UI_COLORS } from "@/shared/constants/colors";
+import { DEV_TOOLS_ENABLED, PreviewTripButton } from "@/features/devTools";
 
 export default function PanelToolbar({
   title,
@@ -50,6 +51,10 @@ export default function PanelToolbar({
           </button>
         )}
       </div>
+
+      {DEV_TOOLS_ENABLED && !isTripActive && (
+        <PreviewTripButton onAfterTripStart={onAfterTripStart} />
+      )}
 
       {showTrip && (
         <div style={tripContainerStyle ?? { marginBottom: 12 }}>
