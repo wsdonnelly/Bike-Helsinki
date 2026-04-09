@@ -80,6 +80,7 @@ export default function DesktopSidebar() {
             onToggleSatView={toggleSatView}
             isTripActive={isTripActive}
             isLocating={isLocating}
+            snappedEnd={snappedEnd}
             geoError={geoError}
             startLocating={startLocating}
             startTrip={startTrip}

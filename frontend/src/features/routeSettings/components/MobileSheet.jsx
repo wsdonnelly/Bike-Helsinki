@@ -118,6 +118,7 @@ export default function MobileSheet() {
             onToggleSatView={toggleSatView}
             isTripActive={isTripActive}
             isLocating={isLocating}
+            snappedEnd={snappedEnd}
             geoError={geoError}
             startLocating={startLocating}
             startTrip={startTrip}
