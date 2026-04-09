@@ -119,6 +119,20 @@ export function RouteProvider({ children }) {
     [snappedStart, snappedEnd, resolveAddress, resetStats]
   );
 
+  const setEndFromMapClick = useCallback(
+    async ({ lat, lon }) => {
+      try {
+        const snapped = await backend.snapToGraph(lat, lon);
+        const snappedNoAddr = { ...snapped, address: null };
+        setSnappedEnd(snappedNoAddr);
+        resolveAddress("end", snappedNoAddr);
+      } catch (e) {
+        console.error("Snap error:", e);
+      }
+    },
+    [resolveAddress]
+  );
+
   const handleMarkerDragEnd = useCallback(
     async (endpoint, { lat, lon }) => {
       try {
@@ -222,6 +236,7 @@ export function RouteProvider({ children }) {
   const actions = useMemo(
     () => ({
       handleMapClick,
+      setEndFromMapClick,
       handleMarkerDragEnd,
       fetchRoute,
       searchAddress,
@@ -229,7 +244,7 @@ export function RouteProvider({ children }) {
       setPointFromAddress,
       setPointFromCoords,
     }),
-    [handleMapClick, handleMarkerDragEnd, fetchRoute, searchAddress, setPointFromHit, setPointFromAddress, setPointFromCoords]
+    [handleMapClick, setEndFromMapClick, handleMarkerDragEnd, fetchRoute, searchAddress, setPointFromHit, setPointFromAddress, setPointFromCoords]
   );
 
   const value = useMemo(

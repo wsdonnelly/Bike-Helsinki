@@ -63,6 +63,7 @@ export function MapView({
   const { position, isTripActive, isLocating } = useGeolocation();
   const { snappedStartSource } = useRoute();
   const gpsLockedStart = isLocating && snappedStartSource === "gps";
+  const tLocked = isLocating && isTripActive && !panelOpen;
   const isMobile = useIsMobile();
   const mapRef = useRef(null);
 
@@ -127,7 +128,7 @@ export function MapView({
           longitude={snappedEnd.lon}
           latitude={snappedEnd.lat}
           anchor="bottom"
-          draggable
+          draggable={!tLocked}
           style={{ zIndex: 1000 }}
           onDragStart={() => setDragging("end")}
           onDragEnd={(e) => {
@@ -141,7 +142,7 @@ export function MapView({
             src={"data:image/svg+xml;charset=UTF-8," + encodeURIComponent(endSvg)}
             width={32}
             height={37}
-            style={{ display: "block", cursor: "grab" }}
+            style={{ display: "block", cursor: tLocked ? "default" : "grab" }}
             alt="End"
           />
         </Marker>

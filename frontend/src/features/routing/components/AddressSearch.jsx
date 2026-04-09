@@ -82,6 +82,7 @@ export default function AddressSearch() {
   };
 
   async function setFromQuery(which) {
+    if (which === "start" && isLocating) return;
     const q = which === "start" ? startSearch.query : endSearch.query;
     if (!q.trim()) return;
     const res = await actions.setPointFromAddress(q, which);
@@ -94,6 +95,7 @@ export default function AddressSearch() {
 
   async function setFromResultList(which, hit) {
     if (!hit) return;
+    if (which === "start" && isLocating) return;
     clearTimeout(blurTimeoutRef.current);
     await actions.setPointFromHit(hit, which);
     if (which === "start") startSearch.setQuery(hit.display_name);
@@ -126,7 +128,7 @@ export default function AddressSearch() {
           placeholder="Click map or search start address..."
           isSet={!!snappedStart}
           pointType="start"
-          disabled={disabled}
+          disabled={disabled || isLocating}
         />
       </div>
 
