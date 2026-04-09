@@ -125,6 +125,7 @@ export default function AddressSearch() {
             if (isLocating) stopLocating();
           }}
           onLocate={handleLocateStart}
+          locateActive={isLocating}
           placeholder="Click map or search start address..."
           isSet={!!snappedStart}
           pointType="start"

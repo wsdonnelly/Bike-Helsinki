@@ -73,6 +73,7 @@ export default function SearchField({
   onEscape,
   onEmpty,
   onLocate,
+  locateActive,
   placeholder,
   isSet,
   pointType,
@@ -107,12 +108,17 @@ export default function SearchField({
           type="button"
           onMouseDown={(e) => { e.preventDefault(); onLocate(); }}
           style={{
-            border: "none", background: "transparent", cursor: "pointer",
-            padding: "0 6px", color: "#2196f3",
+            border: "none", cursor: "pointer",
+            padding: "0 8px",
             display: "flex", alignItems: "center", flexShrink: 0,
+            borderRadius: 6,
+            background: locateActive ? "#2196f3" : "transparent",
+            color: locateActive ? "#fff" : "#2196f3",
+            transition: "background 0.15s, color 0.15s",
           }}
-          title="Use current location"
-          aria-label="Use current location"
+          title={locateActive ? "Stop using current location" : "Use current location"}
+          aria-label={locateActive ? "Stop using current location" : "Use current location"}
+          aria-pressed={locateActive}
         >
           <LocateIcon />
         </button>
