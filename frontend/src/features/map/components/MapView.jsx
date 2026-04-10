@@ -6,8 +6,8 @@ import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteSettingsContext";
 import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 import { useRoute } from "@/context/RouteContext";
-import { LocationMarker, TripController } from "@/features/navigation";
-import { useFitBounds } from "@/features/map/hooks/useFitBounds";
+import { LocationMarker } from "@/features/navigation";
+import { useMapCamera } from "@/features/map/hooks/useMapCamera";
 import { RoutePolylines } from "./RoutePolylines";
 
 const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
@@ -72,11 +72,10 @@ export function MapView({
 
   const [dragging, setDragging] = useState(null);
 
-  const { fitBoundsOnDrag } = useFitBounds({
+  const { fitBoundsOnDrag } = useMapCamera({
     mapRef, snappedStart, snappedEnd, routeCoords, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight,
+    isLocating, position, bearing: position?.heading ?? null,
   });
-
-  const bearing = isTripActive && position?.heading != null ? position.heading : 0;
 
   return (
     <Map
@@ -88,7 +87,6 @@ export function MapView({
         latitude: 60.1699,
         zoom: 15,
       }}
-      bearing={bearing}
       style={{ height: "100dvh", width: "100vw" }}
       minZoom={8}
       maxZoom={18}
@@ -151,7 +149,6 @@ export function MapView({
       <RoutePolylines routeCoords={routeCoords} routeModes={routeModes} dragging={dragging} />
 
       <LocationMarker />
-      <TripController mapRef={mapRef} />
     </Map>
   );
 }

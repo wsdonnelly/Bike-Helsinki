@@ -1,20 +1,31 @@
 import { useEffect, useRef, useCallback } from "react";
-import { MOBILE_SHEET_HEIGHT_PX } from "@/shared/constants/config";
+import { MOBILE_SHEET_HEIGHT_PX, LOCATE_FLY_ZOOM, TRIP_FLY_ZOOM } from "@/shared/constants/config";
 import { computePadding, fitRouteBounds, fitCurrentRoute } from "@/features/map/utils/cameraGeometry";
 
-export function useFitBounds({
+export function useMapCamera({
   mapRef,
   snappedStart,
   snappedEnd,
   routeCoords,
   isMobile,
   panelOpen,
-  isTripActive,
   routeFitTick,
   getSheetVisibleHeight,
+  isTripActive,
+  isLocating,
+  position,
+  bearing,
 }) {
+  const cameraMode = isTripActive && !panelOpen ? "navigation" : "planning";
+
   const prevStartIdx = useRef(null);
   const prevEndIdx = useRef(null);
+  const hasCenteredOnLocateRef = useRef(false);
+  const hasCenteredRef = useRef(false);
+  const lastFlyRef = useRef(0);
+  const prevPanelOpenRef = useRef(panelOpen);
+
+  // --- Planning effects ---
 
   // Fit when either endpoint changes (skips if both indices are unchanged)
   useEffect(() => {
@@ -33,10 +44,6 @@ export function useFitBounds({
     if (bounds.contains([snappedStart.lon, snappedStart.lat]) &&
         bounds.contains([snappedEnd.lon, snappedEnd.lat])) return;
     fitRouteBounds(map, snappedStart, snappedEnd, computePadding(false, panelOpen));
-    // Intentional: dep on .idx primitives (not full objects) so the effect only fires
-    // when endpoint identity changes, not on every render that touches the objects.
-    // panelOpen/isMobile are read as stable-enough closure values — they change rarely
-    // and the [panelOpen] effect below handles the panel-toggle case.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
@@ -70,17 +77,25 @@ export function useFitBounds({
     fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(false, panelOpen));
   }, [routeCoords, panelOpen, isMobile, isTripActive, mapRef, snappedStart, snappedEnd, getSheetVisibleHeight]);
 
-  // Refit when panel open state changes.
-  // Trip mode: TripController owns the camera on panel-close (zoom to GPS), so skip
-  // fit-to-route on panel-close when a trip is active. On panel-open during a trip,
-  // mobile needs an explicit refit (normally it only refits on panel-close).
+  // Refit on panel toggle, with navigation-aware branching
   useEffect(() => {
-    if (!snappedStart || !snappedEnd) return;
+    const wasOpen = prevPanelOpenRef.current;
+    prevPanelOpenRef.current = panelOpen;
+
     const map = mapRef.current;
     if (!map) return;
+
+    // Panel closed during active trip: resume follow-camera
+    if (wasOpen && !panelOpen && isTripActive && position) {
+      map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500 });
+      if (bearing != null) map.rotateTo(bearing, { duration: 500 });
+      return;
+    }
+
+    // Planning: refit route on panel open/close
+    if (!snappedStart || !snappedEnd) return;
     if (isMobile) {
       if (panelOpen) {
-        // Mobile panel opened during trip: show full route so user can edit
         if (!isTripActive) return;
         const savedStart = snappedStart;
         const savedEnd = snappedEnd;
@@ -98,31 +113,63 @@ export function useFitBounds({
         }, 0);
         return;
       }
-      // Mobile panel closed: TripController handles the camera when trip is active
       if (isTripActive) return;
       fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(true, false));
       return;
     }
-    // Desktop panel closed during trip: TripController zooms back to GPS
     if (!panelOpen && isTripActive) return;
     fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(false, panelOpen));
-    // Intentional: reads snappedStart/snappedEnd/isTripActive/getSheetVisibleHeight as stale
-    // closures — none of these change between the panel toggle and this effect running.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panelOpen]);
 
-  // Mobile explicit refit: triggered by Preferences tab, Apply, and Stop Trip
+  // Mobile explicit refit tick
   useEffect(() => {
     if (routeFitTick === 0 || !snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
     fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd,
       computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
-    // Intentional: reads snappedStart/snappedEnd/getSheetVisibleHeight as stable closure —
-    // the tick counter is the only meaningful trigger; adding the others would cause
-    // spurious refits on every endpoint update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeFitTick]);
+
+  // --- Navigation effects ---
+
+  // Effect A: One-shot locate fly-to
+  useEffect(() => {
+    if (!isLocating || !position || hasCenteredOnLocateRef.current) return;
+    mapRef.current?.flyTo({ center: [position.lon, position.lat], zoom: LOCATE_FLY_ZOOM, duration: 800 });
+    hasCenteredOnLocateRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, isLocating]);
+
+  useEffect(() => {
+    if (!isLocating) hasCenteredOnLocateRef.current = false;
+  }, [isLocating]);
+
+  // Effect B: Navigation follow camera
+  useEffect(() => {
+    if (cameraMode !== "navigation" || !position) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const now = Date.now();
+    if (!hasCenteredRef.current) {
+      map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500 });
+      hasCenteredRef.current = true;
+      lastFlyRef.current = now;
+      return;
+    }
+    if (now - lastFlyRef.current < 1000) return;
+    map.flyTo({ center: [position.lon, position.lat], zoom: map.getZoom(), duration: 300 });
+    if (bearing != null) map.rotateTo(bearing, { duration: 300 });
+    lastFlyRef.current = now;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, cameraMode]);
+
+  useEffect(() => {
+    if (!isTripActive) hasCenteredRef.current = false;
+  }, [isTripActive]);
+
+  // --- Drag helper ---
 
   const fitBoundsOnDrag = useCallback((a, b) => {
     const map = mapRef.current;
