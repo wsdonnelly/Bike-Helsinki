@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { MOBILE_SHEET_HEIGHT_PX, LOCATE_FLY_ZOOM, TRIP_FLY_ZOOM } from "@/shared/constants/config";
+import { MOBILE_SHEET_HEIGHT_PX, LOCATE_FLY_ZOOM, TRIP_FLY_ZOOM, NAVIGATION_BOTTOM_PADDING_RATIO } from "@/shared/constants/config";
 import { computePadding, fitRouteBounds, fitCurrentRoute } from "@/features/map/utils/cameraGeometry";
 
 export function useMapCamera({
@@ -153,15 +153,16 @@ export function useMapCamera({
     if (cameraMode !== "navigation" || !position) return;
     const map = mapRef.current;
     if (!map) return;
+    const navPadding = { top: 0, right: 0, bottom: Math.round(map.transform.height * NAVIGATION_BOTTOM_PADDING_RATIO), left: 0 };
     const now = Date.now();
     if (!hasCenteredRef.current) {
-      map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500 });
+      map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500, padding: navPadding });
       hasCenteredRef.current = true;
       lastFlyRef.current = now;
       return;
     }
     if (now - lastFlyRef.current < 1000) return;
-    map.flyTo({ center: [position.lon, position.lat], zoom: map.getZoom(), duration: 300 });
+    map.flyTo({ center: [position.lon, position.lat], zoom: map.getZoom(), duration: 300, padding: navPadding });
     if (bearing != null) map.rotateTo(bearing, { duration: 300 });
     lastFlyRef.current = now;
     // eslint-disable-next-line react-hooks/exhaustive-deps
