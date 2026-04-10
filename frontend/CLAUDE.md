@@ -35,7 +35,9 @@ src/
 │   │   │   ├── MapView.jsx         # MapLibre map (via react-map-gl), markers, tile styles
 │   │   │   └── RoutePolylines.jsx  # Route GeoJSON Source/Layer sets (3 mode types + fallback)
 │   │   ├── hooks/
-│   │   │   └── useFitBounds.js     # All fit-bounds effects + fitBoundsOnDrag callback
+│   │   │   └── useMapCamera.js     # Unified camera controller: planning fit + navigation follow + locate fly-to
+│   │   ├── utils/
+│   │   │   └── cameraGeometry.js   # Pure helpers: computePadding, fitRouteBounds, fitPolylineBounds, fitCurrentRoute
 │   │   └── index.js
 │   ├── routeSettings/
 │   │   ├── components/
@@ -66,8 +68,7 @@ src/
 │   │   ├── context/
 │   │   │   └── GeolocationContext.jsx      # GPS watch + trip state: position, isLocating, isTripActive
 │   │   ├── components/
-│   │   │   ├── LocationMarker.jsx          # Accuracy circle (GeoJSON Source/Layer) + blue dot Marker
-│   │   │   └── TripController.jsx          # No render; flies to position on location start / trip start via mapRef
+│   │   │   └── LocationMarker.jsx          # Accuracy circle (GeoJSON Source/Layer) + blue dot Marker
 │   │   └── index.js
 │   └── infoWindow/
 │       ├── components/
@@ -106,7 +107,7 @@ main.jsx
                 └── GeolocationProvider   ← GPS position watch and trip active state
                     └── AppContent (useRoute, useInfoWindow)
                         ├── MapView       ← consumes useRouteSettingsContext for isSatView;
-                        │                    renders LocationMarker + TripController
+                        │                    renders LocationMarker; camera owned by useMapCamera
                         ├── ControlPanel  ← zero props; consumes context internally
                         └── InfoWindow
 ```
@@ -126,10 +127,10 @@ main.jsx
 
 - **`RouteSettingsContext` (`RouteSettingsProvider` / `useRouteSettingsContext()`)** — panel UI state:
   - `panelOpen`, `draftMask`, `draftPenalty`, `isSatView` — local before Apply
-  - `routeFitTick` / `triggerRouteFit()` — counter incremented to signal `useFitBounds` to refit
+  - `cameraRefitTick` / `triggerCameraRefit()` — counter incremented to signal `useMapCamera` to refit (mobile sheet interactions that don't produce a route/panel-state change)
   - `setSheetHeight(h)` — called by MobileSheet's ResizeObserver; updates internal ref only (no state re-render)
   - `setSheetOffset(offset)` — stores the current dragged sheet offset
-  - `getSheetVisibleHeight()` — stable accessor for currently visible sheet height; consumed by `useFitBounds`
+  - `getSheetVisibleHeight()` — stable accessor for currently visible sheet height; consumed by `useMapCamera`
   - Handlers: `applySettings`, `toggleDraftBit`, `toggleSatView`, etc.
   - Lives at `src/features/routeSettings/context/RouteSettingsContext.jsx`
   - `useRouteSettings()` is an alias for `useRouteSettingsContext()` (backwards compat)
@@ -172,27 +173,30 @@ Routes are rendered by `RoutePolylines` (`src/features/map/components/RoutePolyl
 ### Geocoding HTTP Client
 `digitransit.js` uses its **own** dedicated Axios instance (not `http.js`), because Digitransit is an external service with a different base URL. Both `searchAddresses` and `reverseGeocode` accept a `signal` parameter for AbortController support. Both functions normalise Digitransit GeoJSON responses to a consistent internal format: `{ place_id, display_name, lat, lon, address }`.
 
-### Map Bounds Fitting
-`useFitBounds` uses three `useEffect` hooks to manage the viewport:
-1. When both endpoints are set: calls `map.fitBounds()` with padding that accounts for the sidebar (desktop) or bottom sheet (mobile).
-2. When the panel open state changes: re-fits bounds so the panel or sheet does not obscure the route.
-3. When `routeFitTick` changes: performs explicit mobile refits for tab/apply/trip flows.
+### Map Camera Control
+All camera decisions live in `src/features/map/hooks/useMapCamera.js`. `MapView` calls `useMapCamera(...)` and receives a `fitBoundsOnDrag` callback for marker drag handlers. Pure geometry helpers (`computePadding`, `fitRouteBounds`, `fitPolylineBounds`, `fitCurrentRoute`) live in `src/features/map/utils/cameraGeometry.js`.
+
+The hook derives an explicit camera mode: `isTripActive && !panelOpen ? "navigation" : "planning"`.
+
+**Planning effects** (active in all non-navigation states):
+- **Endpoint change** (fires on `snappedStart?.idx` / `snappedEnd?.idx`): fits the route when either endpoint changes identity. Desktop fits only when at least one endpoint is outside the viewport; mobile fits only when the panel is closed.
+- **Route/panel change**: refits when `routeCoords`, `panelOpen`, `isMobile`, or `isTripActive` changes. Skips when navigation follow-camera owns the viewport.
+- **`cameraRefitTick`** (mobile explicit refit): triggered by tab switches, Apply, and stop-trip. Uses measured sheet height with `MOBILE_SHEET_HEIGHT_PX` as fallback.
+
+**Navigation effects**:
+- **Locate fly-to**: one-shot `flyTo` at `LOCATE_FLY_ZOOM = 15` when `isLocating` activates; flag resets when locate stops.
+- **Trip follow**: first entry `flyTo` at `TRIP_FLY_ZOOM = 18`; subsequent updates at 1s throttle. Heading rotation is imperative (`map.rotateTo(bearing)`) — no controlled `bearing` prop on `<Map>`.
+- **Panel toggle**: single effect with explicit branching — panel-close during a trip resumes follow-camera immediately; all other cases refit the route.
+
+The `bearing` parameter is source-agnostic: `MapView` passes `position?.heading ?? null` today; Phase 3a swaps this for a route-derived bearing in one line.
 
 Padding constants (`SIDEBAR_WIDTH_PX` etc.) come from `src/shared/constants/config.js`.
-
-### Imperative Map Control
-`TripController` receives `mapRef` as a prop (passed from `MapView`). All viewport changes are made imperatively:
-- On `isLocating` start: `mapRef.current.flyTo({ center, zoom: 15 })`
-- On `isTripActive` start: zoom to 18 and continuously track position (1s debounce)
-- Uses `mapRef.current.rotateTo()` for heading alignment during trip
 
 ### GPS-to-Start in AddressSearch
 When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the **start** `SearchField` only. Clicking the locate button calls `actions.setPointFromCoords(position.lat, position.lon, "start")`, snapping the current GPS position as the route start point. The end field never receives `onLocate`.
 
 ### Geolocation & Trip Tracking
-`TripController` is a renderless component inside the map that uses `mapRef` to imperatively control the viewport (see above).
-
-`LocationMarker` renders the accuracy radius as a GeoJSON polygon via `Source`/`Layer` and the blue dot position as a `Marker` from `react-map-gl/maplibre`.
+`LocationMarker` renders the accuracy radius as a GeoJSON polygon via `Source`/`Layer` and the blue dot position as a `Marker` from `react-map-gl/maplibre`. Camera behavior during trips is owned by `useMapCamera` (see above).
 
 ### Responsive Layout
 `useIsMobile()` (breakpoint: 640px / `MOBILE_BREAKPOINT_PX`) switches the ControlPanel between:
@@ -200,27 +204,6 @@ When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the *
 - **Mobile**: `MobileSheet` — scrollable bottom sheet (max-height 85vh) with tab nav ("Planner" / "Preferences")
 
 Both layout components consume `useRouteSettingsContext()` and `useRoute()` directly — zero props from ControlPanel.
-
-### Map Viewport / Fit-Bounds Behavior
-All fit-bounds logic lives in `src/features/map/hooks/useFitBounds.js`. `MapView` calls `useFitBounds(...)` and receives a `fitBoundsOnDrag` callback for marker drag handlers.
-
-The hook contains three `useEffect` triggers:
-
-**1. Endpoint change** (fires on `snappedStart?.idx` / `snappedEnd?.idx`):
-- Skips if both indices are unchanged (guards against re-renders).
-- Desktop: fits only when at least one endpoint is outside the current viewport. Left pad = `SIDEBAR_WIDTH_PX + 80` when panel open, `80` otherwise.
-- Mobile: fits only when panel is **closed**. Symmetric `80px` padding — full screen available.
-
-**2. Panel open/close** (fires on `panelOpen`):
-- Desktop panel **opens**: refit with sidebar padding so the route uses the new available space.
-- Mobile panel **closes** (drag-down dismiss): refit with symmetric `80px` padding — full screen is now available.
-
-**3. `routeFitTick`** (mobile explicit refit):
-- Triggered by: switching to the Preferences tab, pressing Apply (both tabs), stopping a trip.
-- Uses `getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX` + 10px as bottom padding, keeping the lower marker clear of the sheet edge.
-- Callers that switch tabs (Preferences tab click, Planner Apply) defer via `setTimeout(0)` so the ResizeObserver can update the sheet height before the effect reads it.
-
-**`fitBoundsOnDrag`** — returned from the hook; used by both marker drag handlers on mobile. Same visible-sheet bottom padding as `routeFitTick`.
 
 Sheet height is measured dynamically via `ResizeObserver` in `MobileSheet`, while the current drag offset is tracked separately. `RouteSettingsContext` derives visible sheet height from those two refs via `setSheetHeight`, `setSheetOffset`, and `getSheetVisibleHeight()`. No state is involved in those measurements, so the refs update without triggering re-renders. `MOBILE_SHEET_HEIGHT_PX` is the fallback used before the sheet has mounted.
 
@@ -318,7 +301,7 @@ These are places where the code deviates from its own established patterns, or w
 `satBtn(active)` added to `ControlPanel.styles.js`, consistent with `locationBtn(active)` and `tripBtn(active)` pattern.
 
 ### ~~d. MapView size~~ (resolved)
-Route GeoJSON layers extracted to `RoutePolylines.jsx` (3 mode-typed `Source`/`Layer` sets + fallback). `MapView.jsx` now handles only map init, markers, tile-style, and geolocation subcomponents. `computePadding` helper added to `useFitBounds` to eliminate repeated padding object literals.
+Route GeoJSON layers extracted to `RoutePolylines.jsx`. Camera logic (planning fit + navigation follow) consolidated into `useMapCamera`. `MapView.jsx` now handles only map init, markers, and tile-style.
 
 ### e. RouteContext remains the main orchestration bottleneck
 Reverse-geocoding block (AbortController, debounce, address reconciliation) has been extracted to `src/context/hooks/useReverseGeocoding.js`, which helped. But `RouteContext` still owns config loading, endpoint mutation, route fetching, applied settings, totals, and search/GPS helper actions, so it remains the largest frontend state module.

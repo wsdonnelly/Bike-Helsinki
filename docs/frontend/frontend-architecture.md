@@ -208,13 +208,12 @@ Responsibilities:
 
 [`frontend/src/features/map/components/RoutePolylines.jsx`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/components/RoutePolylines.jsx) converts route coordinates plus backend-provided segment mode bits into colored GeoJSON layers.
 
-[`frontend/src/features/map/hooks/useFitBounds.js`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/hooks/useFitBounds.js) owns camera fitting rules and contains special cases for:
+[`frontend/src/features/map/hooks/useMapCamera.js`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/hooks/useMapCamera.js) owns all camera decisions. It derives an explicit camera mode (`planning` vs `navigation`) and handles:
 
-- mobile vs desktop
-- sheet/sidebar visibility
-- trip mode
-- explicit refit triggers
-- marker drag refits
+- planning-mode route fitting (endpoint changes, route redraws, panel toggles, mobile sheet refits)
+- navigation follow-camera (locate fly-to, trip follow with 1s throttle, heading rotation, panel-close resume)
+
+Pure geometry helpers live in [`frontend/src/features/map/utils/cameraGeometry.js`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/utils/cameraGeometry.js).
 
 This feature is presentation-heavy, but it still contains meaningful UI orchestration in camera management.
 
@@ -259,9 +258,8 @@ Mobile adds extra complexity through a draggable bottom sheet and explicit route
 The navigation feature owns the map-rendering side of GPS:
 
 - [`LocationMarker`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/LocationMarker.jsx) renders the live position and accuracy polygon
-- [`TripController`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/TripController.jsx) owns camera-follow behavior during locate/trip modes
 
-Both components consume `GeolocationContext` for position data but live in `navigation/` because they are rendering and camera concerns, not GPS data concerns.
+`LocationMarker` consumes `GeolocationContext` for position data and lives in `navigation/` because it is a rendering concern, not a GPS data concern. Camera-follow behavior during locate/trip modes is owned by `useMapCamera` in the `map` feature.
 
 ### Info Window
 
@@ -314,15 +312,9 @@ That keeps wiring simple, but it also means many unrelated UI features depend on
 
 This is workable, but it makes the folder structure less truthful than the runtime architecture.
 
-### Camera Logic Is Distributed Across Multiple Places
+### ~~Camera Logic Is Distributed Across Multiple Places~~ (resolved)
 
-Map camera behavior is split between:
-
-- [`useFitBounds`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/hooks/useFitBounds.js)
-- [`TripController`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/TripController.jsx)
-- route-settings-triggered refit ticks
-
-The result is functional, but camera ownership is implicit rather than centralized.
+Camera ownership is now centralized in [`useMapCamera`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/hooks/useMapCamera.js). The previous split across `useFitBounds`, `TripController`, and ad-hoc refit ticks has been replaced with a single hook that derives an explicit camera mode and owns all viewport transitions.
 
 ### Some Effects Depend On Lint Suppressions And Closure Assumptions
 

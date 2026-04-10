@@ -41,7 +41,7 @@ With the control panel closed, navigation uses a follow-camera:
 
 - center on the current real or preview position
 - use navigation zoom
-- see @docs/plans/location-tracing-roadmap.md -> Phase 3 — Route-Oriented Navigation View
+- see @docs/plans/location-tracking-roadmap.md -> Phase 3 — Route-Oriented Navigation View
 
 When the control panel opens during navigation, navigation is paused from a camera perspective. The camera should stop following the current position and should behave exactly like planning mode until the panel is closed again.
 
@@ -236,25 +236,20 @@ For this camera contract, the important rule is simpler:
 - panel-open still uses planning-style route fit
 - panel-close should only resume follow-camera once navigation state is valid again under the future trip-restart design
 
-## Target Architecture
+## Implementation
 
-The target implementation should centralize camera decisions into one controller or hook.
+Camera decisions are centralized in `frontend/src/features/map/hooks/useMapCamera.js`.
 
-That controller should own:
+That hook owns:
 
-- camera mode derivation
+- camera mode derivation (`planning` vs `navigation`)
 - route-fit padding calculation
 - planning-mode fit triggers
 - navigation-mode follow behavior
 - panel-open and panel-close transitions
+- locate fly-to
 
-The app should move away from split ownership across:
-
-- `useFitBounds`
-- `TripController`
-- UI-specific imperative refit ticks
-
-Geometry helpers may remain separate, but camera ownership should not.
+Pure geometry helpers (`computePadding`, `fitRouteBounds`, `fitPolylineBounds`, `fitCurrentRoute`) live in `frontend/src/features/map/utils/cameraGeometry.js`.
 
 ## Acceptance Criteria
 
