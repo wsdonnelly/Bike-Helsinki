@@ -151,6 +151,11 @@ export function useMapCamera({
     if (!isLocating) hasCenteredOnLocateRef.current = false;
   }, [isLocating]);
 
+  // Reset hasCenteredRef on snap-back so Effect B restores TRIP_FLY_ZOOM
+  useEffect(() => {
+    if (isFollowing && cameraMode === "navigation") hasCenteredRef.current = false;
+  }, [isFollowing, cameraMode]);
+
   // Effect B: Navigation follow camera
   useEffect(() => {
     if (cameraMode !== "navigation" || !position) return;
