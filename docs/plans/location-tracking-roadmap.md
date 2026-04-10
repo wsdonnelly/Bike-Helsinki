@@ -4,6 +4,8 @@
 
 The app has two fundamental modes: planning a route (selecting endpoints, choosing surfaces, viewing stats) and navigating the route (GPS following, camera tracking, real-time bearing). Today these are interleaved across features — trip camera logic lived in `geolocation/`, fit-bounds awareness of trip state lives in `map/`, and trip controls live in `routeSettings/`. Phase 1 (pin locking, GPS state gating, trip-aware fit-to-bounds) is complete. Phase 2a (extracting `features/navigation/`) is complete. This roadmap introduces navigation as a distinct feature and builds toward a full route-following experience.
 
+**Panel-open fit-bounds during active trip** was confirmed present in `useFitBounds.js` Effect 2 — no new code required. Desktop fits with left padding `SIDEBAR_WIDTH_PX + 80 = 400px`; mobile fits with bottom padding equal to measured sheet height. One minor mobile timing improvement is pending: defer the fit by one tick via `setTimeout(0)` so the ResizeObserver can update the sheet height before the fit fires (currently falls back to `MOBILE_SHEET_HEIGHT_PX = 320` on first open). File: `frontend/src/features/map/hooks/useFitBounds.js`, mobile branch of Effect 2 (lines 59-65).
+
 ## Two-mode mental model
 
 | Mode | What the user does | What the app does |
@@ -28,6 +30,8 @@ The transition points:
 ---
 
 ## Phase 2b — Preview Trip (Dev Tool)
+
+**Statue:** in progress, at this point I am trying to standardize and write a behavior contract for the global frontend camera behavior
 
 **Problem:** Route-oriented navigation (Phase 3) and out-of-bounds guardrails (Phase 4) are nearly impossible to validate from a desk without a way to drive a fake GPS position along a planned route. We also want a tool that other future map features can lean on for design and debugging.
 
