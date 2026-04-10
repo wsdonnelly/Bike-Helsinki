@@ -7,6 +7,7 @@ import { useRouteSettingsContext } from "@/features/routeSettings/context/RouteS
 import { useGeolocation } from "@/features/geolocation/context/GeolocationContext";
 import { useRoute } from "@/context/RouteContext";
 import { LocationMarker } from "@/features/navigation";
+import { useRouteProgress } from "@/features/navigation/hooks/useRouteProgress";
 import { useMapCamera } from "@/features/map/hooks/useMapCamera";
 import { RoutePolylines } from "./RoutePolylines";
 
@@ -72,9 +73,11 @@ export function MapView({
 
   const [dragging, setDragging] = useState(null);
 
+  const { bearing: routeBearing } = useRouteProgress({ routeCoords, position });
+
   const { fitBoundsOnDrag } = useMapCamera({
     mapRef, snappedStart, snappedEnd, routeCoords, isMobile, panelOpen, isTripActive, cameraRefitTick, getSheetVisibleHeight,
-    isLocating, position, bearing: position?.heading ?? null,
+    isLocating, position, bearing: routeBearing ?? position?.heading ?? null,
   });
 
   return (
