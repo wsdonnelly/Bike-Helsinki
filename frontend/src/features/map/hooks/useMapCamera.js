@@ -85,10 +85,12 @@ export function useMapCamera({
     const map = mapRef.current;
     if (!map) return;
 
-    // Panel closed during active trip: resume follow-camera
-    if (wasOpen && !panelOpen && isTripActive && position) {
-      map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500 });
-      if (bearing != null) map.rotateTo(bearing, { duration: 500 });
+    // Panel closed during active trip: reset hasCenteredRef so the navigation
+    // follow effect fires its "first entry" branch and flies to TRIP_FLY_ZOOM.
+    // Doing the flyTo here would be overridden by the follow effect (same render,
+    // runs after this one) using map.getZoom() instead of TRIP_FLY_ZOOM.
+    if (wasOpen && !panelOpen && isTripActive) {
+      hasCenteredRef.current = false;
       return;
     }
 
