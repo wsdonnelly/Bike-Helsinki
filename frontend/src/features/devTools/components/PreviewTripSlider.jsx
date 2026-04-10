@@ -15,7 +15,7 @@ export function PreviewTripSlider() {
     <div
       style={{
         position: "fixed",
-        bottom: 36,
+        bottom: 80,
         left: 12,
         right: 12,
         zIndex: 10000,
