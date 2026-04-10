@@ -157,7 +157,7 @@ export function useMapCamera({
     if (!isFollowing) return;
     const map = mapRef.current;
     if (!map) return;
-    const navPadding = { top: 0, right: 0, bottom: Math.round(map.transform.height * NAVIGATION_BOTTOM_PADDING_RATIO), left: 0 };
+    const navPadding = { top: 0, right: 0, bottom: Math.round(map.getContainer().clientHeight * NAVIGATION_BOTTOM_PADDING_RATIO), left: 0 };
     const now = Date.now();
     if (!hasCenteredRef.current) {
       map.flyTo({ center: [position.lon, position.lat], zoom: TRIP_FLY_ZOOM, duration: 500, padding: navPadding });
@@ -166,8 +166,7 @@ export function useMapCamera({
       return;
     }
     if (now - lastFlyRef.current < 1000) return;
-    map.flyTo({ center: [position.lon, position.lat], zoom: map.getZoom(), duration: 300, padding: navPadding });
-    if (bearing != null) map.rotateTo(bearing, { duration: 300 });
+    map.flyTo({ center: [position.lon, position.lat], zoom: map.getZoom(), bearing: bearing ?? map.getBearing(), duration: 300, padding: navPadding });
     lastFlyRef.current = now;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, cameraMode, isFollowing]);
