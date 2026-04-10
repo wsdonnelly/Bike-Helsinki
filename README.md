@@ -1,13 +1,14 @@
 # Welcome to Bike-Helsinki Preview
 ## https://bikehelsinki.onrender.com/
 
-This hobby project combines my long-time interest in maps, mapping, and graph algorithms with exploring the Helsinki region by bike and foot. Bike-Helsinki uses OpenStreetMap data and custom A* routing to plan bike-friendly routes across the city’s extensive trail and road network. It's very much a work in progress, so expect rough edges—and please share your feedback!
+Actively in development — a free tool to help you plan and follow routes that make the most of Helsinki's excellent bike infrastructure, beautiful and abundant trails, and nature. Bike-Helsinki uses OpenStreetMap data and custom A* routing to find bike-friendly paths across the city and beyond. Click the map to set start and end points, adjust surface preferences, then start a trip to follow your route with a live GPS follow-camera.
+
+**Recent work:** navigation mode and follow-camera behavior.
+**Coming soon:** a full rework of the OSM data pipeline for richer, more accurate routing going beyond surface type filtering to selecting routes by overall bike-friendliness and surface quality.
 
 ## Bike-Helsinki Application Architecture
 
 ### System Overview
-
-For a backend-only architecture walkthrough, see [`docs/backend/backend-architecture.md`](docs/backend/backend-architecture.md).
 
 ```mermaid
 flowchart TD
@@ -88,7 +89,16 @@ flowchart TD
     class HEALTH_EP,SNAP_EP,ROUTE_EP,CONFIG_EP api
     class KDSNAP,ROUTE cpp
 ```
-### binary file formats
+
+### Architecture Docs
+
+Detailed architecture references:
+
+- [`docs/frontend/frontend-architecture.md`](docs/frontend/frontend-architecture.md) — component hierarchy, state ownership, feature boundaries, data flow
+- [`docs/frontend/camera-behavior.md`](docs/frontend/camera-behavior.md) — camera mode contract, planning/navigation transitions, acceptance criteria
+- [`docs/backend/backend-architecture.md`](docs/backend/backend-architecture.md) — backend layering, native addon boundary, request flow
+
+### Binary file formats
 ```
 graph_nodes.bin
 
@@ -173,6 +183,21 @@ Edge lookup: for node i, edges are neighbors[offset[i]:offset[i+1]]
 │   mode[E-1]         │   1B   │ uint8_t: bike(1)|foot(2) flags          │
 └─────────────────────┴────────┴─────────────────────────────────────────┘
 ```
+
+## Developer Tools
+
+### Preview Trip (dev only)
+
+Preview Trip is a development-only feature, active only when `NODE_ENV=development` (tree-shaken out of production builds). It lets you simulate a trip along a planned route without a real GPS signal, which is useful for testing navigation mode and camera behavior on desktop.
+
+To use it:
+1. Plan a route use current location (GPS on) for S and select a T.
+2. Click **Preview Trip** in the route planner panel. This starts a trip and injects a simulated GPS position that auto-advances along the route.
+3. A scrub slider appears at the bottom of the screen. Drag it to jump to any point along the route; releasing resumes auto-advance.
+4. The map enters navigation mode: the camera follows the preview position and rotates to the route bearing, identical to a real trip.
+5. Opening the panel during preview suspends follow-camera and shows planning-style route framing, exactly as it would on a real trip.
+6. Select 'Stop Trip' to end the preview
+
 # BikeMap Local Setup Guide
 
 ## Prerequisites

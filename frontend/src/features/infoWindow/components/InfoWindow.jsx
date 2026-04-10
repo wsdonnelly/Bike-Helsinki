@@ -1,23 +1,5 @@
 import * as styles from "./InfoWindow.styles";
 
-const HouseIcon = ({ size = 16, style }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-    style={style}
-  >
-    <path d="M3 11.5L12 4l9 7.5" />
-    <path d="M5 10.5V20h14v-9.5" />
-    <path d="M10 20v-4a2 2 0 0 1 4 0v4" />
-  </svg>
-);
 
 const LocateIcon = ({ size = 14, style }) => (
   <svg
@@ -64,33 +46,31 @@ const InfoWindow = ({ isVisible, onClose }) => {
         <div style={styles.content}>
           <div style={{ marginBottom: 24 }}>
             <div style={styles.banner}>
-              <strong style={{ marginRight: 6 }}>Preview deploy:</strong>
-              This deploy includes Address Search, geolocation, and trip tracking features.
-              Expect rough edges.
+              <strong style={{ marginRight: 6 }}>Actively in development</strong> —
+              a free tool to help you plan and follow routes that make the most
+              of Helsinki's excellent bike infrastructure, beautiful and abundant
+              trails, and nature.
+              <br /><br />
+              <strong>Recent work:</strong> navigation mode and follow-camera
+              behavior.
+              <br />
+              <strong>Coming soon:</strong> a full rework of the OSM data
+              pipeline for richer, more accurate routing going beyond surface type
+              filtering to selecting routes by overall bike-friendliness and
+              surface quality.
             </div>
             <h3 style={styles.sectionHeading}>How to get started</h3>
             <ol style={styles.list}>
               <li style={styles.listItem}>
-                <strong>
-                  Click the map or use the address search bar to set your origin
-                  and destination.
-                </strong>{" "}
-                Your route will be calculated automatically.
+                <strong>Click anywhere on the map to set your origin and
+                destination</strong> — your route calculates automatically. You
+                can also use the address search in the{" "}
+                <strong>☰ control panel</strong>.
               </li>
               <li style={styles.listItem}>
-                <strong>Edit your origin and destination.</strong> Click again
-                on the map, or use the address search, or drag an existing
-                marker anywhere on the map!
-              </li>
-              <li style={styles.listItem}>
-                <span>
-                  Use the{" "}
-                  <strong>
-                    <HouseIcon size={16} style={{ marginTop: -1 }} />
-                  </strong>{" "}
-                  button to open/close the address search bar at the top of the
-                  map.
-                </span>
+                <strong>Edit points anytime</strong> by clicking the map again,
+                dragging a marker, or updating the address search in the control
+                panel.
               </li>
             </ol>
           </div>
@@ -99,20 +79,27 @@ const InfoWindow = ({ isVisible, onClose }) => {
             <h3 style={styles.sectionHeading}>GPS & location</h3>
             <ul style={styles.list}>
               <li style={styles.listItem}>
-                Press <strong>Locate</strong> in the control panel to start GPS
-                tracking. Your position and accuracy radius appear on the map.
-              </li>
-              <li style={styles.listItem}>
-                While locating, a{" "}
+                A{" "}
                 <strong>
                   <LocateIcon size={14} style={{ marginTop: -1 }} />
                 </strong>{" "}
-                button appears in the start address field. Tap it to snap your
-                current GPS position as the route origin.
+                locate button sits next to the start address field. Tap it to
+                enable GPS — your position and accuracy radius appear on the
+                map, and the start point locks to your current location.
               </li>
               <li style={styles.listItem}>
-                Press <strong>Trip</strong> in the control panel to enter trip
-                mode — the map zooms in and follows your position as you ride.
+                With GPS active, press <strong>Start Trip</strong> in the
+                control panel to enter navigation mode — the map follows your
+                position and rotates to face your direction of travel.
+              </li>
+              <li style={styles.listItem}>
+                Open the <strong>control panel</strong> during a trip to pause
+                follow-camera and review your route. Closing it resumes
+                following immediately.
+              </li>
+              <li style={styles.listItem}>
+                Pan freely while navigating — the camera snaps back after a few
+                seconds.
               </li>
             </ul>
           </div>
