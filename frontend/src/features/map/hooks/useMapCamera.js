@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { MOBILE_SHEET_HEIGHT_PX, LOCATE_FLY_ZOOM, TRIP_FLY_ZOOM, NAVIGATION_BOTTOM_PADDING_RATIO } from "@/shared/constants/config";
 import { computePadding, fitRouteBounds, fitCurrentRoute } from "@/features/map/utils/cameraGeometry";
+import { useFollowing } from "@/features/navigation/hooks/useFollowing";
 
 export function useMapCamera({
   mapRef,
@@ -17,6 +18,8 @@ export function useMapCamera({
   bearing,
 }) {
   const cameraMode = isTripActive && !panelOpen ? "navigation" : "planning";
+
+  const { isFollowing } = useFollowing({ mapRef, isActive: cameraMode === "navigation" });
 
   const prevStartIdx = useRef(null);
   const prevEndIdx = useRef(null);
@@ -151,6 +154,7 @@ export function useMapCamera({
   // Effect B: Navigation follow camera
   useEffect(() => {
     if (cameraMode !== "navigation" || !position) return;
+    if (!isFollowing) return;
     const map = mapRef.current;
     if (!map) return;
     const navPadding = { top: 0, right: 0, bottom: Math.round(map.transform.height * NAVIGATION_BOTTOM_PADDING_RATIO), left: 0 };
@@ -166,7 +170,7 @@ export function useMapCamera({
     if (bearing != null) map.rotateTo(bearing, { duration: 300 });
     lastFlyRef.current = now;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [position, cameraMode]);
+  }, [position, cameraMode, isFollowing]);
 
   useEffect(() => {
     if (!isTripActive) hasCenteredRef.current = false;

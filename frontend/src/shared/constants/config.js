@@ -12,3 +12,4 @@ export const LOCATE_FLY_ZOOM = 15;
 export const TRIP_FLY_ZOOM = 18;
 export const PREVIEW_TRIP_SPEED_KMH = 20;
 export const NAVIGATION_BOTTOM_PADDING_RATIO = 0.4;
+export const SNAP_BACK_DELAY_MS = 4000;
