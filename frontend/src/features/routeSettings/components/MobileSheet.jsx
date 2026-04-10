@@ -33,7 +33,7 @@ export default function MobileSheet() {
     setSheetOffset,
   } = useRouteSettingsContext();
 
-  const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
+  const { isLocating, isTripActive, error: geoError, outOfBounds, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
   const { totals, routeLoading, snappedStart, snappedStartSource, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
@@ -121,6 +121,7 @@ export default function MobileSheet() {
             isLocating={isLocating}
             canStartTrip={canStartTrip}
             geoError={geoError}
+            outOfBounds={outOfBounds}
             startLocating={startLocating}
             startTrip={startTrip}
             stopTrip={stopTrip}

@@ -18,6 +18,7 @@ export default function PanelToolbar({
   isLocating,
   canStartTrip,
   geoError,
+  outOfBounds,
   startLocating,
   startTrip,
   stopTrip,
@@ -62,6 +63,7 @@ export default function PanelToolbar({
           <button
             type="button"
             aria-label={isTripActive ? "Stop trip" : "Start trip"}
+            disabled={!isTripActive && outOfBounds}
             onClick={
               isTripActive
                 ? () => { stopTrip(); stopLocating(); onAfterTripStop?.(); }
@@ -74,6 +76,8 @@ export default function PanelToolbar({
               border: "none",
               color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+              opacity: !isTripActive && outOfBounds ? 0.5 : 1,
+              cursor: !isTripActive && outOfBounds ? "not-allowed" : "pointer",
             }}
           >
             <TripIcon size={14} /> {isTripActive ? "Stop Trip" : "Start Trip"}
@@ -81,6 +85,11 @@ export default function PanelToolbar({
           {geoError && (
             <span style={{ fontSize: 11, color: UI_COLORS.error, display: "block", marginTop: 4 }}>
               {geoError}
+            </span>
+          )}
+          {!isTripActive && outOfBounds && (
+            <span style={{ fontSize: 11, color: UI_COLORS.error, display: "block", marginTop: 4 }}>
+              GPS is outside the Helsinki service area
             </span>
           )}
         </div>
