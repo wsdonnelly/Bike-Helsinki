@@ -1,10 +1,17 @@
 # Frontend CLAUDE.md
 
-This file provides guidance for working on the React frontend of Bike-Helsinki.
+This file provides coding guidance for working on the React frontend of Bike-Helsinki.
 
 ## Scope
 Only work within frontend/. Do not read or modify ingest/ or backend/
 unless explicitly asked.
+
+## Reference Docs
+
+The following docs are the single source of truth for architecture overviews and behavior contracts. Read them before making structural changes.
+
+- [`docs/frontend/frontend-architecture.md`](/Users/willdonnelly/Documents/code/bikeMap/docs/frontend/frontend-architecture.md) — component hierarchy, state ownership, feature boundaries, data flow
+- [`docs/frontend/camera-behavior.md`](/Users/willdonnelly/Documents/code/bikeMap/docs/frontend/camera-behavior.md) — camera mode contract, planning/navigation transitions, acceptance criteria
 
 ## Directory Structure
 
@@ -66,9 +73,26 @@ src/
 │   │   └── index.js
 │   ├── geolocation/
 │   │   ├── context/
-│   │   │   └── GeolocationContext.jsx      # GPS watch + trip state: position, isLocating, isTripActive
+│   │   │   └── GeolocationContext.jsx      # GPS watch + trip state: position, isLocating, isTripActive, outOfBounds
+│   │   └── index.js
+│   ├── navigation/
 │   │   ├── components/
 │   │   │   └── LocationMarker.jsx          # Accuracy circle (GeoJSON Source/Layer) + blue dot Marker
+│   │   ├── hooks/
+│   │   │   ├── useFollowing.js             # Pan detection + 4-second snap-back timer; returns { isFollowing }
+│   │   │   └── useRouteProgress.js         # Point-to-segment projection for route bearing; returns { bearing }
+│   │   └── index.js
+│   ├── devTools/
+│   │   ├── enabled.js                      # DEV_TOOLS_ENABLED = import.meta.env.DEV (tree-shaken in prod)
+│   │   ├── context/
+│   │   │   └── PreviewTripContext.jsx      # isPreviewActive, progressM, totalM, autoAdvance, actions
+│   │   ├── hooks/
+│   │   │   └── usePreviewTripEngine.js     # rAF loop: advances progressM, writes setPositionOverride
+│   │   ├── components/
+│   │   │   ├── PreviewTripButton.jsx       # Renders inside PanelToolbar (gated on DEV_TOOLS_ENABLED)
+│   │   │   └── PreviewTripSlider.jsx       # Bottom-of-screen scrub slider (gated)
+│   │   ├── utils/
+│   │   │   └── routeInterpolation.js       # Cumulative-distance table + positionAt(progressM) → {lat,lon,heading}
 │   │   └── index.js
 │   └── infoWindow/
 │       ├── components/
@@ -96,55 +120,33 @@ src/
 └── index.css
 ```
 
-## Component Hierarchy
-
-```
-main.jsx
-└── App.jsx
-    └── RouteProvider                     ← all routing state lives here
-        └── ErrorBoundary                 ← catches runtime throws, shows fallback
-            └── RouteSettingsProvider     ← panel/settings state (consumes useRoute internally)
-                └── GeolocationProvider   ← GPS position watch and trip active state
-                    └── AppContent (useRoute, useInfoWindow)
-                        ├── MapView       ← consumes useRouteSettingsContext for isSatView;
-                        │                    renders LocationMarker; camera owned by useMapCamera
-                        ├── ControlPanel  ← zero props; consumes context internally
-                        └── InfoWindow
-```
-
 ## State Management
 
 **Pattern: Context API only** — no Redux or Zustand.
 
-- **`RouteContext` (`RouteProvider` / `useRoute()`)** — single source of truth for routing state:
+- **`RouteContext` (`RouteProvider` / `useRoute()`)** — routing state:
   - `snappedStart`, `snappedEnd` — snapped graph node + resolved address
   - `routeCoords`, `routeModes` — path coordinates + per-segment mode bits
   - `appliedMask`, `appliedPenalty` — active surface filter and penalty
-  - `cfg` — Helsinki bbox from backend
-  - `totals` — batched stats object: `{ totalDistanceM, totalDurationS, distanceBikePreferred, distanceBikeNonPreferred, totalDistanceWalk }`. All five values update in a single `setTotals` call to avoid cascading re-renders.
-  - `routeLoading` — boolean; true while `backend.getRoute()` is in flight. Set in `fetchRoute` before the call, cleared in `finally`. Consumed by `RideStats` to show "Computing route…" instead of "No route found" during the request.
+  - `cfg` — Helsinki bbox from backend (`{ bbox: { minLon, minLat, maxLon, maxLat }, viewbox, viewboxString }`)
+  - `totals` — `{ totalDistanceM, totalDurationS, distanceBikePreferred, distanceBikeNonPreferred, totalDistanceWalk }`
+  - `routeLoading` — true while `backend.getRoute()` is in flight
   - Lives at `src/context/RouteContext.jsx`; `features/routing/RouteProvider.jsx` is a re-export shim
 
 - **`RouteSettingsContext` (`RouteSettingsProvider` / `useRouteSettingsContext()`)** — panel UI state:
-  - `panelOpen`, `draftMask`, `draftPenalty`, `isSatView` — local before Apply
-  - `cameraRefitTick` / `triggerCameraRefit()` — counter incremented to signal `useMapCamera` to refit (mobile sheet interactions that don't produce a route/panel-state change)
-  - `setSheetHeight(h)` — called by MobileSheet's ResizeObserver; updates internal ref only (no state re-render)
-  - `setSheetOffset(offset)` — stores the current dragged sheet offset
-  - `getSheetVisibleHeight()` — stable accessor for currently visible sheet height; consumed by `useMapCamera`
-  - Handlers: `applySettings`, `toggleDraftBit`, `toggleSatView`, etc.
-  - Lives at `src/features/routeSettings/context/RouteSettingsContext.jsx`
-  - `useRouteSettings()` is an alias for `useRouteSettingsContext()` (backwards compat)
+  - `panelOpen`, `draftMask`, `draftPenalty`, `isSatView`
+  - `cameraRefitTick` / `triggerCameraRefit()` — signals `useMapCamera` to refit (mobile sheet interactions)
+  - `setSheetHeight(h)`, `setSheetOffset(offset)`, `getSheetVisibleHeight()` — ref-based, no re-render
+  - `useRouteSettings()` is an alias for `useRouteSettingsContext()`
 
 - **`GeolocationContext` (`GeolocationProvider` / `useGeolocation()`)** — GPS state:
-  - `position` — `{ lat, lon, accuracy, heading, speed }` or null
-  - `isLocating` — whether GPS watch is active
-  - `isTripActive` — whether trip-tracking mode is active
-  - `error` — geolocation error if any
+  - `position` — `{ lat, lon, accuracy, heading, speed }` or null (positionOverride takes precedence)
+  - `isLocating`, `isTripActive`, `error`
+  - `outOfBounds` — true when position is outside `cfg.bbox`; clears on `stopLocating`
+  - `setPositionOverride(pos)` — Preview Trip injects fake position; overrides real GPS while set
 
 - **`useInfoWindow()`** — modal open/closed
-
 - **`useGeocoding()`** — search query, results, debounce + AbortController
-
 - **`useDraggableSheet()`** — touch drag for mobile bottom sheet
 
 ## Key Patterns
@@ -165,66 +167,52 @@ Surface types are 16-bit flags defined in `surfaceTypes.js`. The active set of a
 - `0x4` — foot/walk (dotted purple)
 
 ### Route Rendering
-Routes are rendered by `RoutePolylines` (`src/features/map/components/RoutePolylines.jsx`) as three MapLibre GeoJSON `Source`/`Layer` pairs — one per mode type (`route-bike-pref`, `route-bike-nonpref`, `route-foot`). Layer paint props encode color and dash patterns. A fallback single-color polyline layer is used when `routeModes` is absent. `MapView` renders `<RoutePolylines routeCoords routeModes dragging />`.
+Routes are rendered by `RoutePolylines` as three MapLibre GeoJSON `Source`/`Layer` pairs — one per mode type (`route-bike-pref`, `route-bike-nonpref`, `route-foot`). A fallback single-color polyline layer is used when `routeModes` is absent.
 
 ### Async Route Fetching
-`RouteContext` recalculates automatically via `useEffect` when endpoint identities or applied settings change. Reverse geocoding uses `AbortController`, but route fetching itself does not currently cancel stale requests or guard against out-of-order responses. Reverse geocoding on marker drag uses a 150ms debounce (`DRAG_DEBOUNCE_MS`).
+`RouteContext` recalculates automatically via `useEffect` when endpoint identities or applied settings change. Reverse geocoding uses `AbortController`, but route fetching itself does not currently cancel stale requests. Reverse geocoding on marker drag uses a 150ms debounce (`DRAG_DEBOUNCE_MS`).
 
 ### Geocoding HTTP Client
-`digitransit.js` uses its **own** dedicated Axios instance (not `http.js`), because Digitransit is an external service with a different base URL. Both `searchAddresses` and `reverseGeocode` accept a `signal` parameter for AbortController support. Both functions normalise Digitransit GeoJSON responses to a consistent internal format: `{ place_id, display_name, lat, lon, address }`.
+`digitransit.js` uses its own dedicated Axios instance (not `http.js`). Both `searchAddresses` and `reverseGeocode` accept a `signal` parameter for AbortController support and normalise responses to `{ place_id, display_name, lat, lon, address }`.
 
 ### Map Camera Control
-All camera decisions live in `src/features/map/hooks/useMapCamera.js`. `MapView` calls `useMapCamera(...)` and receives a `fitBoundsOnDrag` callback for marker drag handlers. Pure geometry helpers (`computePadding`, `fitRouteBounds`, `fitPolylineBounds`, `fitCurrentRoute`) live in `src/features/map/utils/cameraGeometry.js`.
+All camera decisions live in `useMapCamera.js`. See [`docs/frontend/camera-behavior.md`](/Users/willdonnelly/Documents/code/bikeMap/docs/frontend/camera-behavior.md) for the full contract.
 
-The hook derives an explicit camera mode: `isTripActive && !panelOpen ? "navigation" : "planning"`.
-
-**Planning effects** (active in all non-navigation states):
-- **Endpoint change** (fires on `snappedStart?.idx` / `snappedEnd?.idx`): fits the route when either endpoint changes identity. Desktop fits only when at least one endpoint is outside the viewport; mobile fits only when the panel is closed.
-- **Route/panel change**: refits when `routeCoords`, `panelOpen`, `isMobile`, or `isTripActive` changes. Skips when navigation follow-camera owns the viewport.
-- **`cameraRefitTick`** (mobile explicit refit): triggered by tab switches, Apply, and stop-trip. Uses measured sheet height with `MOBILE_SHEET_HEIGHT_PX` as fallback.
-
-**Navigation effects**:
-- **Locate fly-to**: one-shot `flyTo` at `LOCATE_FLY_ZOOM = 15` when `isLocating` activates; flag resets when locate stops.
-- **Trip follow**: first entry `flyTo` at `TRIP_FLY_ZOOM = 18`; subsequent updates at 1s throttle. Heading rotation is imperative (`map.rotateTo(bearing)`) — no controlled `bearing` prop on `<Map>`.
-- **Panel toggle**: single effect with explicit branching — panel-close during a trip resumes follow-camera immediately; all other cases refit the route.
-
-The `bearing` parameter is source-agnostic: `MapView` passes `position?.heading ?? null` today; Phase 3a swaps this for a route-derived bearing in one line.
-
-Padding constants (`SIDEBAR_WIDTH_PX` etc.) come from `src/shared/constants/config.js`.
+Key implementation facts:
+- Camera mode: `isTripActive && !panelOpen ? "navigation" : "planning"`
+- Navigation bearing is merged into `flyTo` (not a separate `rotateTo`) — calling `rotateTo` after `flyTo` cancels the center animation
+- `map.getContainer().clientHeight` for viewport height — react-map-gl's `MapRef` does not expose `map.transform`
 
 ### GPS-to-Start in AddressSearch
-When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the **start** `SearchField` only. Clicking the locate button calls `actions.setPointFromCoords(position.lat, position.lon, "start")`, snapping the current GPS position as the route start point. The end field never receives `onLocate`.
-
-### Geolocation & Trip Tracking
-`LocationMarker` renders the accuracy radius as a GeoJSON polygon via `Source`/`Layer` and the blue dot position as a `Marker` from `react-map-gl/maplibre`. Camera behavior during trips is owned by `useMapCamera` (see above).
+When `isLocating` is true, `AddressSearch` passes an `onLocate` handler to the **start** `SearchField` only. Clicking it calls `actions.setPointFromCoords(position.lat, position.lon, "start")`. The end field never receives `onLocate`.
 
 ### Responsive Layout
 `useIsMobile()` (breakpoint: 640px / `MOBILE_BREAKPOINT_PX`) switches the ControlPanel between:
 - **Desktop**: `DesktopSidebar` — fixed left sidebar (`SIDEBAR_WIDTH_PX = 320`)
-- **Mobile**: `MobileSheet` — scrollable bottom sheet (max-height 85vh) with tab nav ("Planner" / "Preferences")
+- **Mobile**: `MobileSheet` — scrollable bottom sheet (max-height 85vh) with tab nav
 
-Both layout components consume `useRouteSettingsContext()` and `useRoute()` directly — zero props from ControlPanel.
-
-Sheet height is measured dynamically via `ResizeObserver` in `MobileSheet`, while the current drag offset is tracked separately. `RouteSettingsContext` derives visible sheet height from those two refs via `setSheetHeight`, `setSheetOffset`, and `getSheetVisibleHeight()`. No state is involved in those measurements, so the refs update without triggering re-renders. `MOBILE_SHEET_HEIGHT_PX` is the fallback used before the sheet has mounted.
+Sheet height is measured via `ResizeObserver` in `MobileSheet`. `MOBILE_SHEET_HEIGHT_PX` is the fallback before first measurement.
 
 ### Shared Constants
 Magic numbers live in `src/shared/constants/config.js`:
 - `MAX_PENALTY` — maximum surface penalty (1000)
-- `PENALTY_SLIDER_MAX` — UI slider max (300); distinct from `MAX_PENALTY` (API cap)
+- `PENALTY_SLIDER_MAX` — UI slider max (300)
 - `MOBILE_BREAKPOINT_PX` — responsive breakpoint (640)
 - `SEARCH_DEBOUNCE_MS` — geocoding search debounce (300)
 - `DRAG_DEBOUNCE_MS` — reverse geocode on drag debounce (150)
 - `DEFAULT_MASK` — default surface bitmask (0xffff)
 - `MIN_BAR_WIDTH_PCT` — minimum bar width in stacked chart (1.5)
-- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding for mobile fit-bounds when `getSheetVisibleHeight()` returns 0 (sheet not yet mounted)
-- `API_TIMEOUT_MS` — Axios timeout for both backend and Digitransit clients (15000)
-- `LOCATE_FLY_ZOOM` — zoom level when flying to GPS location on locate start (15)
-- `TRIP_FLY_ZOOM` — zoom level when flying to GPS location on trip start (18)
+- `MOBILE_SHEET_HEIGHT_PX` — fallback bottom padding before sheet mounts
+- `API_TIMEOUT_MS` — Axios timeout (15000)
+- `LOCATE_FLY_ZOOM` — zoom on locate start (15)
+- `TRIP_FLY_ZOOM` — zoom on trip start or snap-back (18)
+- `NAVIGATION_BOTTOM_PADDING_RATIO` — bottom padding for navigation follow-camera (0.4)
+- `SNAP_BACK_DELAY_MS` — snap-back delay after user pan (4000)
 
 ### Shared UI Colors
 `src/shared/constants/colors.js` exports:
-- `ROUTE_COLORS` — route polyline colors: `bikePreferred`, `bikeNonPreferred`, `walk`
-- `UI_COLORS` — interface colors: `startMarker`, `endMarker`, `primary`, `error`, `satActive`, `satActiveBg`
+- `ROUTE_COLORS` — `bikePreferred`, `bikeNonPreferred`, `walk`
+- `UI_COLORS` — `startMarker`, `endMarker`, `primary`, `error`, `satActive`, `satActiveBg`
 
 ### Route Mode Bits
 `src/features/routeSettings/constants/surfaceTypes.js` also exports:
@@ -281,27 +269,6 @@ The HTTP client reads `VITE_API_URL` at build time (dev default: `http://localho
 
 ### RouteContext memoization strategy
 All context consumers are protected from spurious re-renders by three layers:
-1. **`useCallback`** on every function exposed in context (`handleMapClick`, `applySettings`, `resetStats`, `handleMarkerDragEnd`, `fetchRoute`, `resolveAddress`, and the `setPoint*` helpers) — stable refs across renders
-2. **Batched `totals` state** — five stats update in one `setTotals` call instead of five separate `setState` calls
-3. **`useMemo`** on the `settings` sub-object, the `actions` sub-object, and the top-level `value` — the provider only propagates a new context value when a genuine dep changes
-
-## Known Inconsistencies & Refactoring Candidates
-
-These are places where the code deviates from its own established patterns, or where files have grown large enough to warrant splitting. They are not bugs — just documented technical debt.
-
-### ~~a. Icon duplication~~ (resolved)
-`TripIcon` has been extracted to `src/shared/components/Icons/TripIcon.jsx` with a `size` prop. The remaining inline icon is in `AddressSearch.jsx` (clear/home icon) — low priority.
-
-### ~~b. DesktopSidebar / MobileSheet duplication~~ (resolved)
-- Bulk-action logic extracted to `useBulkSurfaceActions` hook
-- Shared header + trip button extracted to `PanelToolbar` component
-- Remaining difference is intentional: outer layout structure (fixed sidebar vs draggable sheet)
-
-### ~~c. Inconsistent button styling~~ (resolved)
-`satBtn(active)` added to `ControlPanel.styles.js`, consistent with `locationBtn(active)` and `tripBtn(active)` pattern.
-
-### ~~d. MapView size~~ (resolved)
-Route GeoJSON layers extracted to `RoutePolylines.jsx`. Camera logic (planning fit + navigation follow) consolidated into `useMapCamera`. `MapView.jsx` now handles only map init, markers, and tile-style.
-
-### e. RouteContext remains the main orchestration bottleneck
-Reverse-geocoding block (AbortController, debounce, address reconciliation) has been extracted to `src/context/hooks/useReverseGeocoding.js`, which helped. But `RouteContext` still owns config loading, endpoint mutation, route fetching, applied settings, totals, and search/GPS helper actions, so it remains the largest frontend state module.
+1. **`useCallback`** on every function exposed in context — stable refs across renders
+2. **Batched `totals` state** — five stats update in one `setTotals` call
+3. **`useMemo`** on the `settings` sub-object, `actions` sub-object, and top-level `value`

@@ -251,6 +251,16 @@ That hook owns:
 
 Pure geometry helpers (`computePadding`, `fitRouteBounds`, `fitPolylineBounds`, `fitCurrentRoute`) live in `frontend/src/features/map/utils/cameraGeometry.js`.
 
+### Phase 3 implementation notes
+
+All three Phase 3 sub-tasks are complete:
+
+**3b — Camera padding:** Navigation `flyTo` calls pass `padding: { bottom: viewportHeight * NAVIGATION_BOTTOM_PADDING_RATIO }` (0.4), anchoring the blue dot at ~30% from the bottom. `map.getContainer().clientHeight` is used (not `map.transform.height`) because react-map-gl's `MapRef` wrapper does not expose internal transform properties.
+
+**3c — Pan-away snap-back:** `useFollowing` (`features/navigation/hooks/useFollowing.js`) listens for `movestart` events with `e.originalEvent` (user-initiated only; programmatic `flyTo`-triggered events have no `originalEvent`). On user pan: `isFollowing = false` + 4-second timer. On snap-back: `isFollowing = true`. `useMapCamera` resets `hasCenteredRef` when `isFollowing` transitions to true, causing Effect B to fire its first-entry branch and restore `TRIP_FLY_ZOOM = 18` (not the user's panned-away zoom).
+
+**3a — Route bearing:** `useRouteProgress` (`features/navigation/hooks/useRouteProgress.js`) projects the GPS position onto the nearest route segment and returns the forward azimuth. `MapView` passes `routeBearing ?? position?.heading ?? null` to `useMapCamera`. Bearing is merged into the `flyTo` call (not a separate `rotateTo`) to avoid MapLibre animation interruption.
+
 ## Acceptance Criteria
 
 - In planning mode, any route selection or route redraw with both endpoints pinned fits the route into the actual available map space.

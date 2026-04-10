@@ -61,8 +61,17 @@ Produces `graph_nodes.bin` and `graph_edges.bin` in `backend/data/`, which the C
 
 - `src/api/http.js` — Axios client; uses `VITE_API_URL` env var in prod, `localhost:3000` in dev
 - `src/api/backend.js` — typed wrappers for all backend endpoints
-- `src/context/RouteContext.jsx` — central routing state (snapped endpoints, route coords, user settings); drives recalculation on setting changes
-- `src/features/map/MapView.jsx` — MapLibre map (via react-map-gl); handles map clicks and renders route GeoJSON layers
+- `src/context/RouteContext.jsx` — central routing state (snapped endpoints, route coords, user settings, Helsinki bbox); drives recalculation on setting changes
+- `src/features/map/components/MapView.jsx` — MapLibre map (via react-map-gl); handles map clicks, markers, tile style switching
+- `src/features/map/hooks/useMapCamera.js` — all camera decisions: planning fit-to-bounds, navigation follow-camera, snap-back, locate fly-to
+- `src/features/geolocation/context/GeolocationContext.jsx` — GPS watch, trip state, position override (Preview Trip), out-of-bounds flag
+- `src/features/navigation/hooks/useFollowing.js` — pan-away detection + 4-second snap-back timer
+- `src/features/navigation/hooks/useRouteProgress.js` — point-to-segment projection for route-derived bearing
+
+For full frontend architecture and camera behavior contracts, see:
+- `frontend/CLAUDE.md` — coding conventions, state API surfaces, key patterns
+- `docs/frontend/frontend-architecture.md` — component hierarchy, state ownership, feature boundaries
+- `docs/frontend/camera-behavior.md` — camera mode contract, planning/navigation transitions
 
 ### Key Backend Files
 

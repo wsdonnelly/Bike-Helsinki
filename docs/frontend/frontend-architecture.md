@@ -211,7 +211,8 @@ Responsibilities:
 [`frontend/src/features/map/hooks/useMapCamera.js`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/hooks/useMapCamera.js) owns all camera decisions. It derives an explicit camera mode (`planning` vs `navigation`) and handles:
 
 - planning-mode route fitting (endpoint changes, route redraws, panel toggles, mobile sheet refits)
-- navigation follow-camera (locate fly-to, trip follow with 1s throttle, heading rotation, panel-close resume)
+- navigation follow-camera (locate fly-to, trip follow with 1s throttle, route-bearing rotation merged into `flyTo`, panel-close resume, snap-back via `useFollowing`)
+- navigation padding: `NAVIGATION_BOTTOM_PADDING_RATIO` applied as `padding.bottom` in all navigation `flyTo` calls, anchoring the blue dot at ~30% from the bottom viewport edge
 
 Pure geometry helpers live in [`frontend/src/features/map/utils/cameraGeometry.js`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/map/utils/cameraGeometry.js).
 
@@ -251,13 +252,15 @@ Mobile adds extra complexity through a draggable bottom sheet and explicit route
 
 ### Geolocation
 
-[`GeolocationContext`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/context/GeolocationContext.jsx) is a pure GPS data provider. It owns browser geolocation lifecycle — position, locate mode, trip mode, errors, and `watchPosition` registration — and nothing else. Consumed by both planning (address search GPS-to-start) and navigation.
+[`GeolocationContext`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/geolocation/context/GeolocationContext.jsx) owns browser geolocation lifecycle — position, locate mode, trip mode, errors, `watchPosition` registration, and the position-override mechanism used by Preview Trip. It also derives `outOfBounds`: checked on every position update (real or override) against `cfg.bbox` from `RouteContext`; exposed as a boolean so `PanelToolbar` can disable "Start Trip" and show a service-area message. Clears to `false` on `stopLocating`. Consumed by both planning (address search GPS-to-start) and navigation.
 
 ### Navigation
 
-The navigation feature owns the map-rendering side of GPS:
+The navigation feature owns the map-rendering side of GPS and route-following hooks:
 
 - [`LocationMarker`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/components/LocationMarker.jsx) renders the live position and accuracy polygon
+- [`useFollowing`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/hooks/useFollowing.js) detects user-initiated pans via `movestart` with `originalEvent` guard, sets `isFollowing = false`, and starts a `SNAP_BACK_DELAY_MS` timer to restore `isFollowing = true`. Consumed by `useMapCamera` to gate follow-camera behavior.
+- [`useRouteProgress`](/Users/willdonnelly/Documents/code/bikeMap/frontend/src/features/navigation/hooks/useRouteProgress.js) performs point-to-segment projection of the current GPS position onto `routeCoords` and returns the forward azimuth toward the next waypoint as `bearing`. Consumed by `MapView`, which passes the result to `useMapCamera`.
 
 `LocationMarker` consumes `GeolocationContext` for position data and lives in `navigation/` because it is a rendering concern, not a GPS data concern. Camera-follow behavior during locate/trip modes is owned by `useMapCamera` in the `map` feature.
 
