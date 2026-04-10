@@ -16,7 +16,7 @@ export default function PanelToolbar({
   onToggleSatView,
   isTripActive,
   isLocating,
-  snappedEnd,
+  canStartTrip,
   geoError,
   startLocating,
   startTrip,
@@ -26,7 +26,7 @@ export default function PanelToolbar({
   onAfterTripStart,
   tripContainerStyle,
 }) {
-  const showTrip = (isLocating && !!snappedEnd) || isTripActive;
+  const showTrip = isTripActive || canStartTrip;
 
   return (
     <>
@@ -53,8 +53,8 @@ export default function PanelToolbar({
         )}
       </div>
 
-      {DEV_TOOLS_ENABLED && !isTripActive && isLocating && !!snappedEnd && (
-        <PreviewTripButton onAfterTripStart={onAfterTripStart} />
+      {DEV_TOOLS_ENABLED && !isTripActive && canStartTrip && (
+        <PreviewTripButton onAfterTripStart={onAfterTripStart} canStartTrip={canStartTrip} />
       )}
 
       {showTrip && (

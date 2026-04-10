@@ -31,9 +31,10 @@ export default function DesktopSidebar() {
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
-  const { totals, routeLoading, snappedStart, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
+  const { totals, routeLoading, snappedStart, snappedStartSource, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
+  const canStartTrip = snappedStartSource === "gps" && !!snappedEnd && hasRoute;
 
   const { selectAll, selectNone, selectPaved, selectUnpaved } = useBulkSurfaceActions(setDraftMask);
 
@@ -80,7 +81,7 @@ export default function DesktopSidebar() {
             onToggleSatView={toggleSatView}
             isTripActive={isTripActive}
             isLocating={isLocating}
-            snappedEnd={snappedEnd}
+            canStartTrip={canStartTrip}
             geoError={geoError}
             startLocating={startLocating}
             startTrip={startTrip}

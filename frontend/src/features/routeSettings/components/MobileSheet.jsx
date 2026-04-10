@@ -35,9 +35,10 @@ export default function MobileSheet() {
 
   const { isLocating, isTripActive, error: geoError, startLocating, stopLocating, startTrip, stopTrip } = useGeolocation();
 
-  const { totals, routeLoading, snappedStart, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
+  const { totals, routeLoading, snappedStart, snappedStartSource, snappedEnd, routeCoords, setSnappedStart, setSnappedEnd } = useRoute();
   const hasSelection = Boolean(snappedStart && snappedEnd);
   const hasRoute = routeCoords.length > 1;
+  const canStartTrip = snappedStartSource === "gps" && !!snappedEnd && hasRoute;
 
   const [activeTab, setActiveTab] = useState("planner");
   const { sheetOffset, draggingRef, startDrag, onDragMove, endDrag } =
@@ -118,7 +119,7 @@ export default function MobileSheet() {
             onToggleSatView={toggleSatView}
             isTripActive={isTripActive}
             isLocating={isLocating}
-            snappedEnd={snappedEnd}
+            canStartTrip={canStartTrip}
             geoError={geoError}
             startLocating={startLocating}
             startTrip={startTrip}

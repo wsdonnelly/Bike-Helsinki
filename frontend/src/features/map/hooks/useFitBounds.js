@@ -1,26 +1,18 @@
 import { useEffect, useRef, useCallback } from "react";
-import { SIDEBAR_WIDTH_PX, MOBILE_SHEET_HEIGHT_PX } from "@/shared/constants/config";
+import { MOBILE_SHEET_HEIGHT_PX } from "@/shared/constants/config";
+import { computePadding, fitRouteBounds, fitCurrentRoute } from "@/features/map/utils/cameraGeometry";
 
-function computePadding(isMobile, panelOpen, sheetHeight = 0) {
-  if (isMobile) {
-    if (sheetHeight > 0) {
-      return { top: 40, bottom: sheetHeight + 10, left: 60, right: 60 };
-    }
-    return { top: 80, bottom: 80, left: 80, right: 80 };
-  }
-  const leftPad = panelOpen ? SIDEBAR_WIDTH_PX + 80 : 80;
-  return { top: 80, bottom: 80, left: leftPad, right: 80 };
-}
-
-function fitRouteBounds(map, start, end, padding) {
-  map.fitBounds(
-    [[Math.min(start.lon, end.lon), Math.min(start.lat, end.lat)],
-     [Math.max(start.lon, end.lon), Math.max(start.lat, end.lat)]],
-    { padding, duration: 800 }
-  );
-}
-
-export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight }) {
+export function useFitBounds({
+  mapRef,
+  snappedStart,
+  snappedEnd,
+  routeCoords,
+  isMobile,
+  panelOpen,
+  isTripActive,
+  routeFitTick,
+  getSheetVisibleHeight,
+}) {
   const prevStartIdx = useRef(null);
   const prevEndIdx = useRef(null);
 
@@ -48,6 +40,36 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snappedStart?.idx, snappedEnd?.idx]);
 
+  useEffect(() => {
+    if (routeCoords.length < 2) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (isMobile) {
+      if (panelOpen) {
+        if (!isTripActive) return;
+        setTimeout(() => {
+          const currentMap = mapRef.current;
+          if (!currentMap) return;
+          fitCurrentRoute(
+            currentMap,
+            routeCoords,
+            snappedStart,
+            snappedEnd,
+            computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX)
+          );
+        }, 0);
+        return;
+      }
+      if (isTripActive) return;
+      fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(true, false));
+      return;
+    }
+
+    if (isTripActive && !panelOpen) return;
+    fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(false, panelOpen));
+  }, [routeCoords, panelOpen, isMobile, isTripActive, mapRef, snappedStart, snappedEnd, getSheetVisibleHeight]);
+
   // Refit when panel open state changes.
   // Trip mode: TripController owns the camera on panel-close (zoom to GPS), so skip
   // fit-to-route on panel-close when a trip is active. On panel-open during a trip,
@@ -60,18 +82,30 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
       if (panelOpen) {
         // Mobile panel opened during trip: show full route so user can edit
         if (!isTripActive) return;
-        fitRouteBounds(map, snappedStart, snappedEnd,
-          computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
+        const savedStart = snappedStart;
+        const savedEnd = snappedEnd;
+        const savedRouteCoords = routeCoords;
+        setTimeout(() => {
+          const currentMap = mapRef.current;
+          if (!currentMap) return;
+          fitCurrentRoute(
+            currentMap,
+            savedRouteCoords,
+            savedStart,
+            savedEnd,
+            computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX)
+          );
+        }, 0);
         return;
       }
       // Mobile panel closed: TripController handles the camera when trip is active
       if (isTripActive) return;
-      fitRouteBounds(map, snappedStart, snappedEnd, computePadding(true, false));
+      fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(true, false));
       return;
     }
     // Desktop panel closed during trip: TripController zooms back to GPS
     if (!panelOpen && isTripActive) return;
-    fitRouteBounds(map, snappedStart, snappedEnd, computePadding(false, panelOpen));
+    fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd, computePadding(false, panelOpen));
     // Intentional: reads snappedStart/snappedEnd/isTripActive/getSheetVisibleHeight as stale
     // closures — none of these change between the panel toggle and this effect running.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,7 +116,7 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     if (routeFitTick === 0 || !snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
-    fitRouteBounds(map, snappedStart, snappedEnd,
+    fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd,
       computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
     // Intentional: reads snappedStart/snappedEnd/getSheetVisibleHeight as stable closure —
     // the tick counter is the only meaningful trigger; adding the others would cause
@@ -94,8 +128,7 @@ export function useFitBounds({ mapRef, snappedStart, snappedEnd, isMobile, panel
     const map = mapRef.current;
     if (!map) return;
     if (isMobile) {
-      fitRouteBounds(map, a, b,
-        computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
+      fitRouteBounds(map, a, b, computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
     } else {
       fitRouteBounds(map, a, b, computePadding(false, panelOpen));
     }

@@ -5,12 +5,12 @@ import { useRoute } from "@/features/routing";
 import { buildCumulativeTable } from "../utils/routeInterpolation";
 import * as styles from "@/features/routeSettings/components/ControlPanel.styles";
 
-export function PreviewTripButton({ onAfterTripStart }) {
+export function PreviewTripButton({ onAfterTripStart, canStartTrip }) {
   const { setPositionOverride, startLocating, startTrip } = useGeolocation();
   const { routeCoords, snappedStart, snappedEnd } = useRoute();
   const { startPreview } = usePreviewTrip();
 
-  const canPreview = snappedStart && snappedEnd && routeCoords.length >= 2;
+  const canPreview = canStartTrip && snappedStart && snappedEnd && routeCoords.length >= 2;
 
   function handleClick() {
     if (!canPreview) return;

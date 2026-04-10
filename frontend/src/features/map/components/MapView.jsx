@@ -73,7 +73,7 @@ export function MapView({
   const [dragging, setDragging] = useState(null);
 
   const { fitBoundsOnDrag } = useFitBounds({
-    mapRef, snappedStart, snappedEnd, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight,
+    mapRef, snappedStart, snappedEnd, routeCoords, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight,
   });
 
   const bearing = isTripActive && position?.heading != null ? position.heading : 0;
