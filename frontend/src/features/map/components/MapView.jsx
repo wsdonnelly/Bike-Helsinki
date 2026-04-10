@@ -59,7 +59,7 @@ export function MapView({
   routeModes,
   onMarkerDragEnd,
 }) {
-  const { isSatView, panelOpen, routeFitTick, getSheetVisibleHeight } = useRouteSettingsContext();
+  const { isSatView, panelOpen, cameraRefitTick, getSheetVisibleHeight } = useRouteSettingsContext();
   const { position, isTripActive, isLocating } = useGeolocation();
   const { snappedStartSource } = useRoute();
   const gpsLockedStart = isLocating && snappedStartSource === "gps";
@@ -73,7 +73,7 @@ export function MapView({
   const [dragging, setDragging] = useState(null);
 
   const { fitBoundsOnDrag } = useMapCamera({
-    mapRef, snappedStart, snappedEnd, routeCoords, isMobile, panelOpen, isTripActive, routeFitTick, getSheetVisibleHeight,
+    mapRef, snappedStart, snappedEnd, routeCoords, isMobile, panelOpen, isTripActive, cameraRefitTick, getSheetVisibleHeight,
     isLocating, position, bearing: position?.heading ?? null,
   });
 

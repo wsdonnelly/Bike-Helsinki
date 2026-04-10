@@ -9,8 +9,8 @@ export function RouteSettingsProvider({ children }) {
   const { settings } = useRoute();
 
   const [panelOpen, setPanelOpen] = useState(false);
-  const [routeFitTick, setRouteFitTick] = useState(0);
-  const triggerRouteFit = () => setRouteFitTick((n) => n + 1);
+  const [cameraRefitTick, setCameraRefitTick] = useState(0);
+  const triggerCameraRefit = () => setCameraRefitTick((n) => n + 1);
   const sheetHeightRef = useRef(0);
   const sheetOffsetRef = useRef(0);
   const setSheetHeight = useCallback((h) => {
@@ -63,8 +63,8 @@ export function RouteSettingsProvider({ children }) {
     panelOpen,
     openPanel,
     closePanel,
-    routeFitTick,
-    triggerRouteFit,
+    cameraRefitTick,
+    triggerCameraRefit,
     setSheetHeight,
     setSheetOffset,
     getSheetVisibleHeight,

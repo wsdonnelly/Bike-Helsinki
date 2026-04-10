@@ -28,7 +28,7 @@ export default function MobileSheet() {
     applySettings,
     isSatView,
     toggleSatView,
-    triggerRouteFit,
+    triggerCameraRefit,
     setSheetHeight,
     setSheetOffset,
   } = useRouteSettingsContext();
@@ -95,10 +95,10 @@ export default function MobileSheet() {
             transition: draggingRef.current ? "none" : "transform .2s ease",
           }}
           onPointerMove={onDragMove}
-          onPointerUp={() => endDrag(closePanel, (offset) => { setSheetOffset(offset); if (hasSelection) triggerRouteFit(); })}
+          onPointerUp={() => endDrag(closePanel, (offset) => { setSheetOffset(offset); if (hasSelection) triggerCameraRefit(); })}
           onPointerCancel={() => endDrag(closePanel, setSheetOffset)}
           onTouchMove={onDragMove}
-          onTouchEnd={() => endDrag(closePanel, (offset) => { setSheetOffset(offset); if (hasSelection) triggerRouteFit(); })}
+          onTouchEnd={() => endDrag(closePanel, (offset) => { setSheetOffset(offset); if (hasSelection) triggerCameraRefit(); })}
           onTouchCancel={() => endDrag(closePanel, setSheetOffset)}
         >
           <div
@@ -125,7 +125,7 @@ export default function MobileSheet() {
             startTrip={startTrip}
             stopTrip={stopTrip}
             stopLocating={stopLocating}
-            onAfterTripStop={() => { if (hasSelection) triggerRouteFit(); }}
+            onAfterTripStop={() => { if (hasSelection) triggerCameraRefit(); }}
             onAfterTripStart={closePanel}
             tripContainerStyle={{ paddingBottom: 8, borderBottom: "1px solid #eee", marginBottom: 8 }}
           />
@@ -142,7 +142,7 @@ export default function MobileSheet() {
               Planner
             </button>
             <button
-              onClick={() => { setActiveTab("preferences"); if (hasSelection) setTimeout(triggerRouteFit, 0); }}
+              onClick={() => { setActiveTab("preferences"); if (hasSelection) setTimeout(triggerCameraRefit, 0); }}
               style={{
                 ...styles.tabBtn,
                 backgroundColor: activeTab === "preferences" ? "#f0f0f0" : "#fff",
@@ -163,7 +163,7 @@ export default function MobileSheet() {
                 onSelectNone={selectNone}
                 onSelectPaved={selectPaved}
                 onSelectUnpaved={selectUnpaved}
-                onApply={() => { commitApply(); setActiveTab("preferences"); if (hasSelection) setTimeout(triggerRouteFit, 0); }}
+                onApply={() => { commitApply(); setActiveTab("preferences"); if (hasSelection) setTimeout(triggerCameraRefit, 0); }}
               />
               {SURFACE_GROUPS.map((group) => (
                 <SurfaceCheckboxGroup
@@ -182,7 +182,7 @@ export default function MobileSheet() {
               <SurfacePenaltyControl
                 value={draftPenalty}
                 onChange={setDraftPenalty}
-                onApply={() => { commitApply(); if (hasSelection) triggerRouteFit(); }}
+                onApply={() => { commitApply(); if (hasSelection) triggerCameraRefit(); }}
               />
               <RideStats
                 sticky={false}

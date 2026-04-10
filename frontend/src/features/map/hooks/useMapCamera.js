@@ -9,7 +9,7 @@ export function useMapCamera({
   routeCoords,
   isMobile,
   panelOpen,
-  routeFitTick,
+  cameraRefitTick,
   getSheetVisibleHeight,
   isTripActive,
   isLocating,
@@ -124,13 +124,13 @@ export function useMapCamera({
 
   // Mobile explicit refit tick
   useEffect(() => {
-    if (routeFitTick === 0 || !snappedStart || !snappedEnd) return;
+    if (cameraRefitTick === 0 || !snappedStart || !snappedEnd) return;
     const map = mapRef.current;
     if (!map) return;
     fitCurrentRoute(map, routeCoords, snappedStart, snappedEnd,
       computePadding(true, false, getSheetVisibleHeight() || MOBILE_SHEET_HEIGHT_PX));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeFitTick]);
+  }, [cameraRefitTick]);
 
   // --- Navigation effects ---
 
